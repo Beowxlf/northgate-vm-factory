@@ -1,0 +1,9 @@
+{
+  "$schema": "../schemas/image-catalog.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "ImageCatalog",
+  "catalogVersion": "2026.07.31.1",
+  "promotedOnly": true,
+  "images": [],
+  "status": "inventory-required"
+}

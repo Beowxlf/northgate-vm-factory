@@ -1,0 +1,32 @@
+{
+  "$schema": "../schemas/network-catalog.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "NetworkCatalog",
+  "catalogVersion": "2026.07.31.1",
+  "profiles": [
+    {
+      "id": "tooling-primary",
+      "serverPolicyId": "ng-network-tooling-primary-v1",
+      "approvalStatus": "proposed",
+      "allowAttach": true,
+      "allowCreate": false,
+      "allowRebind": false
+    },
+    {
+      "id": "isolated-tooling",
+      "serverPolicyId": "ng-network-isolated-tooling-v1",
+      "approvalStatus": "proposed",
+      "allowAttach": true,
+      "allowCreate": false,
+      "allowRebind": false
+    },
+    {
+      "id": "isolated-northgate",
+      "serverPolicyId": "ng-network-isolated-northgate-v1",
+      "approvalStatus": "proposed",
+      "allowAttach": true,
+      "allowCreate": false,
+      "allowRebind": false
+    }
+  ]
+}

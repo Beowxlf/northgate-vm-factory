@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Beowxlf/northgate-vm-factory/schemas/image-catalog.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "apiVersion", "kind", "catalogVersion", "promotedOnly", "images", "status"],
+  "properties": {
+    "$schema": { "const": "../schemas/image-catalog.schema.json" },
+    "apiVersion": { "const": "northgate/v1alpha1" },
+    "kind": { "const": "ImageCatalog" },
+    "catalogVersion": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}\\.[0-9]+$" },
+    "promotedOnly": { "const": true },
+    "status": { "enum": ["inventory-required", "active"] },
+    "images": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "sha256", "sizeBytes", "guestFamily", "architecture", "allowedGenerations", "allowedFirmwareProfiles", "sourceArtifactId", "approvalStatus", "retirementStatus"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^(?!latest$)[a-z0-9][a-z0-9.-]{1,63}$" },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "sizeBytes": { "type": "integer", "minimum": 1 },
+          "guestFamily": { "enum": ["windows", "linux", "appliance"] },
+          "architecture": { "const": "x86_64" },
+          "allowedGenerations": { "type": "array", "const": [2] },
+          "allowedFirmwareProfiles": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{1,63}$" }
+          },
+          "sourceArtifactId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{1,127}$" },
+          "approvalStatus": { "enum": ["promoted", "rejected"] },
+          "retirementStatus": { "enum": ["active", "retired"] },
+          "retirementDate": { "type": "string", "format": "date" }
+        }
+      }
+    }
+  }
+}

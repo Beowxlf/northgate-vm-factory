@@ -1,0 +1,29 @@
+name: Validate repository policy
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repository-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    name: JSON, catalog, and safety checks
+    runs-on: windows-latest
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+
+      - name: Run dependency-free policy validation
+        shell: pwsh
+        run: ./scripts/Test-Repository.ps1

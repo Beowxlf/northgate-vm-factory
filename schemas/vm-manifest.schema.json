@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Beowxlf/northgate-vm-factory/schemas/vm-manifest.schema.json",
+  "title": "NorthGate managed virtual machine",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "../../schemas/vm-manifest.schema.json"
+    },
+    "apiVersion": {
+      "type": "string",
+      "const": "northgate/v1alpha1"
+    },
+    "kind": {
+      "type": "string",
+      "const": "VirtualMachine"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assetId",
+        "name",
+        "ownerRef",
+        "purpose",
+        "environment",
+        "criticality",
+        "dataClassification",
+        "lifecycle",
+        "reviewOrRetirementDate",
+        "changeRef",
+        "dependencies"
+      ],
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "pattern": "^NG-VM-[0-9]{3,}$"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Z](?:[A-Z0-9-]{0,13}[A-Z0-9])?$"
+        },
+        "ownerRef": {
+          "$ref": "#/$defs/profileRef"
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240,
+          "pattern": "^[ -~]+$"
+        },
+        "environment": {
+          "type": "string",
+          "enum": ["lab", "tooling", "security", "infrastructure"]
+        },
+        "criticality": {
+          "type": "string",
+          "enum": ["low", "moderate", "high", "critical"]
+        },
+        "dataClassification": {
+          "type": "string",
+          "enum": ["internal", "confidential", "restricted"]
+        },
+        "lifecycle": {
+          "type": "string",
+          "enum": ["proposed", "approved", "active"]
+        },
+        "reviewOrRetirementDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "changeRef": {
+          "type": "string",
+          "pattern": "^NG-CHG-[0-9]{8}-[0-9]{3,}$"
+        },
+        "dependencies": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^NG-VM-[0-9]{3,}$"
+          }
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "intent",
+        "generation",
+        "imageRef",
+        "firmwareProfileRef",
+        "compute",
+        "storage",
+        "network",
+        "bootstrapProfileRef",
+        "recoveryProfileRef",
+        "desiredPowerState",
+        "destroyProtection"
+      ],
+      "properties": {
+        "intent": {
+          "type": "string",
+          "enum": ["create", "manage"]
+        },
+        "generation": {
+          "type": "integer",
+          "const": 2
+        },
+        "imageRef": {
+          "$ref": "#/$defs/profileRef"
+        },
+        "firmwareProfileRef": {
+          "$ref": "#/$defs/profileRef"
+        },
+        "compute": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["processors", "memory"],
+          "properties": {
+            "processors": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8
+            },
+            "memory": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["mode", "startupMiB"],
+                  "properties": {
+                    "mode": { "const": "static" },
+                    "startupMiB": { "type": "integer", "multipleOf": 128, "minimum": 1024, "maximum": 32768 }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["mode", "minimumMiB", "startupMiB", "maximumMiB"],
+                  "properties": {
+                    "mode": { "const": "dynamic" },
+                    "minimumMiB": { "type": "integer", "multipleOf": 128, "minimum": 512, "maximum": 32768 },
+                    "startupMiB": { "type": "integer", "multipleOf": 128, "minimum": 1024, "maximum": 32768 },
+                    "maximumMiB": { "type": "integer", "multipleOf": 128, "minimum": 1024, "maximum": 65536 }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "storage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["profileRef", "osDiskGiB"],
+          "properties": {
+            "profileRef": {
+              "$ref": "#/$defs/profileRef"
+            },
+            "osDiskGiB": {
+              "type": "integer",
+              "minimum": 20,
+              "maximum": 256
+            }
+          }
+        },
+        "network": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["profileRef"],
+          "properties": {
+            "profileRef": {
+              "$ref": "#/$defs/profileRef"
+            }
+          }
+        },
+        "bootstrapProfileRef": {
+          "$ref": "#/$defs/profileRef"
+        },
+        "recoveryProfileRef": {
+          "$ref": "#/$defs/profileRef"
+        },
+        "desiredPowerState": {
+          "type": "string",
+          "enum": ["unmanaged", "off", "running"]
+        },
+        "destroyProtection": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    }
+  },
+  "$defs": {
+    "profileRef": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]{1,63}$"
+    }
+  }
+}

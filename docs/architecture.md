@@ -1,0 +1,72 @@
+# NorthGate VM provisioning architecture
+
+## Decision
+
+Use a Git-backed, human-approved GitOps-lite model with native Hyper-V PowerShell behind the guarded NorthGate MCP boundary. Keep GitHub, Codex, planning, and deployment control off the hypervisor. Treat Git as reviewed input, not an authority to mutate the host.
+
+The architecture map in the [repository README](../README.md#architecture-map) is canonical.
+
+## Trust boundaries
+
+| Boundary | Permitted data/actions | Prohibited data/actions |
+| --- | --- | --- |
+| GitHub private repository | Canonical JSON manifests, opaque catalogs, proposed policy, tests, source, documentation | Secrets, live plans, receipts, identity ledger, private keys, generated credentials, Terraform state, lab credentials |
+| GitHub-hosted CI | Read-only checkout; static syntax, schema, policy, and negative tests | NorthGate route, deployment credential, self-hosted runner, privileged apply, writable workflow token |
+| Authorized workstation | Fixed data-only fetcher, installed signed planner/executor, protected credentials, manual invocation, receipt collection | Executing checkout content in the privileged path, moving branch references, accepting arbitrary commits, bypassing plan expiry |
+| Forwarding tunnel | Dedicated forwarding-only identity, pinned endpoints, local loopback, application-authenticated requests | Reuse of the Administrator key, general shell, treating loopback as client authentication |
+| NorthGate MCP | Typed inventory, plan registration, plan-ID apply, host policy, audit, single-writer lock | Public/LAN listener, generic routine shell, trusting client validation, mutating calls that bypass the plan registry |
+| NorthGate Hyper-V host | Installed provisioner and policy bundle; native Hyper-V state transition | GitHub runner, Git credential, arbitrary checkout, automatic fabric, firewall, feature, or storage-root mutation |
+| Operation-SeeSaw | Decisions, assets, risks, evidence hashes, signed receipt outcome | Credentials, private keys, unredacted secrets, executor write access, raw logs as executive narrative |
+
+## Authorization flow
+
+1. The owner states the desired outcome, asset identity, ownership, purpose, classification, criticality, dependencies, recovery profile, and lifecycle intent.
+2. Codex prepares canonical JSON data on a branch. Hosted CI validates it without lab access.
+3. A human reviews and merges. Merge approves intent but does not approve deployment.
+4. A fixed fetcher obtains only allowlisted data from the approved repository identity and exact merged commit/tree. It disables hooks, filters, submodules, LFS execution, and repository-supplied code.
+5. The installed planner collects a normalized read set through the authenticated loopback tunnel and calculates the post-merge delta.
+6. The plan binds repository identity, protected-branch reachability, commit, tree, manifest, catalog, policy, observed state, image, and installed executor/provisioner versions.
+7. The host independently validates the canonical plan against authoritative policy and live state, registers it, and issues an expiring plan ID plus an authenticated plan hash.
+8. A human approves that exact plan ID and hash. A model, repository merge, or ordinary client-computed SHA-256 is not deployment approval.
+9. The installed executor submits only the approved plan ID using a dedicated application identity. The host lock covers every routine mutating operation.
+10. The host re-reads the relevant state, rejects any mismatch, resolves opaque policy identifiers, and invokes allowlisted Hyper-V operations.
+11. A signed receipt records the change ID, repository/commit, plan, actor, operations, and before/after hashes. A separate collector anchors it in Operation-SeeSaw.
+
+## Identity and authority
+
+- A separately protected ledger binds immutable `assetId` to the Hyper-V VM ID and canonical case-folded name. The manifest cannot claim a VM ID.
+- Asset IDs and names must be unique across desired manifests, observed inventory, the ledger, and live Hyper-V state.
+- An unmanaged same-name VM, mismatched VM ID, reused disk, missing ledger binding, or name drift is a collision and hard stop. It is never implicit adoption.
+- Observed inventory is non-actionable. Adoption and decommission use separate typed records and approvals; neither is represented by a standard VM manifest.
+- The host-side installed policy is authoritative for storage roots, switch identity/fingerprint, image artifacts, firmware, capacity, and action allowlists. Git catalogs can narrow but never widen it.
+
+## Failure behavior
+
+- **Invalid, duplicate, unknown, or secret-like input:** reject before planning without echoing the sensitive value.
+- **Raw path, switch identity, URL, command, or script in a manifest:** reject before planning.
+- **Unpromoted, retired, mutable, or digest-mismatched image:** reject before apply.
+- **Image, generation, firmware, or vTPM incompatibility:** reject before apply.
+- **Unmanaged identity/name/disk collision:** stop; never adopt, replace, or quarantine unrelated artifacts.
+- **State drift, policy change, expiry, or host maintenance marker:** invalidate and re-plan.
+- **Concurrent apply:** reject through the host-side lock shared by every normal mutating method.
+- **Replacement-required change:** report `ReplaceRequired`; it is non-applicable in the initial executor.
+- **Partial new-VM failure:** quarantine only artifacts carrying the matching change/asset identity.
+- **Existing-VM change failure:** preserve before-state and require a new reviewed rollback plan.
+- **Missing or renamed manifest:** report drift only; never infer deletion.
+- **Evidence export failure:** mark evidence reconciliation pending; do not falsely claim Hyper-V rollback.
+
+## Separation rules
+
+- VM intent, catalog/policy, and privileged executor/provisioner releases are distinct promotion units. A VM change cannot consume a relaxed policy in the same deployment.
+- The normal MCP identity cannot invoke a mutating bypass. Direct lifecycle tools, if retained, require a separate break-glass identity and maintenance/change record.
+- The tunnel key is forwarding-only and inaccessible to the planner as a general Administrator credential. The administrative SSH key is inaccessible to the normal executor identity.
+- Hosted CI has no inbound or outbound path to the private lab. The workstation is invoked manually or polls outbound; it exposes no webhook listener.
+
+## Explicit non-goals for the initial release
+
+- Terraform/OpenTofu as the direct Hyper-V lifecycle engine.
+- SCVMM, Azure Arc, or an enterprise orchestration layer.
+- A GitHub Actions runner on the hypervisor.
+- Destructive reconciliation, automatic replacement, adoption, decommission, or purge.
+- Automatic virtual-switch, firewall, host-feature, or storage-root changes.
+- Guest configuration beyond a referenced, versioned bootstrap profile.

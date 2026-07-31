@@ -1,0 +1,13 @@
+{
+  "$schema": "../schemas/profile-catalog.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "BootstrapCatalog",
+  "catalogVersion": "2026.07.31.1",
+  "profiles": [
+    {
+      "id": "none",
+      "serverPolicyId": "ng-bootstrap-none-v1",
+      "approvalStatus": "approved"
+    }
+  ]
+}

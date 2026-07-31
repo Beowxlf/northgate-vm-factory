@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Beowxlf/northgate-vm-factory/schemas/network-catalog.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "apiVersion", "kind", "catalogVersion", "profiles"],
+  "properties": {
+    "$schema": { "const": "../schemas/network-catalog.schema.json" },
+    "apiVersion": { "const": "northgate/v1alpha1" },
+    "kind": { "const": "NetworkCatalog" },
+    "catalogVersion": { "$ref": "#/$defs/version" },
+    "profiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "serverPolicyId", "approvalStatus", "allowAttach", "allowCreate", "allowRebind"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "serverPolicyId": { "$ref": "#/$defs/id" },
+          "approvalStatus": { "enum": ["proposed", "approved", "retired"] },
+          "allowAttach": { "type": "boolean" },
+          "allowCreate": { "const": false },
+          "allowRebind": { "const": false }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{1,63}$" },
+    "version": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}\\.[0-9]+$" }
+  }
+}

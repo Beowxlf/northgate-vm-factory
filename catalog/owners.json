@@ -1,0 +1,13 @@
+{
+  "$schema": "../schemas/profile-catalog.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "OwnerCatalog",
+  "catalogVersion": "2026.07.31.1",
+  "profiles": [
+    {
+      "id": "northgate-owner",
+      "serverPolicyId": "ng-owner-primary-v1",
+      "approvalStatus": "proposed"
+    }
+  ]
+}

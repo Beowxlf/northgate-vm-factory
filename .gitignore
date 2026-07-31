@@ -1,0 +1,33 @@
+# Local environment and editor state
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+*.swp
+*.tmp
+
+# Secrets and credentials
+secrets/
+*.key
+*.pem
+*.pfx
+*.p12
+id_rsa*
+id_ed25519*
+*credential*
+*secret*
+
+# Generated sensitive or machine-local state
+*.tfstate
+*.tfstate.*
+*.unattend.generated.xml
+plans/live/
+receipts/private/
+out/
+artifacts/
+
+# PowerShell and test output
+TestResults/
+*.clixml
+*.transcript.txt

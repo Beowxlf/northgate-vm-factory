@@ -1,0 +1,38 @@
+{
+  "$schema": "../schemas/resource-policy.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "ResourcePolicy",
+  "policyVersion": "2026.07.31.1",
+  "status": "proposed",
+  "applyEnabled": false,
+  "hostReserveMemoryMiB": 49152,
+  "minimumVolumeFreeGiB": 100,
+  "minimumVolumeFreePercent": 15,
+  "perVm": {
+    "maximumProcessors": 8,
+    "maximumStartupMemoryMiB": 32768,
+    "maximumDynamicMemoryMiB": 65536,
+    "maximumOsDiskGiB": 256
+  },
+  "plannerActions": [
+    "NoOp",
+    "Create",
+    "UpdateOnline",
+    "UpdateOffline",
+    "ReplaceRequired",
+    "DecommissionRequired"
+  ],
+  "executableActions": [],
+  "deniedOperations": [
+    "implicit-delete",
+    "automatic-replace",
+    "disk-shrink",
+    "disk-purge",
+    "routine-switch-create",
+    "routine-switch-delete",
+    "routine-switch-rebind",
+    "host-firewall-change",
+    "host-feature-change",
+    "arbitrary-command"
+  ]
+}

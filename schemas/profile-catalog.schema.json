@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Beowxlf/northgate-vm-factory/schemas/profile-catalog.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "apiVersion", "kind", "catalogVersion", "profiles"],
+  "properties": {
+    "$schema": { "const": "../schemas/profile-catalog.schema.json" },
+    "apiVersion": { "const": "northgate/v1alpha1" },
+    "kind": { "enum": ["OwnerCatalog", "BootstrapCatalog", "RecoveryCatalog", "FirmwareCatalog"] },
+    "catalogVersion": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}\\.[0-9]+$" },
+    "profiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "serverPolicyId", "approvalStatus"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{1,63}$" },
+          "serverPolicyId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{1,63}$" },
+          "approvalStatus": { "enum": ["proposed", "approved", "retired"] }
+        }
+      }
+    }
+  }
+}

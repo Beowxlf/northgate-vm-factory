@@ -1,0 +1,28 @@
+{
+  "$schema": "../schemas/profile-catalog.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "RecoveryCatalog",
+  "catalogVersion": "2026.07.31.1",
+  "profiles": [
+    {
+      "id": "none-canary",
+      "serverPolicyId": "ng-recovery-none-canary-v1",
+      "approvalStatus": "proposed"
+    },
+    {
+      "id": "bronze",
+      "serverPolicyId": "ng-recovery-bronze-v1",
+      "approvalStatus": "proposed"
+    },
+    {
+      "id": "silver",
+      "serverPolicyId": "ng-recovery-silver-v1",
+      "approvalStatus": "proposed"
+    },
+    {
+      "id": "gold",
+      "serverPolicyId": "ng-recovery-gold-v1",
+      "approvalStatus": "proposed"
+    }
+  ]
+}

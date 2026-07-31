@@ -1,0 +1,23 @@
+{
+  "$schema": "../schemas/profile-catalog.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "FirmwareCatalog",
+  "catalogVersion": "2026.07.31.1",
+  "profiles": [
+    {
+      "id": "windows-gen2",
+      "serverPolicyId": "ng-firmware-windows-gen2-v1",
+      "approvalStatus": "proposed"
+    },
+    {
+      "id": "linux-gen2",
+      "serverPolicyId": "ng-firmware-linux-gen2-v1",
+      "approvalStatus": "proposed"
+    },
+    {
+      "id": "firewall-gen2",
+      "serverPolicyId": "ng-firmware-firewall-gen2-v1",
+      "approvalStatus": "proposed"
+    }
+  ]
+}
