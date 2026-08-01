@@ -44,15 +44,17 @@ The proposed VM roles are:
 
 The mail service uses reserved test-only names: `northgate.test` for recipients, `redteam.test` for adversary identities, `mail.northgate.test` for the server, and `mx-edge.northgate.test` for the simulated edge. It does not advertise public DNS or accept unsolicited traffic from the physical WAN.
 
+Sensor roles, Wazuh group boundaries, collection sources, detection promotion, rollback, and evidence gates are governed by the [Wazuh sensor and detection-engineering standard](../wazuh-sensor-and-detection-standard.md). That standard is also proposed and does not authorize installation or rule deployment.
+
 ## Security policy intent
 
-- Treat `sim-wan` as hostile. Deny and log access from it to the trusted LAN, management interfaces, OPNsense administration, and every DMZ service except the simulated SMTP edge.
+- Treat `sim-wan` as hostile. Deny and log access from it to the trusted LAN, management interfaces, OPNsense administration, and every DMZ service except the simulated SMTP edge. An optional Kali Wazuh agent requires a separately approved exact-source exception to agent transport only; management surfaces remain denied.
 - Permit `NG-KALI-EXT01` to reach `172.31.250.25` on TCP 25. Translate only that source and destination to `NG-MAIL-01` on TCP 25.
 - Do not use NAT reflection, a physical-WAN port forward, bridge mode, or a default route that bypasses OPNsense.
 - Permit trusted clients to use authenticated submission on TCP 587 with STARTTLS and IMAPS on TCP 993. If webmail is later added, restrict TCP 443 to trusted management sources.
 - Reject unauthenticated relaying, require valid local recipients, and use synthetic lab accounts rather than Active Directory credentials in the first phase.
 - Permit controlled package updates over TCP 80/443. Block direct outbound TCP 25 to the physical WAN from both new segments.
-- Send mail, authentication, antispam, malware-scan, firewall, NAT, DNS, and routing telemetry to Wazuh. Place any Kali agent in a dedicated red-team group with automatic response disabled.
+- Send mail, authentication, antispam, malware-scan, firewall, NAT, DNS, and routing telemetry to Wazuh under the [sensor standard](../wazuh-sensor-and-detection-standard.md). Place any Kali agent in a dedicated red-team group with automatic response disabled.
 
 ## Provisioning and promotion gates
 
@@ -64,7 +66,8 @@ The mail service uses reserved test-only names: `northgate.test` for recipients,
 6. Promote immutable Debian and Kali images and complete the VM Factory Phase 0 and disposable-canary gates.
 7. Promote the network catalog separately from the first VM change that consumes it.
 8. Only then author VM manifests with approved ownership, classification, recovery, bootstrap, firmware, storage, and lifecycle metadata.
-9. Generate a fresh post-merge plan, obtain the host-issued plan ID and authenticated hash, receive separate deployment approval, apply through the guarded MCP path, and validate the signed receipt.
+9. Approve the role-specific sensor mapping and its separate canary, rollback, and evidence plan; do not enable Active Response for the initial mail or Kali deployment.
+10. Generate a fresh post-merge plan, obtain the host-issued plan ID and authenticated hash, receive separate deployment approval, apply through the guarded MCP path, and validate the signed receipt.
 
 ## Consequences
 
