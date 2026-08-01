@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-This file records reviewed **proposed intent** for future isolated lab segments, the Windows workstation fleet, two SMTP servers, and Kali. It is not live-state evidence, does not authorize a Hyper-V or OPNsense change, and does not replace Operation-SeeSaw as the authoritative IPAM and asset record. Any deployment must revalidate collisions, interface identities, routes, and reservations immediately before planning.
+This file records reviewed **proposed intent** for future isolated lab segments, the Windows workstation fleet, two SMTP servers, Kali, the Employee Hub, and Sentinel Atlas. It is not live-state evidence, does not authorize a Hyper-V or OPNsense change, and does not replace Operation-SeeSaw as the authoritative IPAM and asset record. Any deployment must revalidate collisions, interface identities, routes, and reservations immediately before planning.
 
 The existing trusted LAN remains `10.10.100.0/24`; its complete live address inventory stays in Operation-SeeSaw rather than being duplicated here.
 
@@ -61,6 +61,30 @@ No general dynamic pool is enabled in steady state. OPNsense DHCP remains enable
 | Reserved endpoint range | `10.10.140.21-49` | Future fixed security endpoints |
 | Temporary bootstrap range | `10.10.140.200-209` | Disabled at steady state; time-bounded deployment use only |
 
+### BUSINESS-APPS
+
+| Item | Proposed value | Purpose |
+| --- | --- | --- |
+| VLAN | `150` | Internal business-application service zone |
+| Network | `10.10.150.0/24` | Routed only through OPNsense |
+| Default gateway | `10.10.150.1` | OPNsense BUSINESS-APPS interface |
+| `NG-HR-APP01` | `10.10.150.10` | Aegis Meridian Employee Hub; internal HTTPS only |
+| Reserved infrastructure range | `10.10.150.2-9` | Future network infrastructure only |
+| Reserved service range | `10.10.150.11-49` | Future reviewed internal applications |
+| Unallocated range | `10.10.150.50-254` | No automatic assignment |
+
+### COMMERCIAL-DMZ
+
+| Item | Proposed value | Purpose |
+| --- | --- | --- |
+| VLAN | `160` | Customer-platform service zone with a separately canaried simulated-external path |
+| Network | `10.10.160.0/24` | Routed only through OPNsense |
+| Default gateway | `10.10.160.1` | OPNsense COMMERCIAL-DMZ interface |
+| `NG-PLAT-APP01` | `10.10.160.10` | Sentinel Atlas Commercial; HTTPS only |
+| Reserved infrastructure range | `10.10.160.2-9` | Future network infrastructure only |
+| Reserved service range | `10.10.160.11-49` | Future reviewed customer-facing lab applications |
+| Unallocated range | `10.10.160.50-254` | No automatic assignment |
+
 ### MAIL-INT
 
 | Item | Proposed value | Purpose |
@@ -116,6 +140,10 @@ No general dynamic pool is enabled in steady state. OPNsense DHCP remains enable
 | A `ng-mgr-01.northgate.tooling` | `10.10.110.22` | AD-integrated workstation resolution |
 | A `ng-it-01.northgate.tooling` | `10.10.130.20` | AD-integrated privileged-workstation resolution |
 | A `ng-cyber-01.northgate.tooling` | `10.10.140.20` | AD-integrated security-workstation resolution |
+| A `employees.aegismeridian.test` | `10.10.150.10` | Trusted USERS, manager, and approved IT views only |
+| PTR `10.150.10.10.in-addr.arpa` | `employees.aegismeridian.test` | Trusted reverse view for Employee Hub |
+| A `app.sentinelatlas.test` | `10.10.160.10` | Approved trusted and simulated-external test views |
+| PTR `10.160.10.10.in-addr.arpa` | `app.sentinelatlas.test` | Approved reverse view for Sentinel Atlas |
 
 The `.test` namespace prevents the lab design from depending on or colliding with public DNS. Split views must return only the records required by each zone: Kali uses an OPNsense-hosted simulation view and never queries Active Directory DNS directly; MAIL-INT can resolve the external A/MX/PTR records; only EXT-MAIL resolves the internal edge VIP. No wildcard, public MX, or physical-WAN record is part of this plan.
 
@@ -129,14 +157,15 @@ The `.test` namespace prevents the lab design from depending on or colliding wit
 - Adding a reservation, DHCP pool, route, NAT rule, or DNS record requires its own reviewed change and readback validation.
 - Workstation steady-state addresses use OPNsense fixed DHCP reservations bound to the final Hyper-V adapter identity. A temporary bootstrap lease is not the asset's fixed identity and is removed after reservation and DNS readback.
 - Mail servers use reviewed guest-static addresses after their final adapter identities are registered. Server-zone DHCP is disabled in steady state.
+- Employee Hub and Sentinel Atlas use reviewed guest-static addresses after their final adapter identities are registered. Any `.200-.209` bootstrap mapping is a separate time-bounded change, is never the service identity, and is removed after the guest-static address, forward/reverse DNS, gateway, administration, Wazuh, and approved TacticalRMM state pass; rollback restores only the recorded pre-bootstrap guest and network state.
 - VLAN IDs, access/trunk mode, allowed VLAN lists, native VLAN behavior, and adapter fingerprints are host policy, not VM-manifest fields.
 - Hyper-V trunk mode uses host-validated VLAN 4094 as a native sink. It has no subnet, OPNsense interface, address, DHCP, DNS, route, workload, or allow rule; untagged traffic must fail negative tests.
 
 ## Required validation before activation
 
-1. Confirm `10.10.110.0/24`, `10.10.120.0/24`, `10.10.130.0/24`, `10.10.140.0/24`, `172.31.240.0/24`, and `172.31.250.0/24` are absent from live interfaces, routes, VPN selectors, DHCP scopes, DNS overrides, and retained VM configurations.
-2. Confirm the single private Hyper-V segmentation switch has no external adapter binding or management-OS adapter and matches the installed host-policy fingerprint. Permit tagged VLANs 110, 120, 130, 140, 240, and 250 only; map required native traffic to sink VLAN 4094.
-3. Confirm the OPNsense trunk parent and native sink are unnumbered, OPNsense is the only Layer 3 path for the six routed VLANs, and administrative listeners are neither bound nor permitted on any of their interfaces.
+1. Confirm `10.10.110.0/24`, `10.10.120.0/24`, `10.10.130.0/24`, `10.10.140.0/24`, `10.10.150.0/24`, `10.10.160.0/24`, `172.31.240.0/24`, and `172.31.250.0/24` are absent from live interfaces, routes, VPN selectors, DHCP scopes, DNS overrides, and retained VM configurations.
+2. Confirm the single private Hyper-V segmentation switch has no external adapter binding or management-OS adapter and matches the installed host-policy fingerprint. Permit tagged VLANs 110, 120, 130, 140, 150, 160, 240, and 250 only; map required native traffic to sink VLAN 4094.
+3. Confirm the OPNsense trunk parent and native sink are unnumbered, OPNsense is the only Layer 3 path for the eight routed VLANs, and administrative listeners are neither bound nor permitted on any of their interfaces.
 4. From SIM-WAN, prove trusted-LAN and OPNsense-management access is denied and logged.
 5. Prove only `172.31.240.10` can reach `172.31.240.25:25` and that it translates only to `10.10.120.10:25`; prove Kali cannot reach the VIP or MAIL-INT directly.
 6. Prove Kali can reach only the approved SMTP and mailbox-test listeners on `172.31.240.10` and cannot reach that server's SSH, monitoring, or management paths.
@@ -145,3 +174,5 @@ The `.test` namespace prevents the lab design from depending on or colliding wit
 9. Reconcile the final state into Operation-SeeSaw and bind evidence hashes to the approved change.
 10. For VLANs 110, 130, and 140, prove the exact role-policy matrix in ADR-0003: ordinary users cannot reach management services; IT can reach only approved administration endpoints; Cyber can reach approved security consoles but has no default domain-administration or SIM-WAN path.
 11. Prove that TacticalRMM and Wazuh agent traffic works without exposing either management plane, that Wazuh enrollment closes after each bounded window, and that all five workstation fixed mappings agree with VM, DNS, domain, and agent identities.
+12. For VLAN 150, prove Employee Hub is reachable only through HTTPS from approved trusted roles and is unreachable from SIM-WAN, COMMERCIAL-DMZ, and unapproved management sources.
+13. For VLAN 160, prove Sentinel Atlas is initially reachable only from approved trusted canaries; add one exact-source SIM-WAN HTTPS path only after internal acceptance, while Employee Hub, SSH, database, monitoring, and management listeners remain unreachable.
