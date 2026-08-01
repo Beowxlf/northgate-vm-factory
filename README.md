@@ -113,3 +113,5 @@ PowerShell 7 also performs JSON Schema validation. Windows PowerShell 5.1 perfor
 4. **Later:** promote image construction, guest bootstrap, drift reporting, and narrowly scoped low-risk automation.
 
 See [the acceptance gates](docs/acceptance-tests.md), [the manifest contract](docs/manifest-contract.md), and [ADR-0001](docs/decision-records/ADR-0001-gitops-lite.md). Live assessment evidence and environment-specific mappings remain off Git in Operation-SeeSaw.
+
+Proposed workload designs remain non-operative until their stated control-plane and VM Factory gates pass. The current mail and simulated-external design is recorded in [ADR-0002](docs/decision-records/ADR-0002-segmented-mail-and-external-simulation.md), with proposed address intent in the [IPAM plan](docs/ipam-plan.md).
