@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://northgate.invalid/schemas/bootstrap-request.schema.json",
+  "title": "NorthGate no-secret bootstrap media request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion", "kind", "assetId", "name", "hostname", "family", "imageId",
+    "architecture", "staticMacAddress", "vlanId", "network", "roleHook",
+    "managementSourceAddress", "bootstrapIdentity", "temporaryAccessHours",
+    "firmwareProfile", "secureBoot", "secureBootTemplate", "vtpmRequired", "buildEpochUtc"
+  ],
+  "properties": {
+    "apiVersion": { "const": "northgate/v1alpha1" },
+    "kind": { "const": "BootstrapMediaRequest" },
+    "assetId": { "type": "string", "pattern": "^NG-VM-[0-9]{3}$" },
+    "name": { "type": "string", "pattern": "^NG-[A-Z0-9-]{1,12}$" },
+    "hostname": { "type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,13}[A-Za-z0-9])?$" },
+    "family": { "enum": ["debian", "windows", "kali"] },
+    "imageId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{2,79}$" },
+    "architecture": { "const": "x86_64" },
+    "staticMacAddress": { "type": "string", "pattern": "^024E47[0-9A-F]{6}$" },
+    "vlanId": { "type": "integer", "minimum": 1, "maximum": 4094 },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["address", "prefixLength", "gateway", "dnsServers", "domainSuffix"],
+      "properties": {
+        "address": { "type": "string", "format": "ipv4" },
+        "prefixLength": { "type": "integer", "minimum": 8, "maximum": 30 },
+        "gateway": { "type": "string", "format": "ipv4" },
+        "dnsServers": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": { "type": "string", "format": "ipv4" }
+        },
+        "domainSuffix": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9.-]{0,61}[a-z0-9])?$" }
+      }
+    },
+    "roleHook": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,63}$" },
+    "managementSourceAddress": { "const": "10.10.100.11" },
+    "bootstrapIdentity": { "const": "northgate-bootstrap" },
+    "temporaryAccessHours": { "const": 24 },
+    "firmwareProfile": { "enum": ["windows-gen2", "linux-gen2", "kali-gen2-unsigned"] },
+    "secureBoot": { "type": "boolean" },
+    "secureBootTemplate": { "enum": ["MicrosoftWindows", "MicrosoftUEFICertificateAuthority", "Disabled"] },
+    "secureBootExceptionId": { "const": "NG-FW-20260802-KALI-UNSIGNED" },
+    "vtpmRequired": { "type": "boolean" },
+    "windowsEditionIndex": { "const": 6 },
+    "buildEpochUtc": { "type": "string", "pattern": "^20[0-9]{2}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "family": { "const": "windows" } }, "required": ["family"] },
+      "then": { "required": ["windowsEditionIndex"], "properties": { "secureBoot": { "const": true }, "vtpmRequired": { "const": true } } },
+      "else": { "not": { "required": ["windowsEditionIndex"] } }
+    },
+    {
+      "if": { "properties": { "family": { "const": "kali" } }, "required": ["family"] },
+      "then": { "required": ["secureBootExceptionId"], "properties": { "secureBoot": { "const": false }, "secureBootTemplate": { "const": "Disabled" }, "vtpmRequired": { "const": false } } },
+      "else": { "not": { "required": ["secureBootExceptionId"] } }
+    }
+  ]
+}

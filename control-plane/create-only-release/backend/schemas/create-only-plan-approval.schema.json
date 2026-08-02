@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "northgate/create-only-plan-approval/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "approvalId", "decision", "planId", "planHash", "planAuthenticationHash", "changeId", "repository", "releaseManifestSha256", "authorizationSha256", "policySha256", "dataBundleSha256", "issuedAtUtc", "expiresAtUtc", "approverSid", "nonce", "useLimit"],
+  "properties": {
+    "schema": { "const": "northgate/create-only-plan-approval/v1" },
+    "approvalId": { "type": "string", "pattern": "^nga-[a-f0-9]{64}$" },
+    "decision": { "const": "approve" },
+    "planId": { "type": "string", "pattern": "^ngp-[a-f0-9]{64}$" },
+    "planHash": { "$ref": "#/$defs/hash" },
+    "planAuthenticationHash": { "$ref": "#/$defs/hash" },
+    "changeId": { "type": "string", "pattern": "^NG-CHG-[0-9]{8}-[0-9]{3,}$" },
+    "repository": {
+      "type": "object", "additionalProperties": false, "required": ["identity", "commit", "tree"],
+      "properties": {
+        "identity": { "const": "Beowxlf/northgate-vm-factory" },
+        "commit": { "$ref": "#/$defs/gitHash" },
+        "tree": { "$ref": "#/$defs/gitHash" }
+      }
+    },
+    "releaseManifestSha256": { "$ref": "#/$defs/hash" },
+    "authorizationSha256": { "$ref": "#/$defs/hash" },
+    "policySha256": { "$ref": "#/$defs/hash" },
+    "dataBundleSha256": { "$ref": "#/$defs/hash" },
+    "issuedAtUtc": { "$ref": "#/$defs/time" },
+    "expiresAtUtc": { "$ref": "#/$defs/time" },
+    "approverSid": { "type": "string", "pattern": "^S-1-[0-9-]+$" },
+    "nonce": { "$ref": "#/$defs/hash" },
+    "useLimit": { "const": 1 }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "gitHash": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "time": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" }
+  }
+}

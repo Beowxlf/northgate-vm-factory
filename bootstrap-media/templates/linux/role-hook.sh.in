@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+requested="${1:-}"
+case "$requested" in
+  debian12-disposable-canary|debian12-mail-external|debian12-mail-internal|debian12-employee-hub|debian12-sentinel-atlas|kali-external-lab) ;;
+  *) echo 'NGBM-ROLE-HOOK-NOT-ALLOWED' >&2; exit 1 ;;
+esac
+
+install -d -m 0755 /etc/northgate
+printf '%s\n' "$requested" > /etc/northgate/role-hook
+chmod 0644 /etc/northgate/role-hook
+# Deliberately no enrollment, download, credential, or application action occurs here.
+# Add future role actions only as reviewed, fixed, offline code keyed by the cases above.

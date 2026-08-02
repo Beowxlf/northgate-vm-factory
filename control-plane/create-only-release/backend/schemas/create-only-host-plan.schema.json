@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "northgate/create-only-host-plan/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "planId", "reservationId", "issuedAtUtc", "expiresAtUtc", "repository", "release", "authorization", "policy", "data", "liveState", "operation", "approval", "failure"],
+  "properties": {
+    "schema": { "const": "northgate/create-only-host-plan/v1" },
+    "planId": { "type": "string", "pattern": "^ngp-[a-f0-9]{64}$" },
+    "reservationId": { "type": "string", "pattern": "^ngrsv-[a-f0-9]{64}$" },
+    "issuedAtUtc": { "$ref": "#/$defs/time" }, "expiresAtUtc": { "$ref": "#/$defs/time" },
+    "repository": { "type": "object" }, "release": { "type": "object" }, "authorization": { "type": "object" },
+    "policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["policyId", "policyVersion", "policySha256", "rolloutAuthorizationSha256", "rolloutSequence", "rolloutStage"],
+      "properties": {
+        "policyId": { "$ref": "#/$defs/id" }, "policyVersion": { "type": "string" },
+        "policySha256": { "$ref": "#/$defs/hash" }, "rolloutAuthorizationSha256": { "$ref": "#/$defs/hash" },
+        "rolloutSequence": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "rolloutStage": { "enum": ["debian-canary", "windows-canary", "persistent-fleet"] }
+      }
+    }, "data": { "type": "object" }, "liveState": { "type": "object" },
+    "operation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["action", "assetId", "name", "changeId", "generation", "processors", "memoryMode", "minimumMemoryMiB", "startupMemoryMiB", "maximumMemoryMiB", "storageProfileRef", "storageRoot", "assetRoot", "vhdPath", "osDiskGiB", "imageRef", "imagePath", "imageSha256", "bootstrapMediaId", "bootstrapMediaMode", "bootstrapMediaPath", "bootstrapMediaSha256", "bootstrapMediaSizeBytes", "bootstrapMediaSourceImageId", "bootstrapMediaSourceImageSha256", "bootstrapMediaProvenancePath", "bootstrapMediaProvenanceSha256", "bootstrapMediaBundleManifestSha256", "bootstrapMediaBuilderId", "bootstrapMediaBuilderReleaseSha256", "bootstrapMediaRecipeSha256", "bootstrapMediaUnattendedPayloadSha256", "bootstrapMediaSourceCommit", "bootstrapMediaSourceTree", "installationMediaBindingMode", "expectedDvdCount", "firmwareProfileRef", "secureBootEnabled", "secureBootTemplate", "secureBootExceptionId", "vtpmRequired", "networkProfileRef", "switchId", "switchName", "vlanId", "adapterPolicyId", "adapterReservationId", "staticMacAddress", "adapterIdBindingMode", "expectedAdapterCount", "bootstrapProfileRef", "recoveryProfileRef", "desiredPowerState", "destroyProtection"],
+      "properties": {
+        "action": { "const": "Create" }, "assetId": { "type": "string", "pattern": "^NG-VM-[0-9]{3,}$" },
+        "name": { "type": "string", "pattern": "^[A-Z](?:[A-Z0-9-]{0,13}[A-Z0-9])?$" },
+        "changeId": { "type": "string", "pattern": "^NG-CHG-[0-9]{8}-[0-9]{3,}$" }, "generation": { "const": 2 },
+        "processors": { "type": "integer", "minimum": 1, "maximum": 8 }, "memoryMode": { "enum": ["static", "dynamic"] },
+        "minimumMemoryMiB": { "type": "integer" }, "startupMemoryMiB": { "type": "integer" }, "maximumMemoryMiB": { "type": "integer" },
+        "storageProfileRef": { "$ref": "#/$defs/id" }, "storageRoot": { "$ref": "#/$defs/path" }, "assetRoot": { "$ref": "#/$defs/path" },
+        "vhdPath": { "$ref": "#/$defs/path" }, "osDiskGiB": { "type": "integer", "minimum": 20, "maximum": 256 },
+        "imageRef": { "$ref": "#/$defs/id" }, "imagePath": { "$ref": "#/$defs/path" }, "imageSha256": { "$ref": "#/$defs/hash" },
+        "bootstrapMediaId": { "type": "string", "pattern": "^ngmedia-ng-vm-[0-9]{3,}$" },
+        "bootstrapMediaMode": { "const": "asset-bound-derivative-iso" },
+        "bootstrapMediaPath": { "$ref": "#/$defs/path" }, "bootstrapMediaSha256": { "$ref": "#/$defs/hash" },
+        "bootstrapMediaSizeBytes": { "type": "integer", "minimum": 1 },
+        "bootstrapMediaSourceImageId": { "enum": ["debian-12.12-amd64-netinst", "kali-2026.2-installer-netinst-amd64", "windows-11-25h2-english-x64"] },
+        "bootstrapMediaSourceImageSha256": { "$ref": "#/$defs/hash" },
+        "bootstrapMediaProvenancePath": { "$ref": "#/$defs/path" }, "bootstrapMediaProvenanceSha256": { "$ref": "#/$defs/hash" },
+        "bootstrapMediaBundleManifestSha256": { "$ref": "#/$defs/hash" },
+        "bootstrapMediaBuilderId": { "const": "northgate-unattended-media-v1" },
+        "bootstrapMediaBuilderReleaseSha256": { "$ref": "#/$defs/hash" },
+        "bootstrapMediaRecipeSha256": { "$ref": "#/$defs/hash" },
+        "bootstrapMediaUnattendedPayloadSha256": { "$ref": "#/$defs/hash" },
+        "bootstrapMediaSourceCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "bootstrapMediaSourceTree": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "installationMediaBindingMode": { "const": "asset-bound-immutable-unattended" },
+        "expectedDvdCount": { "const": 1 },
+        "firmwareProfileRef": { "$ref": "#/$defs/id" }, "secureBootEnabled": { "type": "boolean" },
+        "secureBootTemplate": { "enum": ["MicrosoftWindows", "MicrosoftUEFICertificateAuthority", "None"] },
+        "secureBootExceptionId": { "enum": ["none", "NG-FW-20260802-KALI-UNSIGNED"] }, "vtpmRequired": { "type": "boolean" },
+        "networkProfileRef": { "$ref": "#/$defs/id" }, "switchId": { "$ref": "#/$defs/guid" }, "switchName": { "type": "string" },
+        "vlanId": { "enum": [110, 120, 130, 140, 150, 160, 240, 250] },
+        "adapterPolicyId": { "type": "string", "pattern": "^ngnic-[a-z0-9-]{8,64}$" }, "adapterReservationId": { "type": "string", "pattern": "^ngnicr-[a-f0-9]{64}$" }, "staticMacAddress": { "type": "string", "pattern": "^02[0-9A-F]{10}$" },
+        "adapterIdBindingMode": { "const": "hyperv-issued-journal-before-first-boot" }, "expectedAdapterCount": { "const": 1 },
+        "bootstrapProfileRef": { "$ref": "#/$defs/id" }, "recoveryProfileRef": { "$ref": "#/$defs/id" },
+        "desiredPowerState": { "enum": ["off", "running"] }, "destroyProtection": { "const": true }
+      }
+    },
+    "approval": { "type": "object" }, "failure": { "type": "object" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{1,63}$" },
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "guid": { "type": "string", "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$" },
+    "path": { "type": "string", "pattern": "^[A-Za-z]:\\\\", "maxLength": 240 },
+    "time": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" }
+  }
+}

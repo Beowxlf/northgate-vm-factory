@@ -1,0 +1,41 @@
+#!/bin/sh
+set -eu
+
+identity='northgate-bootstrap'
+management_source='@@MANAGEMENT_SOURCE@@'
+role_hook='@@ROLE_HOOK@@'
+access_hours='@@ACCESS_HOURS@@'
+media_dir='/root/northgate-media'
+
+test "$(id -u)" -eq 0
+test -f "$media_dir/authorized_key"
+test -f "$media_dir/request.json"
+test -f "$media_dir/provenance-input.json"
+
+install -d -m 0700 -o "$identity" -g "$identity" "/home/$identity/.ssh"
+install -m 0600 -o "$identity" -g "$identity" "$media_dir/authorized_key" "/home/$identity/.ssh/authorized_keys"
+
+install -d -m 0755 /etc/ssh/sshd_config.d /etc/northgate/bootstrap /usr/local/libexec
+install -m 0644 "$media_dir/90-northgate-bootstrap.conf" /etc/ssh/sshd_config.d/90-northgate-bootstrap.conf
+install -m 0440 "$media_dir/90-northgate-bootstrap-sudoers" /etc/sudoers.d/90-northgate-bootstrap
+visudo -cf /etc/sudoers.d/90-northgate-bootstrap
+
+install -m 0600 "$media_dir/northgate-bootstrap.nft" /etc/northgate/bootstrap/northgate-bootstrap.nft
+install -m 0644 "$media_dir/northgate-bootstrap-firewall.service" /etc/systemd/system/northgate-bootstrap-firewall.service
+install -m 0755 "$media_dir/remove-northgate-bootstrap" /usr/local/sbin/remove-northgate-bootstrap
+install -m 0755 "$media_dir/role-hook.sh" /usr/local/libexec/northgate-role-hook
+install -m 0644 "$media_dir/request.json" /etc/northgate/bootstrap/request.json
+install -m 0644 "$media_dir/provenance-input.json" /etc/northgate/bootstrap/provenance-input.json
+
+passwd -l "$identity"
+expiry="$(date -u -d "+$access_hours hours" +%F)"
+chage -E "$expiry" "$identity"
+
+systemctl enable ssh.service
+systemctl enable nftables.service >/dev/null 2>&1 || true
+systemctl enable northgate-bootstrap-firewall.service
+/usr/local/libexec/northgate-role-hook "$role_hook"
+
+sshd -t
+printf '%s\n' 'status=ready' 'authentication=publickey-only' "source=$management_source" "expires=$expiry" > /etc/northgate/bootstrap/status
+chmod 0600 /etc/northgate/bootstrap/status

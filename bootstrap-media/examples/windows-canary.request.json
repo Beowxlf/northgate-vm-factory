@@ -1,0 +1,29 @@
+{
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "BootstrapMediaRequest",
+  "assetId": "NG-VM-010",
+  "name": "NG-CANARY-01",
+  "hostname": "NG-CANARY-01",
+  "family": "windows",
+  "imageId": "windows-11-25h2-english-x64",
+  "architecture": "x86_64",
+  "staticMacAddress": "024E4700000A",
+  "vlanId": 110,
+  "network": {
+    "address": "10.10.110.200",
+    "prefixLength": 24,
+    "gateway": "10.10.110.1",
+    "dnsServers": ["10.10.100.150"],
+    "domainSuffix": "northgate.tooling"
+  },
+  "roleHook": "windows11-disposable-canary",
+  "managementSourceAddress": "10.10.100.11",
+  "bootstrapIdentity": "northgate-bootstrap",
+  "temporaryAccessHours": 24,
+  "firmwareProfile": "windows-gen2",
+  "secureBoot": true,
+  "secureBootTemplate": "MicrosoftWindows",
+  "vtpmRequired": true,
+  "windowsEditionIndex": 6,
+  "buildEpochUtc": "2026-08-02T00:00:00Z"
+}

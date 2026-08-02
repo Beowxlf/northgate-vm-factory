@@ -9,6 +9,7 @@
         'ConvertFrom-NorthGateCreateOnlyCommand',
         'ConvertFrom-NorthGateCreateOnlyPlanRequestBytes',
         'ConvertFrom-NorthGateCreateOnlyServiceEnvelopeBytes',
+        'ConvertFrom-NorthGateCreateOnlyCanonicalJsonBytes',
         'ConvertTo-NorthGateCreateOnlyCanonicalJson'
     )
     CmdletsToExport = @()

@@ -1,0 +1,5 @@
+out/
+work/
+*.iso
+*.iso.sha256
+*.provenance.json

@@ -1,0 +1,24 @@
+#!/bin/sh
+set -eu
+
+identity='northgate-bootstrap'
+confirmation="${1:-}"
+expected="REMOVE $(hostname | tr '[:lower:]' '[:upper:]') BOOTSTRAP"
+test "$confirmation" = "$expected" || { echo 'NGBM-CLEANUP-CONFIRMATION-MISMATCH' >&2; exit 1; }
+test "$(id -u)" -eq 0 || { echo 'NGBM-CLEANUP-ROOT-REQUIRED' >&2; exit 1; }
+systemctl is-active --quiet wazuh-agent || { echo 'NGBM-CLEANUP-WAZUH-NOT-VERIFIED' >&2; exit 1; }
+if ! systemctl is-active --quiet tacticalagent && ! systemctl is-active --quiet meshagent; then
+  echo 'NGBM-CLEANUP-RMM-NOT-VERIFIED' >&2
+  exit 1
+fi
+
+rm -f "/home/$identity/.ssh/authorized_keys" /etc/sudoers.d/90-northgate-bootstrap
+rm -f /etc/ssh/sshd_config.d/90-northgate-bootstrap.conf
+systemctl disable --now northgate-bootstrap-firewall.service >/dev/null 2>&1 || true
+rm -f /etc/systemd/system/northgate-bootstrap-firewall.service /etc/northgate/bootstrap/northgate-bootstrap.nft
+systemctl daemon-reload
+usermod -L -s /usr/sbin/nologin "$identity" || true
+systemctl reload ssh.service
+userdel -r "$identity" >/dev/null 2>&1 || true
+printf '%s\n' 'bootstrap_access_removed=true' > /etc/northgate/bootstrap/cleanup-status
+chmod 0600 /etc/northgate/bootstrap/cleanup-status

@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "northgate/create-only-release-manifest/v2",
+  "title": "NorthGate create-only immutable release manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "releaseId", "repository", "sourceProof", "packageSemantics", "files"],
+  "properties": {
+    "schema": { "const": "northgate/create-only-release-manifest/v2" },
+    "releaseId": { "type": "string", "pattern": "^ngcor-[a-z0-9][a-z0-9.-]{7,63}$" },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity", "origin", "commit", "tree", "objectFormat",
+        "commitSignatureStatus", "hostAllowlistId", "packageAllowlistSha256",
+        "governanceExceptionId"
+      ],
+      "properties": {
+        "identity": { "const": "Beowxlf/northgate-vm-factory" },
+        "origin": { "enum": [
+          "https://github.com/Beowxlf/northgate-vm-factory",
+          "https://github.com/Beowxlf/northgate-vm-factory.git",
+          "git@github.com:Beowxlf/northgate-vm-factory.git",
+          "ssh://git@github.com/Beowxlf/northgate-vm-factory.git"
+        ] },
+        "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "tree": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "objectFormat": { "const": "sha1" },
+        "commitSignatureStatus": { "enum": ["G", "U", "B", "X", "Y", "R", "E", "N", "unknown"] },
+        "hostAllowlistId": { "type": "string", "pattern": "^ngallow-[a-z0-9-]{8,64}$" },
+        "packageAllowlistSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "governanceExceptionId": { "type": "string", "pattern": "^NG-GOV-[0-9]{8}-[A-Z0-9-]{3,32}$" }
+      }
+    },
+    "sourceProof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceKind", "headEqualsCommit", "cleanWorktree", "replaceRefsAbsent",
+        "submodulesAbsent", "contentFiltersAbsent"
+      ],
+      "properties": {
+        "sourceKind": { "const": "raw-git-blobs-plus-derived-signed-artifact" },
+        "headEqualsCommit": { "const": true },
+        "cleanWorktree": { "const": true },
+        "replaceRefsAbsent": { "const": true },
+        "submodulesAbsent": { "const": true },
+        "contentFiltersAbsent": { "const": true }
+      }
+    },
+    "packageSemantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceExecutableOnHost", "installInitiallyEnabled", "liveApplyImplemented",
+        "allowedProtocolCommands"
+      ],
+      "properties": {
+        "sourceExecutableOnHost": { "const": true },
+        "installInitiallyEnabled": { "const": false },
+        "liveApplyImplemented": { "const": true },
+        "allowedProtocolCommands": {
+          "const": [
+            "status", "plan", "approval-context", "approve",
+            "rollout-context", "promote-rollout", "apply", "receipt"
+          ]
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 29,
+      "maxItems": 32,
+      "contains": {
+        "type": "object",
+        "required": ["artifactKind"],
+        "properties": { "artifactKind": { "const": "derived-signed-artifact" } }
+      },
+      "minContains": 1,
+      "maxContains": 1,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["artifactKind", "path", "gitMode", "gitBlobOid", "sizeBytes", "sha256"],
+            "properties": {
+              "artifactKind": { "const": "raw-git-blob" },
+              "path": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,159}$" },
+              "gitMode": { "const": "100644" },
+              "gitBlobOid": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+              "sizeBytes": { "type": "integer", "minimum": 1, "maximum": 1048576 },
+              "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "artifactKind", "path", "sizeBytes", "sha256", "buildProvenance",
+              "detachedCms"
+            ],
+            "properties": {
+              "artifactKind": { "const": "derived-signed-artifact" },
+              "path": { "const": "NorthGate.CreateOnly.ServiceHost.exe" },
+              "sizeBytes": { "type": "integer", "minimum": 1, "maximum": 67108864 },
+              "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+              "buildProvenance": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "sourcePath", "sourceGitBlobOid", "sourceSha256", "buildScriptPath",
+                  "buildScriptGitBlobOid", "buildScriptSha256", "compilerPath",
+                  "compilerSha256", "compilerVersion", "deterministic", "unsignedSha256",
+                  "references"
+                ],
+                "properties": {
+                  "sourcePath": { "const": "NorthGate.CreateOnly.ServiceHost.cs" },
+                  "sourceGitBlobOid": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+                  "sourceSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+                  "buildScriptPath": { "const": "Build-NorthGateCreateOnlyServiceHost.ps1" },
+                  "buildScriptGitBlobOid": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+                  "buildScriptSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+                  "compilerPath": { "type": "string", "pattern": "^[A-Za-z]:\\\\", "maxLength": 320 },
+                  "compilerSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+                  "compilerVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+                  "deterministic": { "const": true },
+                  "unsignedSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+                  "references": {
+                    "type": "array",
+                    "minItems": 5,
+                    "maxItems": 5,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["path", "sha256", "fileVersion"],
+                      "properties": {
+                        "path": { "type": "string", "pattern": "^[A-Za-z]:\\\\", "maxLength": 320 },
+                        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+                        "fileVersion": { "type": "string", "minLength": 1, "maxLength": 128 }
+                      }
+                    }
+                  }
+                }
+              },
+              "detachedCms": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["path", "sizeBytes", "sha256", "signerCertificateSha256"],
+                "properties": {
+                  "path": { "const": "NorthGate.CreateOnly.ServiceHost.exe.p7s" },
+                  "sizeBytes": { "type": "integer", "minimum": 1, "maximum": 1048576 },
+                  "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+                  "signerCertificateSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

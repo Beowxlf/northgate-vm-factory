@@ -1,0 +1,73 @@
+{
+  "$schema": "northgate/bootstrap-source-catalog/v1",
+  "catalogVersion": "2026.08.02.1",
+  "status": "proposed-unpromoted",
+  "images": [
+    {
+      "id": "debian-12.12-amd64-netinst",
+      "fileName": "debian-12.12.0-amd64-netinst.iso",
+      "sha256": "dfc30e04fd095ac2c07e998f145e94bb8f7d3a8eca3a631d2eb012398deae531",
+      "sizeBytes": 704643072,
+      "family": "debian",
+      "version": "12.12",
+      "architecture": "x86_64",
+      "generation": 2,
+      "firmwareProfile": "linux-gen2",
+      "secureBoot": true,
+      "secureBootTemplate": "MicrosoftUEFICertificateAuthority",
+      "vtpmRequired": false,
+      "requiredIsoPaths": [
+        "/install.amd/vmlinuz",
+        "/install.amd/initrd.gz",
+        "/boot/grub/efi.img",
+        "/EFI/BOOT/BOOTX64.EFI"
+      ]
+    },
+    {
+      "id": "windows-11-25h2-english-x64",
+      "fileName": "Win11_25H2_English_x64.iso",
+      "sha256": "d141f6030fed50f75e2b03e1eb2e53646c4b21e5386047cb860af5223f102a32",
+      "sizeBytes": 7736125440,
+      "family": "windows",
+      "version": "11-25H2",
+      "architecture": "x86_64",
+      "editionIndex": 6,
+      "editionName": "Windows 11 Pro",
+      "evaluationMedia": false,
+      "productKeyEmbedded": false,
+      "activationExpectedAtInstall": false,
+      "generation": 2,
+      "firmwareProfile": "windows-gen2",
+      "secureBoot": true,
+      "secureBootTemplate": "MicrosoftWindows",
+      "vtpmRequired": true,
+      "requiredIsoPaths": [
+        "/boot/etfsboot.com",
+        "/sources/boot.wim",
+        "/sources/install.wim",
+        "/efi/microsoft/boot/efisys.bin"
+      ]
+    },
+    {
+      "id": "kali-2026.2-installer-netinst-amd64",
+      "fileName": "kali-linux-2026.2-installer-netinst-amd64.iso",
+      "sha256": "d32f929dacc48134a31461a09f2160d13ad1d26b820cee920446813ca979b39b",
+      "sizeBytes": 779091968,
+      "family": "kali",
+      "version": "2026.2",
+      "architecture": "x86_64",
+      "generation": 2,
+      "firmwareProfile": "kali-gen2-unsigned",
+      "secureBoot": false,
+      "secureBootTemplate": "Disabled",
+      "secureBootExceptionId": "NG-FW-20260802-KALI-UNSIGNED",
+      "vtpmRequired": false,
+      "requiredIsoPaths": [
+        "/install.amd/vmlinuz",
+        "/install.amd/initrd.gz",
+        "/boot/grub/efi.img",
+        "/EFI/BOOT/BOOTX64.EFI"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+PubkeyAuthentication yes
+AuthenticationMethods publickey
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+PermitRootLogin no
+DisableForwarding yes
+AllowUsers northgate-bootstrap@@@MANAGEMENT_SOURCE@@

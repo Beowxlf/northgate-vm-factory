@@ -1,0 +1,1 @@
+northgate-bootstrap ALL=(ALL:ALL) NOPASSWD: ALL

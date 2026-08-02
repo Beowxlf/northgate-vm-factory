@@ -9,8 +9,8 @@
     "apiVersion": { "const": "northgate/v1alpha1" },
     "kind": { "const": "ResourcePolicy" },
     "policyVersion": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}\\.[0-9]+$" },
-    "status": { "const": "proposed" },
-    "applyEnabled": { "const": false },
+    "status": { "enum": ["proposed", "approved"] },
+    "applyEnabled": { "type": "boolean" },
     "hostReserveMemoryMiB": { "type": "integer", "minimum": 32768 },
     "minimumVolumeFreeGiB": { "type": "integer", "minimum": 50 },
     "minimumVolumeFreePercent": { "type": "integer", "minimum": 10, "maximum": 50 },
@@ -31,7 +31,9 @@
     },
     "executableActions": {
       "type": "array",
-      "maxItems": 0
+      "maxItems": 1,
+      "uniqueItems": true,
+      "items": { "const": "Create" }
     },
     "deniedOperations": {
       "type": "array",
@@ -39,5 +41,25 @@
       "uniqueItems": true,
       "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,63}$" }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "proposed" } }, "required": ["status"] },
+      "then": {
+        "properties": {
+          "applyEnabled": { "const": false },
+          "executableActions": { "maxItems": 0 }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "const": "approved" } }, "required": ["status"] },
+      "then": {
+        "properties": {
+          "applyEnabled": { "const": true },
+          "executableActions": { "const": ["Create"] }
+        }
+      }
+    }
+  ]
 }

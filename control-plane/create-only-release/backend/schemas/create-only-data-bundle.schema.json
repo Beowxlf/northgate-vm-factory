@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "northgate/create-only-data-bundle/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "bundleId", "repository", "createdAtUtc", "expiresAtUtc", "files"],
+  "properties": {
+    "schema": { "const": "northgate/create-only-data-bundle/v1" },
+    "bundleId": { "type": "string", "pattern": "^ngdata-[a-f0-9]{64}$" },
+    "repository": {
+      "type": "object", "additionalProperties": false, "required": ["identity", "commit", "tree"],
+      "properties": {
+        "identity": { "const": "Beowxlf/northgate-vm-factory" },
+        "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "tree": { "type": "string", "pattern": "^[a-f0-9]{40}$" }
+      }
+    },
+    "createdAtUtc": { "$ref": "#/$defs/time" },
+    "expiresAtUtc": { "$ref": "#/$defs/time" },
+    "files": { "type": "array", "minItems": 7, "uniqueItems": true, "items": { "oneOf": [{ "$ref": "#/$defs/manifest" }, { "$ref": "#/$defs/catalog" }, { "$ref": "#/$defs/document" }] } }
+  },
+  "$defs": {
+    "time": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "common": {
+      "type": "object",
+      "properties": {
+        "sourcePath": { "type": "string", "pattern": "^(schemas|catalog|policy|manifests)/[A-Za-z0-9._/-]{1,180}\\.json$" },
+        "gitBlobOid": { "type": "string", "pattern": "^[a-f0-9]{40}$" }, "gitMode": { "const": "100644" },
+        "sourceSha256": { "$ref": "#/$defs/hash" }, "canonicalRelativePath": { "type": "string", "pattern": "^files/[A-Za-z0-9._/-]{1,180}\\.json$" },
+        "canonicalSha256": { "$ref": "#/$defs/hash" }, "sizeBytes": { "type": "integer", "minimum": 2, "maximum": 1048576 }
+      }
+    },
+    "manifest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["role", "assetId", "sourcePath", "gitBlobOid", "gitMode", "sourceSha256", "canonicalRelativePath", "canonicalSha256", "sizeBytes"],
+      "properties": {
+        "role": { "const": "manifest" }, "assetId": { "type": "string", "pattern": "^NG-VM-[0-9]{3,}$" },
+        "sourcePath": { "$ref": "#/$defs/common/properties/sourcePath" }, "gitBlobOid": { "$ref": "#/$defs/common/properties/gitBlobOid" },
+        "gitMode": { "$ref": "#/$defs/common/properties/gitMode" }, "sourceSha256": { "$ref": "#/$defs/common/properties/sourceSha256" },
+        "canonicalRelativePath": { "$ref": "#/$defs/common/properties/canonicalRelativePath" }, "canonicalSha256": { "$ref": "#/$defs/common/properties/canonicalSha256" },
+        "sizeBytes": { "$ref": "#/$defs/common/properties/sizeBytes" }
+      }
+    },
+    "catalog": {
+      "type": "object", "additionalProperties": false,
+      "required": ["role", "sourcePath", "gitBlobOid", "gitMode", "sourceSha256", "canonicalRelativePath", "canonicalSha256", "sizeBytes"],
+      "properties": {
+        "role": { "enum": ["imageCatalog", "networkCatalog", "storageCatalog", "firmwareCatalog", "bootstrapCatalog", "recoveryCatalog"] },
+        "sourcePath": { "$ref": "#/$defs/common/properties/sourcePath" }, "gitBlobOid": { "$ref": "#/$defs/common/properties/gitBlobOid" },
+        "gitMode": { "$ref": "#/$defs/common/properties/gitMode" }, "sourceSha256": { "$ref": "#/$defs/common/properties/sourceSha256" },
+        "canonicalRelativePath": { "$ref": "#/$defs/common/properties/canonicalRelativePath" }, "canonicalSha256": { "$ref": "#/$defs/common/properties/canonicalSha256" },
+        "sizeBytes": { "$ref": "#/$defs/common/properties/sizeBytes" }
+      }
+    },
+    "document": {
+      "type": "object", "additionalProperties": false,
+      "required": ["role", "sourcePath", "gitBlobOid", "gitMode", "sourceSha256", "canonicalRelativePath", "canonicalSha256", "sizeBytes"],
+      "properties": {
+        "role": { "enum": ["schema", "policy"] },
+        "sourcePath": { "$ref": "#/$defs/common/properties/sourcePath" }, "gitBlobOid": { "$ref": "#/$defs/common/properties/gitBlobOid" },
+        "gitMode": { "$ref": "#/$defs/common/properties/gitMode" }, "sourceSha256": { "$ref": "#/$defs/common/properties/sourceSha256" },
+        "canonicalRelativePath": { "$ref": "#/$defs/common/properties/canonicalRelativePath" }, "canonicalSha256": { "$ref": "#/$defs/common/properties/canonicalSha256" },
+        "sizeBytes": { "$ref": "#/$defs/common/properties/sizeBytes" }
+      }
+    }
+  }
+}
