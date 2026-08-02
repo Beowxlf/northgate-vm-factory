@@ -13,6 +13,16 @@ function Throw-NgcorError {
     throw [System.InvalidOperationException]::new($Code)
 }
 
+function ConvertFrom-NgcorReleaseJsonText {
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$Json)
+    $converter = Microsoft.PowerShell.Core\Get-Command `
+        -Name 'Microsoft.PowerShell.Utility\ConvertFrom-Json' -ErrorAction Stop
+    if ($converter.Parameters.ContainsKey('DateKind')) {
+        return Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $Json -DateKind String
+    }
+    return Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $Json
+}
+
 function Get-NgcorSha256Hex {
     param([Parameter(Mandatory)][byte[]]$Bytes)
     $algorithm = [System.Security.Cryptography.SHA256]::Create()
@@ -248,7 +258,7 @@ function Read-NgcorLedger {
     }
     try { $raw = [System.IO.File]::ReadAllText($item.FullName) }
     catch { Throw-NgcorError 'NGCOR-LEDGER-READ-FAILED' }
-    try { $envelope = $raw | ConvertFrom-Json }
+    try { $envelope = ConvertFrom-NgcorReleaseJsonText $raw }
     catch { Throw-NgcorError 'NGCOR-LEDGER-CORRUPT' }
     if ((ConvertTo-NorthGateCreateOnlyCanonicalJson $envelope) -cne $raw) {
         Throw-NgcorError 'NGCOR-LEDGER-NONCANONICAL'

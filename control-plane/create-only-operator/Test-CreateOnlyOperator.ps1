@@ -6,6 +6,9 @@ $modulePath = Join-Path $PSScriptRoot 'NorthGate.VMFactory.CreateOnlyOperator.ps
 $moduleSourcePath = Join-Path $PSScriptRoot 'NorthGate.VMFactory.CreateOnlyOperator.psm1'
 $testRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('ngco-' + [guid]::NewGuid().ToString('N'))
 $assertionCount = 0
+$convertFromJsonSupportsDateKind = (
+    (Get-Command -Name 'Microsoft.PowerShell.Utility\ConvertFrom-Json' -CommandType Cmdlet -ErrorAction Stop).Parameters.ContainsKey('DateKind')
+)
 
 function Assert-NgcoTest {
     param(
@@ -35,10 +38,20 @@ function Assert-NgcoThrows {
     }
 }
 
+function ConvertFrom-NgcoTestJson {
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$Json)
+
+    if ($script:convertFromJsonSupportsDateKind) {
+        return (Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $Json -DateKind String)
+    }
+    return (Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $Json)
+}
+
 function Copy-NgcoObject {
     param([Parameter(Mandatory)][object]$Value)
 
-    return ($Value | ConvertTo-Json -Depth 30 -Compress | ConvertFrom-Json)
+    $json = $Value | ConvertTo-Json -Depth 30 -Compress
+    return (ConvertFrom-NgcoTestJson -Json $json)
 }
 
 try {
@@ -154,6 +167,7 @@ try {
     $canonicalPlan = ConvertTo-NgcoTestCanonical -Value $plan
     $parsed = & $module { param($Json) ConvertFrom-NgcoCanonicalPlan -CanonicalPlanJson $Json } $canonicalPlan
     Assert-NgcoTest ($parsed.Plan.operations[0].assetId -ceq 'NG-VM-018') 'Valid fixed plan did not parse.'
+    Assert-NgcoTest ($parsed.Plan.plannedAtUtc -is [string]) 'Plan timestamp was not preserved as a string.'
     Assert-NgcoTest ($parsed.CanonicalJson -ceq $canonicalPlan) 'Canonical plan changed during parsing.'
 
     $actionDrift = Copy-NgcoObject $plan
@@ -265,7 +279,9 @@ try {
 
     $planPath = Join-Path $context.PlansRoot ($registration.planId + '.json')
     $originalRegistryBytes = [System.IO.File]::ReadAllBytes($planPath)
-    $registryObject = [System.Text.Encoding]::UTF8.GetString($originalRegistryBytes) | ConvertFrom-Json
+    $registryObject = ConvertFrom-NgcoTestJson -Json ([System.Text.Encoding]::UTF8.GetString($originalRegistryBytes))
+    Assert-NgcoTest ($registryObject.record.registeredAtUtc -is [string] -and
+        $registryObject.record.expiresAtUtc -is [string]) 'Registry timestamps were not preserved as strings.'
     $registryObject.record.planHash = ('0' * 64)
     $tamperedRegistry = ConvertTo-NgcoTestCanonical $registryObject
     [System.IO.File]::WriteAllText($planPath, $tamperedRegistry, (New-Object System.Text.UTF8Encoding($false)))

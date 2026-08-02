@@ -7,11 +7,23 @@ $script:NotPromotedCode = 'NGCO-NOT-INDEPENDENTLY-PROMOTED'
 $script:WriterLockName = 'Global\NorthGateVmFactoryCreateOnlyOperator-v1'
 $script:MaximumPlanBytes = 262144
 $script:MaximumJsonDepth = 32
+$script:ConvertFromJsonSupportsDateKind = (
+    (Get-Command -Name 'Microsoft.PowerShell.Utility\ConvertFrom-Json' -CommandType Cmdlet -ErrorAction Stop).Parameters.ContainsKey('DateKind')
+)
 
 function Throw-NgcoError {
     param([Parameter(Mandatory)][string]$Code)
 
     throw [System.InvalidOperationException]::new($Code)
+}
+
+function ConvertFrom-NgcoJson {
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$Json)
+
+    if ($script:ConvertFromJsonSupportsDateKind) {
+        return (Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $Json -DateKind String)
+    }
+    return (Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $Json)
 }
 
 function Get-NgcoSha256Hex {
@@ -93,7 +105,7 @@ function Read-NgcoJsonStringToken {
         $character = $Text[$Index.Value]
         if ($character -eq '"') {
             $Index.Value++
-            try { return ($Text.Substring($start, $Index.Value - $start) | ConvertFrom-Json) }
+            try { return (ConvertFrom-NgcoJson -Json $Text.Substring($start, $Index.Value - $start)) }
             catch { Throw-NgcoError -Code 'NGCO-PLAN-JSON-INVALID' }
         }
         if ([int][char]$character -lt 32) { Throw-NgcoError -Code 'NGCO-PLAN-CONTROL-CHARACTER' }
@@ -460,7 +472,7 @@ function ConvertFrom-NgcoCanonicalPlan {
     param([Parameter(Mandatory)][string]$CanonicalPlanJson)
 
     Assert-NgcoStrictJson -Json $CanonicalPlanJson
-    try { $plan = $CanonicalPlanJson | ConvertFrom-Json }
+    try { $plan = ConvertFrom-NgcoJson -Json $CanonicalPlanJson }
     catch { Throw-NgcoError -Code 'NGCO-PLAN-JSON-INVALID' }
     if ($plan -isnot [System.Management.Automation.PSCustomObject] -or
         (ConvertTo-NgcoCanonicalJson -InputObject $plan) -cne $CanonicalPlanJson) {
@@ -589,7 +601,7 @@ function Read-NgcoPlanRecord {
     try { $raw = [System.IO.File]::ReadAllText($item.FullName) }
     catch { Throw-NgcoError -Code 'NGCO-STATE-READ-FAILED' }
     Assert-NgcoStrictJson -Json $raw
-    try { $envelope = $raw | ConvertFrom-Json }
+    try { $envelope = ConvertFrom-NgcoJson -Json $raw }
     catch { Throw-NgcoError -Code 'NGCO-REGISTRY-CORRUPT' }
     if ((ConvertTo-NgcoCanonicalJson -InputObject $envelope) -cne $raw) {
         Throw-NgcoError -Code 'NGCO-REGISTRY-NONCANONICAL'

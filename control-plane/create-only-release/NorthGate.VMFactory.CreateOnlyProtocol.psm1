@@ -11,6 +11,16 @@ function Throw-NgcorProtocolError {
     throw [System.InvalidOperationException]::new($Code)
 }
 
+function ConvertFrom-NgcorJsonText {
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$Json)
+    $converter = Microsoft.PowerShell.Core\Get-Command `
+        -Name 'Microsoft.PowerShell.Utility\ConvertFrom-Json' -ErrorAction Stop
+    if ($converter.Parameters.ContainsKey('DateKind')) {
+        return Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $Json -DateKind String
+    }
+    return Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $Json
+}
+
 function Skip-NgcorJsonWhitespace {
     param([string]$Text, [ref]$Index)
     while ($Index.Value -lt $Text.Length -and $Text[$Index.Value] -in @(' ', "`t", "`r", "`n")) {
@@ -29,7 +39,7 @@ function Read-NgcorJsonStringToken {
         $character = $Text[$Index.Value]
         if ($character -eq '"') {
             $Index.Value++
-            try { return ($Text.Substring($start, $Index.Value - $start) | ConvertFrom-Json) }
+            try { return (ConvertFrom-NgcorJsonText ($Text.Substring($start, $Index.Value - $start))) }
             catch { Throw-NgcorProtocolError 'NGCOR-JSON-INVALID' }
         }
         if ([int][char]$character -lt 32) { Throw-NgcorProtocolError 'NGCOR-JSON-CONTROL-CHARACTER' }
@@ -234,7 +244,7 @@ function ConvertFrom-NorthGateCreateOnlyPlanRequestBytes {
     }
     catch { Throw-NgcorProtocolError 'NGCOR-PLAN-UTF8-INVALID' }
     Assert-NgcorStrictJson $json
-    try { $request = $json | ConvertFrom-Json }
+    try { $request = ConvertFrom-NgcorJsonText $json }
     catch { Throw-NgcorProtocolError 'NGCOR-JSON-INVALID' }
     if ($request -isnot [System.Management.Automation.PSCustomObject] -or
         (ConvertTo-NorthGateCreateOnlyCanonicalJson $request) -cne $json) {
@@ -274,14 +284,15 @@ function ConvertFrom-NorthGateCreateOnlyServiceEnvelopeBytes {
     }
     catch { Throw-NgcorProtocolError 'NGCOR-ENVELOPE-UTF8-INVALID' }
     Assert-NgcorStrictJson $json
-    try { $envelope = $json | ConvertFrom-Json }
+    try { $envelope = ConvertFrom-NgcorJsonText $json }
     catch { Throw-NgcorProtocolError 'NGCOR-ENVELOPE-INVALID' }
     if ($envelope -isnot [System.Management.Automation.PSCustomObject] -or
         (ConvertTo-NorthGateCreateOnlyCanonicalJson $envelope) -cne $json) {
         Throw-NgcorProtocolError 'NGCOR-ENVELOPE-NONCANONICAL'
     }
     Assert-NgcorExactProperties $envelope @('version','command','body') 'NGCOR-ENVELOPE-PROPERTIES-INVALID'
-    if ($envelope.version -isnot [int] -or $envelope.version -ne 1 -or
+    if (($envelope.version -isnot [int] -and $envelope.version -isnot [long]) -or
+        $envelope.version -ne 1 -or
         $envelope.command -isnot [string] -or $envelope.body -isnot [string]) {
         Throw-NgcorProtocolError 'NGCOR-ENVELOPE-CONTRACT-INVALID'
     }

@@ -23,6 +23,16 @@ function Assert-NgcorThrows {
     }
 }
 
+function ConvertFrom-NgcorTestJsonText {
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$Json)
+    $converter = Microsoft.PowerShell.Core\Get-Command `
+        -Name 'Microsoft.PowerShell.Utility\ConvertFrom-Json' -ErrorAction Stop
+    if ($converter.Parameters.ContainsKey('DateKind')) {
+        return Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $Json -DateKind String
+    }
+    return Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $Json
+}
+
 $root = $PSScriptRoot
 $parseErrors = New-Object 'System.Collections.Generic.List[string]'
 foreach ($file in Get-ChildItem -LiteralPath $root -File | Where-Object { $_.Extension -in @('.ps1','.psm1','.psd1') }) {
@@ -125,7 +135,9 @@ try {
     Assert-NgcorTest ($result.planId -cmatch '^ngp-[a-f0-9]{64}$' -and $result.planHash -cmatch '^[a-f0-9]{64}$') 'Issued exact plan capability and hash.'
     $ledger = & $release { param($Context) Read-NgcorLedger $Context } $context
     Assert-NgcorTest (@($ledger.reservations).Count -eq 1 -and $ledger.sequence -eq 1) 'Ledger atomically contains one reservation.'
-    $hostPlan = $ledger.reservations[0].canonicalPlan | ConvertFrom-Json
+    $hostPlan = ConvertFrom-NgcorTestJsonText ([string]$ledger.reservations[0].canonicalPlan)
+    Assert-NgcorTest ($hostPlan.issuedAtUtc -is [string] -and $hostPlan.expiresAtUtc -is [string]) `
+        'ISO-8601 plan timestamps remain strings across supported PowerShell versions.'
     Assert-NgcorTest ($hostPlan.operation.action -ceq 'Create' -and $hostPlan.operation.sequence -eq 1) 'Host plan has exactly one Create operation.'
     Assert-NgcorTest ($hostPlan.observedStateHash -cmatch '^[a-f0-9]{64}$') 'Plan binds normalized observed state.'
     Assert-NgcorThrows {
@@ -215,7 +227,7 @@ try {
     Assert-NgcorTest ($actualManifestHash -ceq $packageResult.releaseManifestSha256) 'Package reports the exact manifest hash.'
     $shaLine = [IO.File]::ReadAllText((Join-Path $packageOut 'release-manifest.sha256')).Trim()
     Assert-NgcorTest ($shaLine -ceq ($actualManifestHash + '  release-manifest.json')) 'Sidecar manifest hash is exact.'
-    $manifest = [IO.File]::ReadAllText($manifestPath) | ConvertFrom-Json
+    $manifest = ConvertFrom-NgcorTestJsonText ([IO.File]::ReadAllText($manifestPath))
     Assert-NgcorTest (-not $manifest.packageSemantics.sourceExecutableOnHost -and
         -not $manifest.packageSemantics.installInitiallyEnabled -and
         -not $manifest.packageSemantics.liveApplyImplemented) 'Manifest preserves disabled package semantics.'

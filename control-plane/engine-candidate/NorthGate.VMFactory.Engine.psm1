@@ -92,6 +92,16 @@ function Format-NgvfUtc {
     return $Value.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", [System.Globalization.CultureInfo]::InvariantCulture)
 }
 
+function ConvertFrom-NgvfJsonText {
+    param([Parameter(Mandatory)][string]$Json)
+
+    $converter = Get-Command -Name 'Microsoft.PowerShell.Utility\ConvertFrom-Json' -ErrorAction Stop
+    if ($converter.Parameters.ContainsKey('DateKind')) {
+        return (Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $Json -DateKind String)
+    }
+    return (Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $Json)
+}
+
 function Skip-NgvfJsonWhitespace {
     param(
         [Parameter(Mandatory)][string]$Text,
@@ -121,7 +131,7 @@ function Read-NgvfJsonStringToken {
             $Index.Value++
             $token = $Text.Substring($start, $Index.Value - $start)
             try {
-                return ($token | ConvertFrom-Json)
+                return (ConvertFrom-NgvfJsonText -Json $token)
             }
             catch {
                 Throw-NgvfError -Code 'NGVF-PLAN-JSON-INVALID'
@@ -417,7 +427,7 @@ function ConvertFrom-NgvfCanonicalPlan {
 
     Assert-NgvfStrictJson -Json $CanonicalPlanJson
     try {
-        $plan = $CanonicalPlanJson | ConvertFrom-Json
+        $plan = ConvertFrom-NgvfJsonText -Json $CanonicalPlanJson
     }
     catch {
         Throw-NgvfError -Code 'NGVF-PLAN-JSON-INVALID'
@@ -618,7 +628,7 @@ function Read-NgvfEnvelope {
     }
     Assert-NgvfStrictJson -Json $raw
     try {
-        $envelope = $raw | ConvertFrom-Json
+        $envelope = ConvertFrom-NgvfJsonText -Json $raw
     }
     catch {
         Throw-NgvfError -Code 'NGVF-STATE-CORRUPT'

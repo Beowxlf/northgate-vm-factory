@@ -6,6 +6,16 @@ $repositoryRoot = [System.IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoo
 $schemaValidationCount = 0
 $negativeTestCount = 0
 
+function ConvertFrom-RepositoryJsonText {
+    param([Parameter(Mandatory)][string]$Json)
+
+    $converter = Get-Command -Name 'Microsoft.PowerShell.Utility\ConvertFrom-Json' -ErrorAction Stop
+    if ($converter.Parameters.ContainsKey('DateKind')) {
+        return (Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $Json -DateKind String)
+    }
+    return (Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $Json)
+}
+
 function Test-IsUnderRepository {
     param([Parameter(Mandatory)][string]$Path)
 
@@ -38,7 +48,7 @@ function Read-JsonFile {
     }
 
     try {
-        $object = $raw | ConvertFrom-Json
+        $object = ConvertFrom-RepositoryJsonText -Json $raw
     }
     catch {
         throw "Invalid JSON: $Path`n$($_.Exception.Message)"
@@ -599,7 +609,8 @@ function Assert-MutationRejected {
         [Parameter(Mandatory)][scriptblock]$Assert
     )
 
-    $candidate = $Baseline | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+    $candidateJson = $Baseline | ConvertTo-Json -Depth 20
+    $candidate = ConvertFrom-RepositoryJsonText -Json $candidateJson
     & $Mutate $candidate
     $rejected = $false
     try {

@@ -73,6 +73,12 @@ function ConvertTo-TestCanonicalJson {
     return (& $script:engineModule { param($InputValue) ConvertTo-NgvfCanonicalJson -InputObject $InputValue } $Value)
 }
 
+function ConvertFrom-TestJson {
+    param([Parameter(Mandatory)][string]$Value)
+
+    return (& $script:engineModule { param($Json) ConvertFrom-NgvfJsonText -Json $Json } $Value)
+}
+
 function New-TestPlanObject {
     param(
         [Parameter(Mandatory)][string]$AssetId,
@@ -246,7 +252,7 @@ try {
             -Message "Engine contains a prohibited live-mutation primitive matching '$pattern'."
     }
 
-    $resourcePolicy = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'policy\resource-limits.json') | ConvertFrom-Json
+    $resourcePolicy = ConvertFrom-TestJson -Value (Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'policy\resource-limits.json'))
     Assert-Engine -Condition ($resourcePolicy.applyEnabled -eq $false -and @($resourcePolicy.executableActions).Count -eq 0) `
         -Message 'Repository apply policy was enabled by the engine scaffold.'
 
@@ -326,6 +332,9 @@ try {
     $canonicalPlan = ConvertTo-TestCanonicalJson -Value $planObject
     Assert-Engine -Condition ($canonicalPlan -match '"operations":\[') `
         -Message 'Canonicalizer collapsed a one-operation array.'
+    $roundTripPlan = ConvertFrom-TestJson -Value $canonicalPlan
+    Assert-Engine -Condition ($roundTripPlan.plannedAtUtc -is [string]) `
+        -Message 'JSON parser converted the lexical UTC timestamp to a runtime date type.'
     Assert-EngineThrows -Code 'NGVF-PLAN-NONCANONICAL' -Action {
         Register-NorthGateVmFactoryEnginePlan -Context $main.Context -AuthenticationContext 'authorized' `
             -CanonicalPlanJson (' ' + $canonicalPlan)
@@ -345,19 +354,19 @@ try {
         Register-NorthGateVmFactoryEnginePlan -Context $main.Context -AuthenticationContext 'authorized' `
             -CanonicalPlanJson $floatPlan
     }
-    $planWithExtra = $canonicalPlan | ConvertFrom-Json
+    $planWithExtra = ConvertFrom-TestJson -Value $canonicalPlan
     $planWithExtra | Add-Member -NotePropertyName unexpected -NotePropertyValue 'value'
     Assert-EngineThrows -Code 'NGVF-PLAN-PROPERTIES-INVALID' -Action {
         Register-NorthGateVmFactoryEnginePlan -Context $main.Context -AuthenticationContext 'authorized' `
             -CanonicalPlanJson (ConvertTo-TestCanonicalJson -Value $planWithExtra)
     }
-    $planWithObjectOperation = $canonicalPlan | ConvertFrom-Json
+    $planWithObjectOperation = ConvertFrom-TestJson -Value $canonicalPlan
     $planWithObjectOperation.operations = $planWithObjectOperation.operations[0]
     Assert-EngineThrows -Code 'NGVF-PLAN-OPERATIONS-ARRAY-REQUIRED' -Action {
         Register-NorthGateVmFactoryEnginePlan -Context $main.Context -AuthenticationContext 'authorized' `
             -CanonicalPlanJson (ConvertTo-TestCanonicalJson -Value $planWithObjectOperation)
     }
-    $planWithStringTrust = $canonicalPlan | ConvertFrom-Json
+    $planWithStringTrust = ConvertFrom-TestJson -Value $canonicalPlan
     $planWithStringTrust.repository.protectedBranchVerified = 'true'
     Assert-EngineThrows -Code 'NGVF-REPOSITORY-TRUST-UNVERIFIED' -Action {
         Register-NorthGateVmFactoryEnginePlan -Context $main.Context -AuthenticationContext 'authorized' `

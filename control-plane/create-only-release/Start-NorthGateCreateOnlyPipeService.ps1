@@ -43,6 +43,16 @@ function Write-NgcorResponse {
     $Stream.Flush()
 }
 
+function ConvertFrom-NgcorServiceJsonText {
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$Json)
+    $converter = Microsoft.PowerShell.Core\Get-Command `
+        -Name 'Microsoft.PowerShell.Utility\ConvertFrom-Json' -ErrorAction Stop
+    if ($converter.Parameters.ContainsKey('DateKind')) {
+        return Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $Json -DateKind String
+    }
+    return Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $Json
+}
+
 Assert-NgcorServiceInstalled
 $commonData = [Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)
 $policyPath = Join-Path $commonData 'NorthGate\VMFactory\CreateOnly\policy\installed-policy.json'
@@ -54,7 +64,7 @@ if ((Get-Item -LiteralPath $policyPath -Force).Attributes -band [System.IO.FileA
 Import-Module (Join-Path $PSScriptRoot 'NorthGate.VMFactory.CreateOnlyProtocol.psd1') -Force
 Import-Module (Join-Path $PSScriptRoot 'NorthGate.VMFactory.CreateOnlyRelease.psd1') -Force
 $policyRaw = [System.IO.File]::ReadAllText($policyPath)
-try { $policy = $policyRaw | ConvertFrom-Json }
+try { $policy = ConvertFrom-NgcorServiceJsonText $policyRaw }
 catch { throw 'NGCOR-INSTALLED-POLICY-INVALID' }
 if ((ConvertTo-NorthGateCreateOnlyCanonicalJson $policy) -cne $policyRaw -or
     $policy.schema -cne 'northgate/create-only-installed-policy/v1' -or
