@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schemas/control-plane-candidate.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "VmFactoryControlPlaneCandidate",
+  "candidateVersion": "0.1.0",
+  "status": "proposed",
+  "effectiveState": {
+    "deployed": false,
+    "applicationAuthenticationConfigured": false,
+    "planRegistrationEnabled": false,
+    "applyEnabled": false,
+    "executableActions": [],
+    "writerLockConfigured": false,
+    "receiptSigningConfigured": false,
+    "directMutationMethodsExposed": false
+  },
+  "interface": {
+    "stateOperation": "vm_factory_get_state",
+    "registerOperation": "vm_factory_register_plan",
+    "getPlanOperation": "vm_factory_get_plan",
+    "applyOperation": "vm_factory_apply_plan",
+    "applyInputFields": [
+      "planId"
+    ]
+  },
+  "promotion": {
+    "repositorySourceMayExecuteOnHost": false,
+    "installedSignedReleaseRequired": true,
+    "separateReviewedChangeRequired": true,
+    "requiredGates": [
+      "restrictive-acls-proven",
+      "immutable-signed-release-promoted",
+      "forwarding-only-identity-proven",
+      "application-authentication-proven",
+      "data-only-fetcher-proven",
+      "protected-branch-reachability-proven",
+      "strict-plan-validation-proven",
+      "identity-ledger-proven",
+      "host-writer-lock-proven",
+      "audit-fail-closed-proven",
+      "receipt-signing-proven",
+      "rollback-tested",
+      "direct-mutators-disabled"
+    ]
+  }
+}

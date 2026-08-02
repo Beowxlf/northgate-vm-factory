@@ -23,6 +23,8 @@ Every retained interface on the untagged infrastructure LAN must use either a re
 
 No general dynamic pool is enabled in steady state. OPNsense DHCP remains enabled only for approved fixed mappings bound to host-approved static Hyper-V MAC addresses. A `.200-.209` bootstrap pool requires a separate time-bounded change and is disabled after reservation and DNS readback.
 
+`NG-VM-018` / `NG-DEB-CAN01` and `NG-VM-010` / `NG-CANARY-01` receive no durable reservation. If an approved canary plan requires network bootstrap, allocate one collision-checked address from the relevant time-bounded bootstrap range, bind it only to the canary's final adapter identity, and remove its mapping and DNS record during the canary retirement receipt.
+
 ### USERS
 
 | Item | Proposed value | Purpose |
@@ -92,7 +94,7 @@ No general dynamic pool is enabled in steady state. OPNsense DHCP remains enable
 | Network | `10.10.120.0/24` | Isolated internal mail-services zone |
 | VLAN | `120` | Tagged MAIL-INT access zone |
 | Default gateway | `10.10.120.1` | OPNsense MAIL-INT interface |
-| `NG-MAIL-INT01` | `10.10.120.10` | Internal SMTP submission/delivery, IMAP, antispam, malware scanning, and Wazuh agent |
+| `NG-VM-020` / `NG-MAIL-INT01` | `10.10.120.10` | Internal SMTP submission/delivery, IMAP, antispam, malware scanning, and Wazuh agent |
 | Reserved infrastructure range | `10.10.120.2-9` | Future network infrastructure only |
 | Reserved service range | `10.10.120.11-49` | Future reviewed static services |
 | Unallocated range | `10.10.120.50-254` | No automatic assignment |
@@ -104,7 +106,7 @@ No general dynamic pool is enabled in steady state. OPNsense DHCP remains enable
 | Network | `172.31.240.0/24` | Isolated simulated-external mail-services zone |
 | VLAN | `240` | Tagged EXT-MAIL access zone |
 | Default gateway | `172.31.240.1` | OPNsense EXT-MAIL interface |
-| `NG-MAIL-EXT01` | `172.31.240.10` | External SMTP transfer/submission, test mailbox, and Wazuh agent |
+| `NG-VM-019` / `NG-MAIL-EXT01` | `172.31.240.10` | External SMTP transfer/submission, test mailbox, and Wazuh agent |
 | Internal-mail edge VIP | `172.31.240.25` | Source-restricted TCP 25 destination NAT to `10.10.120.10` |
 | Reserved infrastructure range | `172.31.240.2-9` | Future network infrastructure only |
 | Reserved service range | `172.31.240.11-24`, `172.31.240.26-49` | Future reviewed static services |
@@ -117,7 +119,7 @@ No general dynamic pool is enabled in steady state. OPNsense DHCP remains enable
 | Network | `172.31.250.0/24` | Isolated, untrusted external-simulation segment |
 | VLAN | `250` | Tagged hostile-simulation access zone |
 | Default gateway | `172.31.250.1` | OPNsense SIM-WAN interface |
-| `NG-KALI-EXT01` | `172.31.250.10` | Primary simulated external host |
+| `NG-VM-021` / `NG-KALI-EXT01` | `172.31.250.10` | Primary simulated external host |
 | Reserved infrastructure range | `172.31.250.2-9` | Future network infrastructure only |
 | Reserved adversary range | `172.31.250.11-49` | Future reviewed static simulation hosts |
 | Unallocated range | `172.31.250.50-254` | No automatic assignment |
@@ -144,6 +146,8 @@ No general dynamic pool is enabled in steady state. OPNsense DHCP remains enable
 | PTR `10.150.10.10.in-addr.arpa` | `employees.aegismeridian.test` | Trusted reverse view for Employee Hub |
 | A `app.sentinelatlas.test` | `10.10.160.10` | Approved trusted and simulated-external test views |
 | PTR `10.160.10.10.in-addr.arpa` | `app.sentinelatlas.test` | Approved reverse view for Sentinel Atlas |
+| A `kali-ext.redteam.test` | `172.31.250.10` | SIM-WAN test view and approved security-operations view only |
+| PTR `10.250.31.172.in-addr.arpa` | `kali-ext.redteam.test` | Simulated-external reverse zone |
 
 The `.test` namespace prevents the lab design from depending on or colliding with public DNS. Split views must return only the records required by each zone: Kali uses an OPNsense-hosted simulation view and never queries Active Directory DNS directly; MAIL-INT can resolve the external A/MX/PTR records; only EXT-MAIL resolves the internal edge VIP. No wildcard, public MX, or physical-WAN record is part of this plan.
 

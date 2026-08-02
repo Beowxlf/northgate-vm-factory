@@ -1,0 +1,637 @@
+{
+  "$schema": "../schemas/full-fleet-provisioning-proposal.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "FullFleetProvisioningProposal",
+  "proposalVersion": "2026.08.02.3",
+  "status": "proposed",
+  "execution": {
+    "deployable": false,
+    "hostPlanRequired": true,
+    "standardManifestsIncluded": false,
+    "resourcePolicyMustRemainDisabled": true,
+    "promotionMode": "separate-reviewed-stages",
+    "overallState": "blocked"
+  },
+  "governance": {
+    "assetIdentityState": "candidate-unreserved",
+    "addressReservationState": "proposed-unallocated",
+    "dnsRegistrationState": "proposed-unregistered",
+    "catalogState": "proposed",
+    "changeReferenceState": "required-before-manifest"
+  },
+  "blockingFindings": [
+    {
+      "id": "control-plane-not-promoted",
+      "state": "blocked",
+      "resolutionClass": "control-plane-promotion"
+    },
+    {
+      "id": "protected-branch-unavailable",
+      "state": "blocked",
+      "resolutionClass": "control-plane-promotion"
+    },
+    {
+      "id": "prerequisite-profiles-unpromoted",
+      "state": "blocked",
+      "resolutionClass": "catalog-promotion"
+    },
+    {
+      "id": "identities-and-change-unapproved",
+      "state": "blocked",
+      "resolutionClass": "identity-and-change-approval"
+    },
+    {
+      "id": "network-reservations-unallocated",
+      "state": "blocked",
+      "resolutionClass": "network-reservation-change"
+    },
+    {
+      "id": "standard-manifests-not-authored",
+      "state": "blocked",
+      "resolutionClass": "identity-and-change-approval"
+    }
+  ],
+  "catalogPromotion": {
+    "candidateImageRefs": [
+      "debian-12.12-amd64-netinst",
+      "kali-2026.2-installer-netinst-amd64",
+      "windows-11-25h2-english-x64"
+    ],
+    "blockedImageRefs": [],
+    "firmwareProfileRefs": [
+      "linux-gen2",
+      "windows-gen2"
+    ],
+    "storageProfileRefs": [
+      "lab-ephemeral",
+      "persistent-workstations",
+      "persistent-mail-protected",
+      "persistent-app-protected",
+      "persistent-tooling"
+    ],
+    "networkProfileRefs": [
+      "users-workstations",
+      "mail-internal",
+      "it-admin-workstations",
+      "cyber-workstations",
+      "business-apps",
+      "commercial-dmz",
+      "external-mail",
+      "sim-wan"
+    ],
+    "bootstrapProfileRefs": [
+      "windows11-disposable-canary",
+      "debian12-disposable-canary",
+      "windows11-worker",
+      "windows11-manager",
+      "windows11-it-admin",
+      "windows11-cyber",
+      "debian12-mail-external",
+      "debian12-mail-internal",
+      "debian12-employee-hub",
+      "debian12-sentinel-atlas",
+      "kali-external-lab"
+    ],
+    "recoveryProfileRefs": [
+      "none-canary",
+      "bronze",
+      "silver",
+      "aegis-app-protected"
+    ],
+    "accessProfileRefs": [
+      "disposable-canary-keyonly-admin",
+      "windows-disposable-canary",
+      "windows-domain-managed",
+      "windows-privileged-workstation",
+      "linux-server-keyonly-admin",
+      "debian-app-keyonly-admin",
+      "kali-lab-keyonly-admin"
+    ]
+  },
+  "capacity": {
+    "persistentFleet": {
+      "processors": 28,
+      "startupMemoryMiB": 51200,
+      "maximumMemoryMiB": 92160,
+      "osDiskGiB": 900
+    },
+    "largestDisposableCanary": {
+      "processors": 2,
+      "startupMemoryMiB": 4096,
+      "maximumMemoryMiB": 8192,
+      "osDiskGiB": 80
+    },
+    "policyHostReserveMemoryMiB": 49152,
+    "configuredMaximumReductionMiB": 14336,
+    "reserveMarginMiBAtLastRead": 5888,
+    "assessmentState": "clear-at-last-read-reduced-maxima",
+    "liveRevalidationRequired": true
+  },
+  "rollout": {
+    "maximumConcurrentCanaries": 1,
+    "canariesRetiredBeforePersistentCompletion": true,
+    "orderedAssetIds": [
+      "NG-VM-018",
+      "NG-VM-010",
+      "NG-VM-019",
+      "NG-VM-020",
+      "NG-VM-011",
+      "NG-VM-012",
+      "NG-VM-013",
+      "NG-VM-014",
+      "NG-VM-015",
+      "NG-VM-016",
+      "NG-VM-017",
+      "NG-VM-021"
+    ]
+  },
+  "workloads": [
+    {
+      "assetId": "NG-VM-018",
+      "name": "NG-DEB-CAN01",
+      "deploymentClass": "disposable-canary",
+      "ownerRef": "northgate-owner",
+      "purpose": "Disposable Debian canary for factory, network, bootstrap, monitoring, quarantine, and receipt validation",
+      "environment": "lab",
+      "criticality": "low",
+      "dataClassification": "internal",
+      "lifecycle": "proposed",
+      "reviewOrRetirementDate": "2026-09-30",
+      "dependencies": [],
+      "imageRef": "debian-12.12-amd64-netinst",
+      "imageState": "candidate-unpromoted",
+      "firmwareProfileRef": "linux-gen2",
+      "processors": 2,
+      "memory": {
+        "mode": "dynamic",
+        "minimumMiB": 2048,
+        "startupMiB": 2048,
+        "maximumMiB": 4096
+      },
+      "storageProfileRef": "lab-ephemeral",
+      "osDiskGiB": 40,
+      "networkProfileRef": "business-apps",
+      "bootstrapProfileRef": "debian12-disposable-canary",
+      "recoveryProfileRef": "none-canary",
+      "accessProfileRef": "disposable-canary-keyonly-admin",
+      "desiredPowerState": "running",
+      "destroyProtection": true,
+      "readinessState": "blocked",
+      "blockingFindingRefs": [
+        "control-plane-not-promoted",
+        "protected-branch-unavailable",
+        "prerequisite-profiles-unpromoted",
+        "identities-and-change-unapproved",
+        "network-reservations-unallocated"
+      ]
+    },
+    {
+      "assetId": "NG-VM-010",
+      "name": "NG-CANARY-01",
+      "deploymentClass": "disposable-canary",
+      "ownerRef": "northgate-owner",
+      "purpose": "Disposable Windows canary for factory, vTPM, domain, endpoint, monitoring, quarantine, and receipt validation",
+      "environment": "lab",
+      "criticality": "low",
+      "dataClassification": "internal",
+      "lifecycle": "proposed",
+      "reviewOrRetirementDate": "2026-09-30",
+      "dependencies": [],
+      "imageRef": "windows-11-25h2-english-x64",
+      "imageState": "candidate-unpromoted",
+      "firmwareProfileRef": "windows-gen2",
+      "processors": 2,
+      "memory": {
+        "mode": "dynamic",
+        "minimumMiB": 4096,
+        "startupMiB": 4096,
+        "maximumMiB": 8192
+      },
+      "storageProfileRef": "lab-ephemeral",
+      "osDiskGiB": 80,
+      "networkProfileRef": "users-workstations",
+      "bootstrapProfileRef": "windows11-disposable-canary",
+      "recoveryProfileRef": "none-canary",
+      "accessProfileRef": "windows-disposable-canary",
+      "desiredPowerState": "running",
+      "destroyProtection": true,
+      "readinessState": "blocked",
+      "blockingFindingRefs": [
+        "control-plane-not-promoted",
+        "protected-branch-unavailable",
+        "prerequisite-profiles-unpromoted",
+        "identities-and-change-unapproved",
+        "network-reservations-unallocated"
+      ]
+    },
+    {
+      "assetId": "NG-VM-019",
+      "name": "NG-MAIL-EXT01",
+      "deploymentClass": "persistent",
+      "ownerRef": "northgate-owner",
+      "purpose": "Simulated external SMTP transfer, authenticated test submission, and isolated mailbox service",
+      "environment": "infrastructure",
+      "criticality": "moderate",
+      "dataClassification": "internal",
+      "lifecycle": "proposed",
+      "reviewOrRetirementDate": "2027-08-02",
+      "dependencies": [],
+      "imageRef": "debian-12.12-amd64-netinst",
+      "imageState": "candidate-unpromoted",
+      "firmwareProfileRef": "linux-gen2",
+      "processors": 2,
+      "memory": {
+        "mode": "dynamic",
+        "minimumMiB": 2048,
+        "startupMiB": 2048,
+        "maximumMiB": 4096
+      },
+      "storageProfileRef": "persistent-mail-protected",
+      "osDiskGiB": 40,
+      "networkProfileRef": "external-mail",
+      "bootstrapProfileRef": "debian12-mail-external",
+      "recoveryProfileRef": "bronze",
+      "accessProfileRef": "linux-server-keyonly-admin",
+      "desiredPowerState": "running",
+      "destroyProtection": true,
+      "readinessState": "blocked",
+      "blockingFindingRefs": [
+        "control-plane-not-promoted",
+        "protected-branch-unavailable",
+        "prerequisite-profiles-unpromoted",
+        "identities-and-change-unapproved",
+        "network-reservations-unallocated",
+        "standard-manifests-not-authored"
+      ]
+    },
+    {
+      "assetId": "NG-VM-020",
+      "name": "NG-MAIL-INT01",
+      "deploymentClass": "persistent",
+      "ownerRef": "northgate-owner",
+      "purpose": "Internal SMTP submission, local delivery, mailbox, antispam, malware scanning, and security telemetry",
+      "environment": "infrastructure",
+      "criticality": "high",
+      "dataClassification": "confidential",
+      "lifecycle": "proposed",
+      "reviewOrRetirementDate": "2027-08-02",
+      "dependencies": [
+        "NG-VM-019"
+      ],
+      "imageRef": "debian-12.12-amd64-netinst",
+      "imageState": "candidate-unpromoted",
+      "firmwareProfileRef": "linux-gen2",
+      "processors": 2,
+      "memory": {
+        "mode": "dynamic",
+        "minimumMiB": 2048,
+        "startupMiB": 4096,
+        "maximumMiB": 8192
+      },
+      "storageProfileRef": "persistent-mail-protected",
+      "osDiskGiB": 80,
+      "networkProfileRef": "mail-internal",
+      "bootstrapProfileRef": "debian12-mail-internal",
+      "recoveryProfileRef": "silver",
+      "accessProfileRef": "linux-server-keyonly-admin",
+      "desiredPowerState": "running",
+      "destroyProtection": true,
+      "readinessState": "blocked",
+      "blockingFindingRefs": [
+        "control-plane-not-promoted",
+        "protected-branch-unavailable",
+        "prerequisite-profiles-unpromoted",
+        "identities-and-change-unapproved",
+        "network-reservations-unallocated",
+        "standard-manifests-not-authored"
+      ]
+    },
+    {
+      "assetId": "NG-VM-011",
+      "name": "NG-WRK-01",
+      "deploymentClass": "persistent",
+      "ownerRef": "northgate-owner",
+      "purpose": "Ordinary worker workstation and first persistent Windows fleet canary",
+      "environment": "infrastructure",
+      "criticality": "moderate",
+      "dataClassification": "internal",
+      "lifecycle": "proposed",
+      "reviewOrRetirementDate": "2027-08-02",
+      "dependencies": [],
+      "imageRef": "windows-11-25h2-english-x64",
+      "imageState": "candidate-unpromoted",
+      "firmwareProfileRef": "windows-gen2",
+      "processors": 2,
+      "memory": {
+        "mode": "dynamic",
+        "minimumMiB": 4096,
+        "startupMiB": 4096,
+        "maximumMiB": 6144
+      },
+      "storageProfileRef": "persistent-workstations",
+      "osDiskGiB": 80,
+      "networkProfileRef": "users-workstations",
+      "bootstrapProfileRef": "windows11-worker",
+      "recoveryProfileRef": "bronze",
+      "accessProfileRef": "windows-domain-managed",
+      "desiredPowerState": "running",
+      "destroyProtection": true,
+      "readinessState": "blocked",
+      "blockingFindingRefs": [
+        "control-plane-not-promoted",
+        "protected-branch-unavailable",
+        "prerequisite-profiles-unpromoted",
+        "identities-and-change-unapproved",
+        "network-reservations-unallocated",
+        "standard-manifests-not-authored"
+      ]
+    },
+    {
+      "assetId": "NG-VM-012",
+      "name": "NG-WRK-02",
+      "deploymentClass": "persistent",
+      "ownerRef": "northgate-owner",
+      "purpose": "Ordinary worker workstation",
+      "environment": "infrastructure",
+      "criticality": "moderate",
+      "dataClassification": "internal",
+      "lifecycle": "proposed",
+      "reviewOrRetirementDate": "2027-08-02",
+      "dependencies": [],
+      "imageRef": "windows-11-25h2-english-x64",
+      "imageState": "candidate-unpromoted",
+      "firmwareProfileRef": "windows-gen2",
+      "processors": 2,
+      "memory": {
+        "mode": "dynamic",
+        "minimumMiB": 4096,
+        "startupMiB": 4096,
+        "maximumMiB": 6144
+      },
+      "storageProfileRef": "persistent-workstations",
+      "osDiskGiB": 80,
+      "networkProfileRef": "users-workstations",
+      "bootstrapProfileRef": "windows11-worker",
+      "recoveryProfileRef": "bronze",
+      "accessProfileRef": "windows-domain-managed",
+      "desiredPowerState": "running",
+      "destroyProtection": true,
+      "readinessState": "blocked",
+      "blockingFindingRefs": [
+        "control-plane-not-promoted",
+        "protected-branch-unavailable",
+        "prerequisite-profiles-unpromoted",
+        "identities-and-change-unapproved",
+        "network-reservations-unallocated",
+        "standard-manifests-not-authored"
+      ]
+    },
+    {
+      "assetId": "NG-VM-013",
+      "name": "NG-MGR-01",
+      "deploymentClass": "persistent",
+      "ownerRef": "northgate-owner",
+      "purpose": "Manager workstation without infrastructure-administration privilege",
+      "environment": "infrastructure",
+      "criticality": "moderate",
+      "dataClassification": "confidential",
+      "lifecycle": "proposed",
+      "reviewOrRetirementDate": "2027-08-02",
+      "dependencies": [],
+      "imageRef": "windows-11-25h2-english-x64",
+      "imageState": "candidate-unpromoted",
+      "firmwareProfileRef": "windows-gen2",
+      "processors": 2,
+      "memory": {
+        "mode": "dynamic",
+        "minimumMiB": 4096,
+        "startupMiB": 4096,
+        "maximumMiB": 6144
+      },
+      "storageProfileRef": "persistent-workstations",
+      "osDiskGiB": 80,
+      "networkProfileRef": "users-workstations",
+      "bootstrapProfileRef": "windows11-manager",
+      "recoveryProfileRef": "bronze",
+      "accessProfileRef": "windows-domain-managed",
+      "desiredPowerState": "running",
+      "destroyProtection": true,
+      "readinessState": "blocked",
+      "blockingFindingRefs": [
+        "control-plane-not-promoted",
+        "protected-branch-unavailable",
+        "prerequisite-profiles-unpromoted",
+        "identities-and-change-unapproved",
+        "network-reservations-unallocated",
+        "standard-manifests-not-authored"
+      ]
+    },
+    {
+      "assetId": "NG-VM-014",
+      "name": "NG-IT-01",
+      "deploymentClass": "persistent",
+      "ownerRef": "northgate-owner",
+      "purpose": "Dedicated privileged IT administration workstation",
+      "environment": "infrastructure",
+      "criticality": "high",
+      "dataClassification": "restricted",
+      "lifecycle": "proposed",
+      "reviewOrRetirementDate": "2027-08-02",
+      "dependencies": [],
+      "imageRef": "windows-11-25h2-english-x64",
+      "imageState": "candidate-unpromoted",
+      "firmwareProfileRef": "windows-gen2",
+      "processors": 4,
+      "memory": {
+        "mode": "dynamic",
+        "minimumMiB": 4096,
+        "startupMiB": 8192,
+        "maximumMiB": 12288
+      },
+      "storageProfileRef": "persistent-workstations",
+      "osDiskGiB": 100,
+      "networkProfileRef": "it-admin-workstations",
+      "bootstrapProfileRef": "windows11-it-admin",
+      "recoveryProfileRef": "silver",
+      "accessProfileRef": "windows-privileged-workstation",
+      "desiredPowerState": "running",
+      "destroyProtection": true,
+      "readinessState": "blocked",
+      "blockingFindingRefs": [
+        "control-plane-not-promoted",
+        "protected-branch-unavailable",
+        "prerequisite-profiles-unpromoted",
+        "identities-and-change-unapproved",
+        "network-reservations-unallocated",
+        "standard-manifests-not-authored"
+      ]
+    },
+    {
+      "assetId": "NG-VM-015",
+      "name": "NG-CYBER-01",
+      "deploymentClass": "persistent",
+      "ownerRef": "northgate-owner",
+      "purpose": "Blue-team analysis, security operations, and detection-engineering workstation",
+      "environment": "security",
+      "criticality": "high",
+      "dataClassification": "restricted",
+      "lifecycle": "proposed",
+      "reviewOrRetirementDate": "2027-08-02",
+      "dependencies": [],
+      "imageRef": "windows-11-25h2-english-x64",
+      "imageState": "candidate-unpromoted",
+      "firmwareProfileRef": "windows-gen2",
+      "processors": 4,
+      "memory": {
+        "mode": "dynamic",
+        "minimumMiB": 4096,
+        "startupMiB": 8192,
+        "maximumMiB": 12288
+      },
+      "storageProfileRef": "persistent-workstations",
+      "osDiskGiB": 120,
+      "networkProfileRef": "cyber-workstations",
+      "bootstrapProfileRef": "windows11-cyber",
+      "recoveryProfileRef": "silver",
+      "accessProfileRef": "windows-privileged-workstation",
+      "desiredPowerState": "running",
+      "destroyProtection": true,
+      "readinessState": "blocked",
+      "blockingFindingRefs": [
+        "control-plane-not-promoted",
+        "protected-branch-unavailable",
+        "prerequisite-profiles-unpromoted",
+        "identities-and-change-unapproved",
+        "network-reservations-unallocated",
+        "standard-manifests-not-authored"
+      ]
+    },
+    {
+      "assetId": "NG-VM-016",
+      "name": "NG-HR-APP01",
+      "deploymentClass": "persistent",
+      "ownerRef": "northgate-owner",
+      "purpose": "Internal employee HR application on a dedicated Debian server",
+      "environment": "infrastructure",
+      "criticality": "high",
+      "dataClassification": "restricted",
+      "lifecycle": "proposed",
+      "reviewOrRetirementDate": "2027-08-01",
+      "dependencies": [
+        "NG-VM-020"
+      ],
+      "imageRef": "debian-12.12-amd64-netinst",
+      "imageState": "candidate-unpromoted",
+      "firmwareProfileRef": "linux-gen2",
+      "processors": 2,
+      "memory": {
+        "mode": "dynamic",
+        "minimumMiB": 2048,
+        "startupMiB": 4096,
+        "maximumMiB": 8192
+      },
+      "storageProfileRef": "persistent-app-protected",
+      "osDiskGiB": 100,
+      "networkProfileRef": "business-apps",
+      "bootstrapProfileRef": "debian12-employee-hub",
+      "recoveryProfileRef": "aegis-app-protected",
+      "accessProfileRef": "debian-app-keyonly-admin",
+      "desiredPowerState": "running",
+      "destroyProtection": true,
+      "readinessState": "blocked",
+      "blockingFindingRefs": [
+        "control-plane-not-promoted",
+        "protected-branch-unavailable",
+        "prerequisite-profiles-unpromoted",
+        "identities-and-change-unapproved",
+        "network-reservations-unallocated",
+        "standard-manifests-not-authored"
+      ]
+    },
+    {
+      "assetId": "NG-VM-017",
+      "name": "NG-PLAT-APP01",
+      "deploymentClass": "persistent",
+      "ownerRef": "northgate-owner",
+      "purpose": "Commercial Sentinel Atlas platform on a dedicated Debian server",
+      "environment": "infrastructure",
+      "criticality": "high",
+      "dataClassification": "confidential",
+      "lifecycle": "proposed",
+      "reviewOrRetirementDate": "2027-08-01",
+      "dependencies": [
+        "NG-VM-020"
+      ],
+      "imageRef": "debian-12.12-amd64-netinst",
+      "imageState": "candidate-unpromoted",
+      "firmwareProfileRef": "linux-gen2",
+      "processors": 4,
+      "memory": {
+        "mode": "dynamic",
+        "minimumMiB": 4096,
+        "startupMiB": 8192,
+        "maximumMiB": 16384
+      },
+      "storageProfileRef": "persistent-app-protected",
+      "osDiskGiB": 120,
+      "networkProfileRef": "commercial-dmz",
+      "bootstrapProfileRef": "debian12-sentinel-atlas",
+      "recoveryProfileRef": "aegis-app-protected",
+      "accessProfileRef": "debian-app-keyonly-admin",
+      "desiredPowerState": "running",
+      "destroyProtection": true,
+      "readinessState": "blocked",
+      "blockingFindingRefs": [
+        "control-plane-not-promoted",
+        "protected-branch-unavailable",
+        "prerequisite-profiles-unpromoted",
+        "identities-and-change-unapproved",
+        "network-reservations-unallocated",
+        "standard-manifests-not-authored"
+      ]
+    },
+    {
+      "assetId": "NG-VM-021",
+      "name": "NG-KALI-EXT01",
+      "deploymentClass": "persistent",
+      "ownerRef": "northgate-owner",
+      "purpose": "Simulated external client and adversary-validation workstation isolated from trusted networks",
+      "environment": "security",
+      "criticality": "low",
+      "dataClassification": "internal",
+      "lifecycle": "proposed",
+      "reviewOrRetirementDate": "2027-08-02",
+      "dependencies": [
+        "NG-VM-019",
+        "NG-VM-017"
+      ],
+      "imageRef": "kali-2026.2-installer-netinst-amd64",
+      "imageState": "candidate-unpromoted",
+      "firmwareProfileRef": "linux-gen2",
+      "processors": 4,
+      "memory": {
+        "mode": "dynamic",
+        "minimumMiB": 4096,
+        "startupMiB": 4096,
+        "maximumMiB": 12288
+      },
+      "storageProfileRef": "persistent-tooling",
+      "osDiskGiB": 100,
+      "networkProfileRef": "sim-wan",
+      "bootstrapProfileRef": "kali-external-lab",
+      "recoveryProfileRef": "bronze",
+      "accessProfileRef": "kali-lab-keyonly-admin",
+      "desiredPowerState": "running",
+      "destroyProtection": true,
+      "readinessState": "blocked",
+      "blockingFindingRefs": [
+        "control-plane-not-promoted",
+        "protected-branch-unavailable",
+        "prerequisite-profiles-unpromoted",
+        "identities-and-change-unapproved",
+        "network-reservations-unallocated",
+        "standard-manifests-not-authored"
+      ]
+    }
+  ]
+}

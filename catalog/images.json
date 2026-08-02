@@ -2,7 +2,7 @@
   "$schema": "../schemas/image-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "ImageCatalog",
-  "catalogVersion": "2026.08.01.1",
+  "catalogVersion": "2026.08.02.2",
   "promotedOnly": true,
   "images": [
     {
@@ -16,6 +16,34 @@
         "linux-gen2"
       ],
       "sourceArtifactId": "debian-12.12.0-amd64-netinst-iso",
+      "approvalStatus": "proposed",
+      "retirementStatus": "proposed"
+    },
+    {
+      "id": "windows-11-25h2-english-x64",
+      "sha256": "d141f6030fed50f75e2b03e1eb2e53646c4b21e5386047cb860af5223f102a32",
+      "sizeBytes": 7736125440,
+      "guestFamily": "windows",
+      "architecture": "x86_64",
+      "allowedGenerations": [2],
+      "allowedFirmwareProfiles": [
+        "windows-gen2"
+      ],
+      "sourceArtifactId": "windows-11-25h2-english-x64-iso",
+      "approvalStatus": "proposed",
+      "retirementStatus": "proposed"
+    },
+    {
+      "id": "kali-2026.2-installer-netinst-amd64",
+      "sha256": "d32f929dacc48134a31461a09f2160d13ad1d26b820cee920446813ca979b39b",
+      "sizeBytes": 779091968,
+      "guestFamily": "linux",
+      "architecture": "x86_64",
+      "allowedGenerations": [2],
+      "allowedFirmwareProfiles": [
+        "linux-gen2"
+      ],
+      "sourceArtifactId": "kali-linux-2026.2-installer-netinst-amd64-iso",
       "approvalStatus": "proposed",
       "retirementStatus": "proposed"
     }

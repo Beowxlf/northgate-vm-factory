@@ -2,7 +2,7 @@
   "$schema": "../schemas/network-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "NetworkCatalog",
-  "catalogVersion": "2026.08.01.2",
+  "catalogVersion": "2026.08.02.1",
   "profiles": [
     {
       "id": "tooling-primary",
@@ -55,6 +55,46 @@
     {
       "id": "commercial-dmz",
       "serverPolicyId": "ng-network-commercial-dmz-v1",
+      "approvalStatus": "proposed",
+      "allowAttach": true,
+      "allowCreate": false,
+      "allowRebind": false
+    },
+    {
+      "id": "users-workstations",
+      "serverPolicyId": "ng-network-users-workstations-v1",
+      "approvalStatus": "proposed",
+      "allowAttach": true,
+      "allowCreate": false,
+      "allowRebind": false
+    },
+    {
+      "id": "mail-internal",
+      "serverPolicyId": "ng-network-mail-internal-v1",
+      "approvalStatus": "proposed",
+      "allowAttach": true,
+      "allowCreate": false,
+      "allowRebind": false
+    },
+    {
+      "id": "it-admin-workstations",
+      "serverPolicyId": "ng-network-it-admin-workstations-v1",
+      "approvalStatus": "proposed",
+      "allowAttach": true,
+      "allowCreate": false,
+      "allowRebind": false
+    },
+    {
+      "id": "cyber-workstations",
+      "serverPolicyId": "ng-network-cyber-workstations-v1",
+      "approvalStatus": "proposed",
+      "allowAttach": true,
+      "allowCreate": false,
+      "allowRebind": false
+    },
+    {
+      "id": "external-mail",
+      "serverPolicyId": "ng-network-external-mail-v1",
       "approvalStatus": "proposed",
       "allowAttach": true,
       "allowCreate": false,

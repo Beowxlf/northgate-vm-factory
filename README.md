@@ -24,38 +24,35 @@ flowchart LR
         Fetcher["Fixed data-only fetcher<br/>no hooks, filters, or repo code"]
         Planner["Installed signed planner"]
         Approval["Human approval<br/>host plan ID and signed hash"]
-        Executor["Installed signed executor"]
-        CredentialStore["Protected credential store<br/>dedicated service identity"]
-        Tunnel["Forwarding-only encrypted tunnel<br/>application authentication"]
+        Executor["Fixed create-only client"]
+        CredentialStore["Protected create-only SSH key"]
         Collector["Receipt collector"]
         Fetcher --> Planner
         Approval --> Executor
-        CredentialStore --> Fetcher
         CredentialStore --> Executor
-        Executor --> Tunnel
-        Tunnel --> Collector
+        Executor --> Collector
     end
 
     Commit --> Fetcher
 
     subgraph Host["NorthGate Hyper-V trust boundary"]
-        ReadOnly["Read-only MCP inventory"]
+        Forced["Source-restricted forced command<br/>status / plan / apply / receipt"]
         PlanRegistry["Canonical plan registry<br/>expiry, state binding, host lock"]
-        Apply["Plan-gated MCP apply<br/>plan ID only"]
+        ApprovalWriter["Administrator-only<br/>exact approval writer"]
         Provisioner["Installed provisioner<br/>authoritative server policy"]
         HyperV["Native Hyper-V PowerShell"]
         VMs["Managed Generation 2 VMs"]
         Audit["Protected audit log"]
-        ReadOnly --> PlanRegistry
-        Apply --> PlanRegistry --> Provisioner --> HyperV --> VMs
-        Apply --> Audit
+        Legacy["Legacy MCP 1.8.0<br/>Administrator break-glass only"]
+        Forced --> PlanRegistry --> Provisioner --> HyperV --> VMs
+        ApprovalWriter --> PlanRegistry
+        PlanRegistry --> Audit
     end
 
-    Planner -->|"normalized read set"| Tunnel
-    Tunnel --> ReadOnly
-    Planner -->|"canonical post-merge plan"| PlanRegistry
+    Planner -->|"fixed asset request"| Executor
+    Executor -->|"pinned public-key SSH"| Forced
     PlanRegistry -->|"accepted plan ID, signed hash, expiry"| Approval
-    Tunnel --> Apply
+    Owner -->|"separate Administrator identity"| ApprovalWriter
 
     subgraph Records["Governance and evidence boundary"]
         Receipt["Signed execution receipt<br/>before and after hashes"]
@@ -63,10 +60,10 @@ flowchart LR
         Receipt --> Vault
     end
 
-    Apply --> Receipt
+    PlanRegistry --> Receipt
     Audit --> Receipt
     Collector --> Receipt
-    Owner -. "separate Administrator identity - break-glass only" .-> Host
+    Owner -. "break-glass only" .-> Legacy
 ```
 
 The canonical explanation of trust boundaries, authorization, data flow, and failure behavior is in [docs/architecture.md](docs/architecture.md).
@@ -78,7 +75,7 @@ The canonical explanation of trust boundaries, authorization, data flow, and fai
 - The host independently validates the canonical plan, registers it, and returns an expiring plan ID with an authenticated hash. Apply submits that plan ID only.
 - Codex may author, validate, plan, and invoke an approved apply. It is not an independent approver.
 - Repository contents are untrusted data at the privileged boundary. The executor never runs checkout scripts, hooks, submodules, filters, or binaries.
-- Routine provisioning uses a dedicated forwarding identity and plan-gated MCP operation. Administrator SSH is separate and reserved for bootstrap or break-glass recovery.
+- Routine provisioning uses a source-restricted, public-key, forced-command identity and a host-issued one-operation plan. Administrator SSH and legacy broad MCP access remain separate bootstrap or break-glass paths.
 - No GitHub Actions runner, Git credential, or repository checkout is installed on the Hyper-V host.
 - No secret, private key, password, token, generated unattend credential, live plan, receipt, identity ledger, or Terraform state enters this repository.
 - Removing or renaming a manifest only reports drift. It never implies replacement, decommission, disk deletion, or purge.
@@ -87,6 +84,7 @@ The canonical explanation of trust boundaries, authorization, data flow, and fai
 
 ```text
 catalog/                    Approved opaque references; host mapping remains authoritative
+control-plane/              Disabled interface, engine, adapter, promotion, and create-only operator candidates
 docs/                       Architecture, governance, acceptance tests, and decision records
 manifests/vms/              Managed VM desired state; intentionally empty initially
 policy/                     Proposed plan-only resource and canary-stage policy
@@ -109,10 +107,14 @@ PowerShell 7 also performs JSON Schema validation. Windows PowerShell 5.1 perfor
 ## Rollout state
 
 1. **Current:** private repository bootstrap and plan-only controls.
-2. **Next:** harden MCP code and audit ACLs, establish separate tunnel/application identities, reconcile releases, and build normalized read-only planning. The separately reviewed but non-operative [disposable canary execution-stage proposal](docs/canary-execution-stage.md) defines a path through the bootstrap deadlock without relaxing normal workload policy.
+2. **Next:** harden the management boundary, establish a dedicated forced-command application identity, reconcile releases, and build normalized read-only planning. The [disabled control-plane candidate](control-plane/candidate/README.md) freezes the four-operation routine interface, while the separate [simulation-only engine scaffold](control-plane/engine-candidate/README.md) exercises authentication, canonical plans, registry, approval, ledger, locking, audit, receipt, and quarantine behavior against a fixed inert mock. The [Phase 3 host-adapter and immutable-promotion design](control-plane/phase3-host-adapter/README.md) defines the smallest install-only successor, and the [fixed-fleet create-only operator candidate](control-plane/create-only-operator/README.md) freezes the exact 12-asset boundary and private-repository promotion compensating control. None is an installed release. The separately reviewed but non-operative [disposable canary execution-stage proposal](docs/canary-execution-stage.md) defines a path through the bootstrap deadlock without relaxing normal workload policy.
 3. **Then:** activate that canary-only path through a different reviewed control-plane change and prove one disposable canary with stale-plan, capacity, collision, concurrency, secret, path, identity, and rollback tests.
 4. **Later:** promote image construction, guest bootstrap, drift reporting, and narrowly scoped low-risk automation.
 
 See [the acceptance gates](docs/acceptance-tests.md), [the manifest contract](docs/manifest-contract.md), and [ADR-0001](docs/decision-records/ADR-0001-gitops-lite.md). Live assessment evidence and environment-specific mappings remain off Git in Operation-SeeSaw.
 
+[ADR-0005](docs/decision-records/ADR-0005-create-only-forced-command-release.md) selects the dedicated forced-command application identity for create-only release engineering. It also records the exact commit/tree plus signed-release allowlist that compensates for unavailable private-repository branch protection without making the repository public. The [activation runbook](docs/create-only-activation-runbook.md) separates source review, immutable packaging, disabled installation, isolation testing, canary policy, and exact plan approval. Neither document is itself a live activation or VM deployment approval.
+
 Proposed workload designs remain non-operative until their stated control-plane and VM Factory gates pass. The distinct internal and simulated-external SMTP services and Kali design are recorded in [ADR-0002](docs/decision-records/ADR-0002-segmented-mail-and-external-simulation.md), with an operator handoff in the [mail lab deployment plan](docs/mail-lab-deployment-plan.md). The five-role Windows fleet, target VLAN architecture, and phased implementation decision are in [ADR-0003](docs/decision-records/ADR-0003-segmented-windows-workstation-fleet.md), with an operator handoff in the [Windows workstation deployment plan](docs/windows-workstation-deployment-plan.md). The independent Debian Employee Hub and Sentinel Atlas service-hosting decision is in [ADR-0004](docs/decision-records/ADR-0004-aegis-debian-application-services.md), with its gate and canary handoff in the [Aegis application deployment plan](docs/aegis-application-deployment-plan.md). Their selected but non-deployable catalog bundle and workload envelopes are in the strict [Aegis provisioning proposal](proposals/aegis-debian-workloads.proposed.json); it is not a standard VM manifest or host-issued plan. Proposed fixed address intent is in the [IPAM plan](docs/ipam-plan.md). Retained and future endpoint, firewall, workstation, mail, and red-team visibility follows the plan-only [Wazuh sensor and detection-engineering standard](docs/wazuh-sensor-and-detection-standard.md).
+
+The consolidated [full-fleet foundation plan](docs/full-fleet-foundation-plan.md) and strict [12-VM proposal](proposals/full-fleet.proposed.json) unify both disposable canaries and all ten persistent workloads. They remain non-deployable: identities and addresses are unreserved, normal manifests are absent, the reduced memory envelope still requires fresh host-plan revalidation, and every image and profile—including the checksum-verified Kali artifact—remains proposed and unpromoted.

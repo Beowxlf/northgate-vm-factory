@@ -176,6 +176,87 @@ function Assert-CanaryExecutionStageProposal {
     }
 }
 
+function Assert-ControlPlaneCandidateProposal {
+    param([Parameter(Mandatory)][object]$Candidate)
+
+    Assert-ExactPropertySet -InputObject $Candidate -ExpectedProperties @(
+        '$schema', 'apiVersion', 'kind', 'candidateVersion', 'status', 'effectiveState', 'interface', 'promotion'
+    ) -Location 'Control-plane candidate proposal'
+    Assert-ExactPropertySet -InputObject $Candidate.effectiveState -ExpectedProperties @(
+        'deployed',
+        'applicationAuthenticationConfigured',
+        'planRegistrationEnabled',
+        'applyEnabled',
+        'executableActions',
+        'writerLockConfigured',
+        'receiptSigningConfigured',
+        'directMutationMethodsExposed'
+    ) -Location 'Control-plane candidate effective state'
+    Assert-ExactPropertySet -InputObject $Candidate.interface -ExpectedProperties @(
+        'stateOperation', 'registerOperation', 'getPlanOperation', 'applyOperation', 'applyInputFields'
+    ) -Location 'Control-plane candidate interface'
+    Assert-ExactPropertySet -InputObject $Candidate.promotion -ExpectedProperties @(
+        'repositorySourceMayExecuteOnHost',
+        'installedSignedReleaseRequired',
+        'separateReviewedChangeRequired',
+        'requiredGates'
+    ) -Location 'Control-plane candidate promotion policy'
+
+    if ($Candidate.'$schema' -cne '../../schemas/control-plane-candidate.schema.json' -or
+        $Candidate.apiVersion -cne 'northgate/v1alpha1' -or
+        $Candidate.kind -cne 'VmFactoryControlPlaneCandidate' -or
+        $Candidate.status -cne 'proposed' -or
+        $Candidate.candidateVersion -cnotmatch '^0\.[0-9]+\.[0-9]+$') {
+        throw 'Only a proposed pre-1.0 control-plane candidate contract is permitted.'
+    }
+
+    $state = $Candidate.effectiveState
+    if ($state.deployed -ne $false -or
+        $state.applicationAuthenticationConfigured -ne $false -or
+        $state.planRegistrationEnabled -ne $false -or
+        $state.applyEnabled -ne $false -or
+        @($state.executableActions).Count -ne 0 -or
+        $state.writerLockConfigured -ne $false -or
+        $state.receiptSigningConfigured -ne $false -or
+        $state.directMutationMethodsExposed -ne $false) {
+        throw 'The repository control-plane candidate must remain undeployed, unconfigured, and non-operative.'
+    }
+
+    $interface = $Candidate.interface
+    if ($interface.stateOperation -cne 'vm_factory_get_state' -or
+        $interface.registerOperation -cne 'vm_factory_register_plan' -or
+        $interface.getPlanOperation -cne 'vm_factory_get_plan' -or
+        $interface.applyOperation -cne 'vm_factory_apply_plan' -or
+        (@($interface.applyInputFields) -join '|') -cne 'planId') {
+        throw 'The candidate interface must remain the four typed factory operations with plan-ID-only apply.'
+    }
+
+    $promotion = $Candidate.promotion
+    if ($promotion.repositorySourceMayExecuteOnHost -ne $false -or
+        $promotion.installedSignedReleaseRequired -ne $true -or
+        $promotion.separateReviewedChangeRequired -ne $true) {
+        throw 'Repository source must not become an installed or activated control-plane release.'
+    }
+    $expectedGates = @(
+        'restrictive-acls-proven',
+        'immutable-signed-release-promoted',
+        'forwarding-only-identity-proven',
+        'application-authentication-proven',
+        'data-only-fetcher-proven',
+        'protected-branch-reachability-proven',
+        'strict-plan-validation-proven',
+        'identity-ledger-proven',
+        'host-writer-lock-proven',
+        'audit-fail-closed-proven',
+        'receipt-signing-proven',
+        'rollback-tested',
+        'direct-mutators-disabled'
+    )
+    if ((@($promotion.requiredGates) -join '|') -cne ($expectedGates -join '|')) {
+        throw 'The control-plane candidate promotion gate set was changed from the fail-closed contract.'
+    }
+}
+
 function Assert-ImageCatalogSafety {
     param([Parameter(Mandatory)][object]$Catalog)
 
@@ -304,6 +385,212 @@ function Assert-WorkloadProvisioningProposal {
     Test-ForbiddenManifestData -InputObject $Proposal
 }
 
+function Assert-FullFleetProvisioningProposal {
+    param([Parameter(Mandatory)][object]$Proposal)
+
+    Assert-ExactPropertySet -InputObject $Proposal -ExpectedProperties @(
+        '$schema', 'apiVersion', 'kind', 'proposalVersion', 'status', 'execution', 'governance',
+        'blockingFindings', 'catalogPromotion', 'capacity', 'rollout', 'workloads'
+    ) -Location 'Full-fleet provisioning proposal'
+    Assert-ExactPropertySet -InputObject $Proposal.execution -ExpectedProperties @(
+        'deployable', 'hostPlanRequired', 'standardManifestsIncluded',
+        'resourcePolicyMustRemainDisabled', 'promotionMode', 'overallState'
+    ) -Location 'Full-fleet execution boundary'
+    Assert-ExactPropertySet -InputObject $Proposal.governance -ExpectedProperties @(
+        'assetIdentityState', 'addressReservationState', 'dnsRegistrationState',
+        'catalogState', 'changeReferenceState'
+    ) -Location 'Full-fleet governance state'
+    Assert-ExactPropertySet -InputObject $Proposal.catalogPromotion -ExpectedProperties @(
+        'candidateImageRefs', 'blockedImageRefs', 'firmwareProfileRefs', 'storageProfileRefs',
+        'networkProfileRefs', 'bootstrapProfileRefs', 'recoveryProfileRefs', 'accessProfileRefs'
+    ) -Location 'Full-fleet catalog bundle'
+    Assert-ExactPropertySet -InputObject $Proposal.capacity -ExpectedProperties @(
+        'persistentFleet', 'largestDisposableCanary', 'policyHostReserveMemoryMiB',
+        'configuredMaximumReductionMiB', 'reserveMarginMiBAtLastRead',
+        'assessmentState', 'liveRevalidationRequired'
+    ) -Location 'Full-fleet capacity gate'
+    Assert-ExactPropertySet -InputObject $Proposal.capacity.persistentFleet -ExpectedProperties @(
+        'processors', 'startupMemoryMiB', 'maximumMemoryMiB', 'osDiskGiB'
+    ) -Location 'Persistent-fleet capacity totals'
+    Assert-ExactPropertySet -InputObject $Proposal.capacity.largestDisposableCanary -ExpectedProperties @(
+        'processors', 'startupMemoryMiB', 'maximumMemoryMiB', 'osDiskGiB'
+    ) -Location 'Disposable-canary capacity envelope'
+    Assert-ExactPropertySet -InputObject $Proposal.rollout -ExpectedProperties @(
+        'maximumConcurrentCanaries', 'canariesRetiredBeforePersistentCompletion', 'orderedAssetIds'
+    ) -Location 'Full-fleet rollout'
+
+    if ($Proposal.'$schema' -cne '../schemas/full-fleet-provisioning-proposal.schema.json' -or
+        $Proposal.apiVersion -cne 'northgate/v1alpha1' -or
+        $Proposal.kind -cne 'FullFleetProvisioningProposal' -or
+        $Proposal.status -cne 'proposed' -or
+        $Proposal.proposalVersion -cnotmatch '^[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+$') {
+        throw 'Only the proposed full-fleet provisioning contract is permitted.'
+    }
+
+    $execution = $Proposal.execution
+    if ($execution.deployable -ne $false -or
+        $execution.hostPlanRequired -ne $true -or
+        $execution.standardManifestsIncluded -ne $false -or
+        $execution.resourcePolicyMustRemainDisabled -ne $true -or
+        $execution.promotionMode -cne 'separate-reviewed-stages' -or
+        $execution.overallState -cne 'blocked') {
+        throw 'The full-fleet proposal must remain blocked, non-deployable, and separate from standard manifests and plans.'
+    }
+
+    if ($Proposal.governance.assetIdentityState -cne 'candidate-unreserved' -or
+        $Proposal.governance.addressReservationState -cne 'proposed-unallocated' -or
+        $Proposal.governance.dnsRegistrationState -cne 'proposed-unregistered' -or
+        $Proposal.governance.catalogState -cne 'proposed' -or
+        $Proposal.governance.changeReferenceState -cne 'required-before-manifest') {
+        throw 'The full-fleet proposal may not claim identity, address, DNS, catalog, or change approval.'
+    }
+
+    $expectedOrder = @(
+        'NG-VM-018',
+        'NG-VM-010',
+        'NG-VM-019',
+        'NG-VM-020',
+        'NG-VM-011',
+        'NG-VM-012',
+        'NG-VM-013',
+        'NG-VM-014',
+        'NG-VM-015',
+        'NG-VM-016',
+        'NG-VM-017',
+        'NG-VM-021'
+    )
+    if ($Proposal.rollout.maximumConcurrentCanaries -ne 1 -or
+        $Proposal.rollout.canariesRetiredBeforePersistentCompletion -ne $true -or
+        (@($Proposal.rollout.orderedAssetIds) -join '|') -cne ($expectedOrder -join '|')) {
+        throw 'The full-fleet rollout must remain serialized, Debian-canary first, and retire canaries before persistent completion.'
+    }
+
+    if (@($Proposal.workloads).Count -ne 12 -or
+        (@($Proposal.workloads.assetId) -join '|') -cne ($expectedOrder -join '|')) {
+        throw 'The full-fleet proposal must contain exactly the twelve reviewed candidate identities in rollout order.'
+    }
+    if ((Get-DuplicateValues -Values @($Proposal.workloads.assetId)).Count -or
+        (Get-DuplicateValues -Values @($Proposal.workloads.name)).Count) {
+        throw 'Full-fleet candidate identities and names must be unique.'
+    }
+
+    $requiredBlockers = @(
+        'control-plane-not-promoted',
+        'protected-branch-unavailable',
+        'prerequisite-profiles-unpromoted',
+        'identities-and-change-unapproved',
+        'network-reservations-unallocated',
+        'standard-manifests-not-authored'
+    )
+    $findingIds = @($Proposal.blockingFindings.id)
+    if ((Get-DuplicateValues -Values $findingIds).Count -or
+        (@($requiredBlockers | Where-Object { $_ -notin $findingIds }).Count -ne 0)) {
+        throw 'The full-fleet proposal must retain every reviewed blocking finding exactly once.'
+    }
+    foreach ($finding in @($Proposal.blockingFindings)) {
+        Assert-ExactPropertySet -InputObject $finding -ExpectedProperties @(
+            'id', 'state', 'resolutionClass'
+        ) -Location "Full-fleet blocker '$($finding.id)'"
+        if ($finding.state -cne 'blocked') {
+            throw "Full-fleet blocker '$($finding.id)' may not be marked ready."
+        }
+    }
+
+    foreach ($workload in @($Proposal.workloads)) {
+        Assert-ExactPropertySet -InputObject $workload -ExpectedProperties @(
+            'assetId', 'name', 'deploymentClass', 'ownerRef', 'purpose', 'environment',
+            'criticality', 'dataClassification', 'lifecycle', 'reviewOrRetirementDate',
+            'dependencies', 'imageRef', 'imageState', 'firmwareProfileRef', 'processors',
+            'memory', 'storageProfileRef', 'osDiskGiB', 'networkProfileRef',
+            'bootstrapProfileRef', 'recoveryProfileRef', 'accessProfileRef',
+            'desiredPowerState', 'destroyProtection', 'readinessState', 'blockingFindingRefs'
+        ) -Location "Full-fleet workload '$($workload.assetId)'"
+        Assert-ExactPropertySet -InputObject $workload.memory -ExpectedProperties @(
+            'mode', 'minimumMiB', 'startupMiB', 'maximumMiB'
+        ) -Location "Full-fleet workload '$($workload.assetId)' memory"
+        if ($workload.lifecycle -cne 'proposed' -or
+            $workload.destroyProtection -ne $true -or
+            $workload.readinessState -cne 'blocked') {
+            throw "Full-fleet workload '$($workload.assetId)' must remain proposed, blocked, and destroy-protected."
+        }
+        if ($workload.assetId -in @($workload.dependencies) -or
+            @($workload.dependencies | Where-Object { $_ -notin $expectedOrder }).Count -ne 0) {
+            throw "Full-fleet workload '$($workload.assetId)' has an invalid dependency."
+        }
+        if (-not ($workload.memory.minimumMiB -le $workload.memory.startupMiB -and
+            $workload.memory.startupMiB -le $workload.memory.maximumMiB)) {
+            throw "Full-fleet workload '$($workload.assetId)' has an invalid dynamic-memory range."
+        }
+        if (@($workload.blockingFindingRefs | Where-Object { $_ -notin $findingIds }).Count -ne 0) {
+            throw "Full-fleet workload '$($workload.assetId)' cites an unknown blocking finding."
+        }
+        foreach ($commonBlocker in @('control-plane-not-promoted', 'protected-branch-unavailable', 'prerequisite-profiles-unpromoted', 'identities-and-change-unapproved', 'network-reservations-unallocated')) {
+            if ($commonBlocker -notin @($workload.blockingFindingRefs)) {
+                throw "Full-fleet workload '$($workload.assetId)' omits common blocker '$commonBlocker'."
+            }
+        }
+    }
+
+    $canaries = @($Proposal.workloads | Where-Object { $_.deploymentClass -eq 'disposable-canary' })
+    $persistent = @($Proposal.workloads | Where-Object { $_.deploymentClass -eq 'persistent' })
+    if ($canaries.Count -ne 2 -or $persistent.Count -ne 10) {
+        throw 'The full fleet must remain two disposable canaries and ten persistent workloads.'
+    }
+
+    $persistentTotals = [ordered]@{
+        processors = [int](($persistent | Measure-Object -Property processors -Sum).Sum)
+        startupMemoryMiB = [int](($persistent.memory | Measure-Object -Property startupMiB -Sum).Sum)
+        maximumMemoryMiB = [int](($persistent.memory | Measure-Object -Property maximumMiB -Sum).Sum)
+        osDiskGiB = [int](($persistent | Measure-Object -Property osDiskGiB -Sum).Sum)
+    }
+    foreach ($property in @('processors', 'startupMemoryMiB', 'maximumMemoryMiB', 'osDiskGiB')) {
+        if ([int]$Proposal.capacity.persistentFleet.$property -ne [int]$persistentTotals.$property) {
+            throw "Full-fleet persistent capacity total '$property' does not match its workloads."
+        }
+    }
+
+    $largestCanary = [ordered]@{
+        processors = [int](($canaries | Measure-Object -Property processors -Maximum).Maximum)
+        startupMemoryMiB = [int](($canaries.memory | Measure-Object -Property startupMiB -Maximum).Maximum)
+        maximumMemoryMiB = [int](($canaries.memory | Measure-Object -Property maximumMiB -Maximum).Maximum)
+        osDiskGiB = [int](($canaries | Measure-Object -Property osDiskGiB -Maximum).Maximum)
+    }
+    foreach ($property in @('processors', 'startupMemoryMiB', 'maximumMemoryMiB', 'osDiskGiB')) {
+        if ([int]$Proposal.capacity.largestDisposableCanary.$property -ne [int]$largestCanary.$property) {
+            throw "Full-fleet disposable-canary capacity value '$property' does not match the largest canary."
+        }
+    }
+
+    $originalPersistentMaximumMiB = 106496
+    $minimumReductionMiBAtLastRead = 8448
+    $derivedReductionMiB = $originalPersistentMaximumMiB - [int]$Proposal.capacity.persistentFleet.maximumMemoryMiB
+    $derivedReserveMarginMiB = $derivedReductionMiB - $minimumReductionMiBAtLastRead
+    if ($Proposal.capacity.assessmentState -cne 'clear-at-last-read-reduced-maxima' -or
+        $Proposal.capacity.liveRevalidationRequired -ne $true -or
+        [int]$Proposal.capacity.configuredMaximumReductionMiB -ne $derivedReductionMiB -or
+        [int]$Proposal.capacity.configuredMaximumReductionMiB -lt $minimumReductionMiBAtLastRead -or
+        ([int]$Proposal.capacity.configuredMaximumReductionMiB % 128) -ne 0 -or
+        [int]$Proposal.capacity.reserveMarginMiBAtLastRead -ne $derivedReserveMarginMiB -or
+        [int]$Proposal.capacity.reserveMarginMiBAtLastRead -lt 128 -or
+        ([int]$Proposal.capacity.reserveMarginMiBAtLastRead % 128) -ne 0) {
+        throw 'The full-fleet reduced maximum-memory envelope must retain a positive reserve margin and require fresh live revalidation.'
+    }
+
+    $kali = @($Proposal.workloads | Where-Object { $_.assetId -ceq 'NG-VM-021' })
+    if ($kali.Count -ne 1 -or
+        $kali[0].imageRef -cne 'kali-2026.2-installer-netinst-amd64' -or
+        $kali[0].imageState -cne 'candidate-unpromoted') {
+        throw 'The Kali workload must remain bound to the exact non-consumable verified-image candidate.'
+    }
+    foreach ($workload in @($Proposal.workloads)) {
+        if ($workload.imageState -cne 'candidate-unpromoted') {
+            throw "Workload '$($workload.assetId)' must use a non-consumable candidate image."
+        }
+    }
+
+    Test-ForbiddenManifestData -InputObject $Proposal
+}
+
 function Assert-MutationRejected {
     param(
         [Parameter(Mandatory)][string]$Name,
@@ -387,7 +674,9 @@ $firmwareCatalog = Read-JsonFile -Path (Join-Path $repositoryRoot 'catalog\firmw
 $accessCatalog = Read-JsonFile -Path (Join-Path $repositoryRoot 'catalog\access-profiles.json')
 $resourcePolicy = Read-JsonFile -Path (Join-Path $repositoryRoot 'policy\resource-limits.json')
 $canaryStage = Read-JsonFile -Path (Join-Path $repositoryRoot 'policy\canary-execution-stage.proposed.json')
+$controlPlaneCandidate = Read-JsonFile -Path (Join-Path $repositoryRoot 'control-plane\candidate\release.proposed.json')
 $workloadProposal = Read-JsonFile -Path (Join-Path $repositoryRoot 'proposals\aegis-debian-workloads.proposed.json')
+$fullFleetProposal = Read-JsonFile -Path (Join-Path $repositoryRoot 'proposals\full-fleet.proposed.json')
 
 Test-CatalogIdentities -Catalog $networkCatalog -Name 'Network'
 Test-CatalogIdentities -Catalog $storageCatalog -Name 'Storage'
@@ -418,7 +707,13 @@ foreach ($network in $networkCatalog.profiles) {
 
 Assert-PlanOnlyResourcePolicy -Policy $resourcePolicy
 Assert-CanaryExecutionStageProposal -Stage $canaryStage
+Assert-ControlPlaneCandidateProposal -Candidate $controlPlaneCandidate
 Assert-WorkloadProvisioningProposal -Proposal $workloadProposal
+Assert-FullFleetProvisioningProposal -Proposal $fullFleetProposal
+
+if ([int]$fullFleetProposal.capacity.policyHostReserveMemoryMiB -ne [int]$resourcePolicy.hostReserveMemoryMiB) {
+    throw 'The full-fleet proposal must use the current plan-only host memory reserve policy.'
+}
 
 $proposedImage = @($imageCatalog.images | Where-Object { $_.id -ieq $workloadProposal.catalogPromotion.imageRef -and $_.approvalStatus -eq 'proposed' })
 $proposedFirmware = @(Get-CatalogProfile -Catalog $firmwareCatalog -Id $workloadProposal.catalogPromotion.firmwareProfileRef -RequiredStatus 'proposed')
@@ -457,6 +752,95 @@ foreach ($workload in @($workloadProposal.workloads)) {
     }
 }
 
+$fullFleetCandidateImageRefs = @($fullFleetProposal.catalogPromotion.candidateImageRefs)
+$fullFleetBlockedImageRefs = @($fullFleetProposal.catalogPromotion.blockedImageRefs)
+foreach ($imageRef in $fullFleetCandidateImageRefs) {
+    if (@($imageCatalog.images | Where-Object {
+        $_.id -ieq $imageRef -and $_.approvalStatus -eq 'proposed' -and $_.retirementStatus -eq 'proposed'
+    }).Count -ne 1) {
+        throw "Full-fleet candidate image '$imageRef' must resolve exactly once to a non-consumable proposed catalog record."
+    }
+}
+foreach ($imageRef in $fullFleetBlockedImageRefs) {
+    if (@($imageCatalog.images | Where-Object { $_.id -ieq $imageRef }).Count -ne 0) {
+        throw "Blocked full-fleet image '$imageRef' must remain absent until immutable artifact evidence exists."
+    }
+}
+
+$fullFleetProfileCatalogs = @{
+    firmwareProfileRefs = $firmwareCatalog
+    storageProfileRefs = $storageCatalog
+    networkProfileRefs = $networkCatalog
+    bootstrapProfileRefs = $bootstrapCatalog
+    recoveryProfileRefs = $recoveryCatalog
+    accessProfileRefs = $accessCatalog
+}
+foreach ($referenceProperty in $fullFleetProfileCatalogs.Keys) {
+    foreach ($profileRef in @($fullFleetProposal.catalogPromotion.$referenceProperty)) {
+        if (@(Get-CatalogProfile -Catalog $fullFleetProfileCatalogs[$referenceProperty] -Id $profileRef -RequiredStatus 'proposed').Count -ne 1) {
+            throw "Full-fleet proposed profile '$profileRef' in '$referenceProperty' must resolve exactly once."
+        }
+    }
+}
+
+foreach ($networkRef in @($fullFleetProposal.catalogPromotion.networkProfileRefs)) {
+    $network = @(Get-CatalogProfile -Catalog $networkCatalog -Id $networkRef -RequiredStatus 'proposed')
+    if ($network.Count -ne 1 -or $network[0].allowAttach -ne $true -or
+        $network[0].allowCreate -ne $false -or $network[0].allowRebind -ne $false) {
+        throw "Full-fleet network profile '$networkRef' may not create or rebind fabric."
+    }
+}
+
+foreach ($workload in @($fullFleetProposal.workloads)) {
+    if (@(Get-CatalogProfile -Catalog $ownerCatalog -Id $workload.ownerRef -RequiredStatus 'proposed').Count -ne 1 -or
+        @(Get-CatalogProfile -Catalog $firmwareCatalog -Id $workload.firmwareProfileRef -RequiredStatus 'proposed').Count -ne 1 -or
+        @(Get-CatalogProfile -Catalog $storageCatalog -Id $workload.storageProfileRef -RequiredStatus 'proposed').Count -ne 1 -or
+        @(Get-CatalogProfile -Catalog $networkCatalog -Id $workload.networkProfileRef -RequiredStatus 'proposed').Count -ne 1 -or
+        @(Get-CatalogProfile -Catalog $bootstrapCatalog -Id $workload.bootstrapProfileRef -RequiredStatus 'proposed').Count -ne 1 -or
+        @(Get-CatalogProfile -Catalog $recoveryCatalog -Id $workload.recoveryProfileRef -RequiredStatus 'proposed').Count -ne 1 -or
+        @(Get-CatalogProfile -Catalog $accessCatalog -Id $workload.accessProfileRef -RequiredStatus 'proposed').Count -ne 1) {
+        throw "Full-fleet workload '$($workload.assetId)' is not bound to the reviewed proposed prerequisite set."
+    }
+    $storage = @(Get-CatalogProfile -Catalog $storageCatalog -Id $workload.storageProfileRef -RequiredStatus 'proposed')
+    if ($storage[0].allowProvision -ne $true -or
+        ($workload.criticality -in @('high', 'critical') -and $storage[0].criticalWorkloadsAllowed -ne $true)) {
+        throw "Full-fleet workload '$($workload.assetId)' uses an ineligible proposed storage profile."
+    }
+
+    if ($workload.imageState -eq 'candidate-unpromoted') {
+        if ($workload.imageRef -notin $fullFleetCandidateImageRefs -or
+            @($imageCatalog.images | Where-Object {
+                $_.id -ieq $workload.imageRef -and $_.approvalStatus -eq 'proposed' -and $_.retirementStatus -eq 'proposed'
+            }).Count -ne 1) {
+            throw "Full-fleet workload '$($workload.assetId)' lacks its exact proposed image record."
+        }
+    }
+    elseif ($workload.imageState -eq 'artifact-missing') {
+        if ($workload.imageRef -notin $fullFleetBlockedImageRefs -or
+            @($imageCatalog.images | Where-Object { $_.id -ieq $workload.imageRef }).Count -ne 0) {
+            throw "Full-fleet workload '$($workload.assetId)' may not claim a missing image that is already cataloged."
+        }
+    }
+}
+
+$fullFleetDerivedReferences = @{
+    candidateImageRefs = @($fullFleetProposal.workloads | Where-Object imageState -eq 'candidate-unpromoted' | Select-Object -ExpandProperty imageRef -Unique)
+    blockedImageRefs = @($fullFleetProposal.workloads | Where-Object imageState -eq 'artifact-missing' | Select-Object -ExpandProperty imageRef -Unique)
+    firmwareProfileRefs = @($fullFleetProposal.workloads | Select-Object -ExpandProperty firmwareProfileRef -Unique)
+    storageProfileRefs = @($fullFleetProposal.workloads | Select-Object -ExpandProperty storageProfileRef -Unique)
+    networkProfileRefs = @($fullFleetProposal.workloads | Select-Object -ExpandProperty networkProfileRef -Unique)
+    bootstrapProfileRefs = @($fullFleetProposal.workloads | Select-Object -ExpandProperty bootstrapProfileRef -Unique)
+    recoveryProfileRefs = @($fullFleetProposal.workloads | Select-Object -ExpandProperty recoveryProfileRef -Unique)
+    accessProfileRefs = @($fullFleetProposal.workloads | Select-Object -ExpandProperty accessProfileRef -Unique)
+}
+foreach ($referenceProperty in $fullFleetDerivedReferences.Keys) {
+    $declared = @($fullFleetProposal.catalogPromotion.$referenceProperty | Sort-Object)
+    $derived = @($fullFleetDerivedReferences[$referenceProperty] | Sort-Object)
+    if (($declared -join '|') -cne ($derived -join '|')) {
+        throw "Full-fleet catalog bundle '$referenceProperty' does not exactly match workload references."
+    }
+}
+
 Assert-MutationRejected -Name 'normal resource policy Create enablement' -Baseline $resourcePolicy `
     -Mutate { param($policy) $policy.applyEnabled = $true; $policy.executableActions = @('Create') } `
     -Assert { param($policy) Assert-PlanOnlyResourcePolicy -Policy $policy }
@@ -480,6 +864,30 @@ foreach ($case in $canaryNegativeCases) {
         -Assert { param($stage) Assert-CanaryExecutionStageProposal -Stage $stage }
 }
 
+$controlPlaneNegativeCases = @(
+    @{ Name = 'candidate deployed claim'; Mutate = { param($candidate) $candidate.effectiveState.deployed = $true } },
+    @{ Name = 'candidate application authentication claim'; Mutate = { param($candidate) $candidate.effectiveState.applicationAuthenticationConfigured = $true } },
+    @{ Name = 'candidate plan registration enablement'; Mutate = { param($candidate) $candidate.effectiveState.planRegistrationEnabled = $true } },
+    @{ Name = 'candidate apply enablement'; Mutate = { param($candidate) $candidate.effectiveState.applyEnabled = $true } },
+    @{ Name = 'candidate executable Create'; Mutate = { param($candidate) $candidate.effectiveState.executableActions = @('Create') } },
+    @{ Name = 'candidate direct mutation exposure'; Mutate = { param($candidate) $candidate.effectiveState.directMutationMethodsExposed = $true } },
+    @{ Name = 'candidate repository host execution'; Mutate = { param($candidate) $candidate.promotion.repositorySourceMayExecuteOnHost = $true } },
+    @{ Name = 'candidate arbitrary apply input'; Mutate = { param($candidate) $candidate.interface.applyInputFields = @('planId', 'command') } },
+    @{ Name = 'candidate missing application authentication gate'; Mutate = { param($candidate) $candidate.promotion.requiredGates = @($candidate.promotion.requiredGates | Where-Object { $_ -ne 'application-authentication-proven' }) } },
+    @{ Name = 'candidate missing protected branch gate'; Mutate = { param($candidate) $candidate.promotion.requiredGates = @($candidate.promotion.requiredGates | Where-Object { $_ -ne 'protected-branch-reachability-proven' }) } },
+    @{ Name = 'candidate missing direct mutator gate'; Mutate = { param($candidate) $candidate.promotion.requiredGates = @($candidate.promotion.requiredGates | Where-Object { $_ -ne 'direct-mutators-disabled' }) } }
+)
+foreach ($case in $controlPlaneNegativeCases) {
+    Assert-MutationRejected -Name $case.Name -Baseline $controlPlaneCandidate -Mutate $case.Mutate `
+        -Assert { param($candidate) Assert-ControlPlaneCandidateProposal -Candidate $candidate }
+}
+
+& (Join-Path $repositoryRoot 'control-plane\candidate\Test-Candidate.ps1')
+& (Join-Path $repositoryRoot 'control-plane\engine-candidate\Test-Engine.ps1')
+& (Join-Path $repositoryRoot 'control-plane\phase3-host-adapter\Test-HostAdapter.ps1')
+& (Join-Path $repositoryRoot 'control-plane\create-only-operator\Test-CreateOnlyOperator.ps1')
+& (Join-Path $repositoryRoot 'control-plane\create-only-release\Test-CreateOnlyRelease.ps1')
+
 $proposalNegativeCases = @(
     @{ Name = 'workload proposal deployment enablement'; Mutate = { param($proposal) $proposal.execution.deployable = $true } },
     @{ Name = 'workload host-plan bypass'; Mutate = { param($proposal) $proposal.execution.hostPlanRequired = $false } },
@@ -495,6 +903,30 @@ $proposalNegativeCases = @(
 foreach ($case in $proposalNegativeCases) {
     Assert-MutationRejected -Name $case.Name -Baseline $workloadProposal -Mutate $case.Mutate `
         -Assert { param($proposal) Assert-WorkloadProvisioningProposal -Proposal $proposal }
+}
+
+$fullFleetNegativeCases = @(
+    @{ Name = 'full-fleet deployment enablement'; Mutate = { param($proposal) $proposal.execution.deployable = $true } },
+    @{ Name = 'full-fleet standard manifest co-promotion'; Mutate = { param($proposal) $proposal.execution.standardManifestsIncluded = $true } },
+    @{ Name = 'full-fleet identity reservation claim'; Mutate = { param($proposal) $proposal.governance.assetIdentityState = 'reserved' } },
+    @{ Name = 'full-fleet address allocation claim'; Mutate = { param($proposal) $proposal.governance.addressReservationState = 'allocated' } },
+    @{ Name = 'full-fleet ready claim'; Mutate = { param($proposal) $proposal.execution.overallState = 'ready' } },
+    @{ Name = 'full-fleet workload ready claim'; Mutate = { param($proposal) $proposal.workloads[0].readinessState = 'ready' } },
+    @{ Name = 'full-fleet blocked capacity claim'; Mutate = { param($proposal) $proposal.capacity.assessmentState = 'blocked-max-memory-reserve' } },
+    @{ Name = 'full-fleet reserve-margin tamper'; Mutate = { param($proposal) $proposal.capacity.reserveMarginMiBAtLastRead = 128 } },
+    @{ Name = 'full-fleet capacity total mismatch'; Mutate = { param($proposal) $proposal.capacity.persistentFleet.maximumMemoryMiB = 1024 } },
+    @{ Name = 'full-fleet Kali artifact downgrade'; Mutate = { param($proposal) $proposal.workloads[11].imageState = 'artifact-missing' } },
+    @{ Name = 'full-fleet Kali image identity drift'; Mutate = { param($proposal) $proposal.workloads[11].imageRef = 'kali-rolling-amd64-installer' } },
+    @{ Name = 'full-fleet missing protected-branch blocker'; Mutate = { param($proposal) $proposal.blockingFindings = @($proposal.blockingFindings | Where-Object id -ne 'protected-branch-unavailable') } },
+    @{ Name = 'full-fleet workload missing protected-branch blocker'; Mutate = { param($proposal) $proposal.workloads[0].blockingFindingRefs = @($proposal.workloads[0].blockingFindingRefs | Where-Object { $_ -ne 'protected-branch-unavailable' }) } },
+    @{ Name = 'full-fleet reordered canary'; Mutate = { param($proposal) $proposal.rollout.orderedAssetIds[0] = 'NG-VM-010' } },
+    @{ Name = 'full-fleet raw VLAN field'; Mutate = { param($proposal) $proposal.workloads[0] | Add-Member -NotePropertyName vlan -NotePropertyValue 150 } },
+    @{ Name = 'full-fleet raw IP address field'; Mutate = { param($proposal) $proposal.workloads[0] | Add-Member -NotePropertyName ipAddress -NotePropertyValue '192.0.2.10' } },
+    @{ Name = 'full-fleet secret-like content'; Mutate = { param($proposal) $proposal.workloads[0].purpose = ('-----BEGIN PRIVATE' + ' KEY-----') } }
+)
+foreach ($case in $fullFleetNegativeCases) {
+    Assert-MutationRejected -Name $case.Name -Baseline $fullFleetProposal -Mutate $case.Mutate `
+        -Assert { param($proposal) Assert-FullFleetProvisioningProposal -Proposal $proposal }
 }
 
 $expectedPlannerActions = @('NoOp', 'Create', 'UpdateOnline', 'UpdateOffline', 'ReplaceRequired', 'DecommissionRequired')
@@ -574,7 +1006,8 @@ if ($duplicateAssetIds.Count -or $duplicateVmNames.Count) {
     throw "Manifest identities must be case-insensitively unique. AssetIds=[$($duplicateAssetIds -join ',')], Names=[$($duplicateVmNames -join ',')]"
 }
 
-$prematureConsumers = @($workloadProposal.workloads.assetId | Where-Object { $_ -in $assetIds })
+$proposedWorkloadAssetIds = @($workloadProposal.workloads.assetId) + @($fullFleetProposal.workloads.assetId)
+$prematureConsumers = @($proposedWorkloadAssetIds | Where-Object { $_ -in $assetIds } | Select-Object -Unique)
 if ($prematureConsumers.Count) {
     throw "A proposed prerequisite bundle cannot be co-promoted with its first consuming manifests: $($prematureConsumers -join ', ')"
 }

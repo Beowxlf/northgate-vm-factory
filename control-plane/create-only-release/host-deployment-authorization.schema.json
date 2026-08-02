@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "northgate/create-only-host-deployment-authorization/v1",
+  "title": "NorthGate create-only host deployment authorization",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "authorizationId", "repository", "releaseManifestSha256",
+    "install", "identity", "switch", "volumes", "images", "initialPolicy"
+  ],
+  "properties": {
+    "schema": { "const": "northgate/create-only-host-deployment-authorization/v1" },
+    "authorizationId": { "type": "string", "pattern": "^ngdeploy-[a-z0-9-]{8,64}$" },
+    "repository": {
+      "type": "object", "additionalProperties": false,
+      "required": ["identity", "commit", "tree", "hostAllowlistId"],
+      "properties": {
+        "identity": { "const": "Beowxlf/northgate-vm-factory" },
+        "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "tree": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "hostAllowlistId": { "type": "string", "pattern": "^ngallow-[a-z0-9-]{8,64}$" }
+      }
+    },
+    "releaseManifestSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "install": {
+      "type": "object", "additionalProperties": false,
+      "required": ["versionedReleaseRoot", "stateRoot"],
+      "properties": {
+        "versionedReleaseRoot": { "type": "string", "minLength": 8, "maxLength": 240 },
+        "stateRoot": { "type": "string", "minLength": 8, "maxLength": 240 }
+      }
+    },
+    "identity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sshIdentitySid", "serviceIdentitySid", "approvalSignerCertificateSha256", "receiptSignerCertificateSha256"],
+      "properties": {
+        "sshIdentitySid": { "type": "string", "pattern": "^S-1-[0-9-]+$" },
+        "serviceIdentitySid": { "type": "string", "pattern": "^S-1-[0-9-]+$" },
+        "approvalSignerCertificateSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "receiptSignerCertificateSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "switch": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "id", "fingerprint", "vlanProfiles"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "id": { "type": "string", "pattern": "^[a-f0-9-]{36}$" },
+        "fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "vlanProfiles": { "type": "object", "minProperties": 8, "additionalProperties": { "type": "integer", "minimum": 1, "maximum": 4094 } }
+      }
+    },
+    "volumes": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["volumeId", "uniqueId", "root", "persistentCeilingGiB", "canaryCeilingGiB"],
+        "properties": {
+          "volumeId": { "enum": ["volume-d", "volume-f"] },
+          "uniqueId": { "type": "string", "minLength": 8, "maxLength": 128 },
+          "root": { "type": "string", "minLength": 3, "maxLength": 240 },
+          "persistentCeilingGiB": { "type": "integer", "minimum": 1 },
+          "canaryCeilingGiB": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "images": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["imageId", "path", "sha256", "sizeBytes"],
+        "properties": {
+          "imageId": { "type": "string", "minLength": 3, "maxLength": 80 },
+          "path": { "type": "string", "minLength": 3, "maxLength": 240 },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "sizeBytes": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "initialPolicy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["applyEnabled", "executableActions", "canaryStage"],
+      "properties": {
+        "applyEnabled": { "const": false },
+        "executableActions": { "type": "array", "maxItems": 0 },
+        "canaryStage": { "const": "disabled" }
+      }
+    }
+  }
+}
