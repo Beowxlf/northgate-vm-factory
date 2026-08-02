@@ -159,11 +159,14 @@ if (Test-NgcbGitAncestor $outputParent) { Stop-Ngcb 'NGCOR-SERVICE-HOST-BUILD-OU
 
 $compilerPath = [System.IO.Path]::GetFullPath($CompilerPath)
 $programFilesX86 = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86)
+$programFiles = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)
 $allowedCompilerPaths = @(
     [System.IO.Path]::GetFullPath((Join-Path $programFilesX86 `
         'Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe')),
     [System.IO.Path]::GetFullPath((Join-Path $programFilesX86 `
-        'Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe'))
+        'Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe')),
+    [System.IO.Path]::GetFullPath((Join-Path $programFiles `
+        'Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe'))
 )
 if ($compilerPath -cnotin $allowedCompilerPaths) {
     Stop-Ngcb 'NGCOR-SERVICE-HOST-BUILD-COMPILER-INVALID'

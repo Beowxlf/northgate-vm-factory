@@ -414,9 +414,11 @@ try {
     $finalServiceHost = Join-Path $serviceHostArtifactRoot 'NorthGate.CreateOnly.ServiceHost.final.exe'
     $serviceHostCms = Join-Path $serviceHostArtifactRoot 'NorthGate.CreateOnly.ServiceHost.exe.p7s'
     $programFilesX86 = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86)
+    $programFiles = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)
     $compilerPath = @(
         (Join-Path $programFilesX86 'Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe'),
-        (Join-Path $programFilesX86 'Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe')
+        (Join-Path $programFilesX86 'Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe'),
+        (Join-Path $programFiles 'Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe')
     ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
     if ([string]::IsNullOrWhiteSpace($compilerPath)) { throw 'Approved fixture Roslyn compiler is unavailable.' }
     try { Add-Type -AssemblyName System.ServiceProcess -ErrorAction Stop }

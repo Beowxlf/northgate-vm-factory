@@ -77,9 +77,11 @@ try {
     try { Add-Type -AssemblyName System.ServiceProcess -ErrorAction Stop }
     catch { throw 'SERVICE HOST ASSERTION FAILED: System.ServiceProcess is unavailable.' }
     $programFilesX86 = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86)
+    $programFiles = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)
     $compilerPath = @(
         (Join-Path $programFilesX86 'Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe'),
-        (Join-Path $programFilesX86 'Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe')
+        (Join-Path $programFilesX86 'Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe'),
+        (Join-Path $programFiles 'Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe')
     ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
     if ([string]::IsNullOrWhiteSpace($compilerPath)) {
         throw 'SERVICE HOST ASSERTION FAILED: approved Roslyn compiler is unavailable.'
@@ -148,6 +150,26 @@ try {
     Assert-NgchTest (-not (Test-Path -LiteralPath $badOutput) -and
         -not (Test-Path -LiteralPath $badProvenance)) `
         'Rejected toolchain provenance creates no executable.'
+
+    $unapprovedCompiler = Join-Path $testRoot 'unapproved-csc.exe'
+    [System.IO.File]::Copy($compilerPath,$unapprovedCompiler,$false)
+    $unapprovedRoot = Join-Path $testRoot 'unapproved-compiler'
+    $null = [System.IO.Directory]::CreateDirectory($unapprovedRoot)
+    $unapprovedOutput = Join-Path $unapprovedRoot 'NorthGate.CreateOnly.ServiceHost.exe'
+    $unapprovedProvenance = Join-Path $unapprovedRoot `
+        'NorthGate.CreateOnly.ServiceHost.build-provenance.json'
+    Assert-NgchThrows {
+        & $builderPath -OutputPath $unapprovedOutput -ProvenancePath $unapprovedProvenance `
+            -CompilerPath $unapprovedCompiler `
+            -ExpectedSourceSha256 $sourceHash -ExpectedMscorlibAssemblySha256 $mscorlibHash `
+            -ExpectedSystemAssemblySha256 $systemHash -ExpectedSystemCoreAssemblySha256 $systemCoreHash `
+            -ExpectedCompilerSha256 $compilerHash -ExpectedAutomationAssemblySha256 $automationHash `
+            -ExpectedServiceProcessAssemblySha256 $serviceProcessHash
+    } '^NGCOR-SERVICE-HOST-BUILD-COMPILER-INVALID$' `
+        'Build refuses an exact-copy compiler outside the fixed vendor path allowlist.'
+    Assert-NgchTest (-not (Test-Path -LiteralPath $unapprovedOutput) -and
+        -not (Test-Path -LiteralPath $unapprovedProvenance)) `
+        'Unapproved compiler path rejection writes nothing.'
 
     $repositoryOutput = Join-Path $root 'NorthGate.CreateOnly.ServiceHost.exe'
     $repositoryProvenance = Join-Path $root 'NorthGate.CreateOnly.ServiceHost.build-provenance.json'
