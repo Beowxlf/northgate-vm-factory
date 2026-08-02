@@ -169,6 +169,11 @@ try {
         $source -match 'Get-NgcdAclRuleFingerprint' -and
         $source -cnotmatch 'GetSecurityDescriptor(?:BinaryForm|SddlForm)\(') `
         'ACL readback binds the protected owner and exact authorization rules without host-normalized representation metadata.'
+    Assert-NgcdTest ($source -match 'Get-NgcdRawAclFingerprint' -and
+        $source -match 'ControlFlags\]::DiscretionaryAclProtected' -and
+        $source -match '\$wantedOwner -cne \$actualOwner[\s\S]{0,220}\$wantedDacl -cne \$actualDacl' -and
+        $source -cnotmatch '\$wanted\.GetBinaryForm\(') `
+        'Rollback ACL readback binds owner, group, protection, and every raw ACE without descriptor-order metadata.'
 
     $key = New-Object byte[] 32
     [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($key)

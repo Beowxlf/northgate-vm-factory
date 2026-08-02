@@ -304,6 +304,21 @@ function Get-NgcdAclRuleFingerprint {
         ([bool]$Rule.IsInherited)
 }
 
+function Get-NgcdRawAclFingerprint {
+    param([AllowNull()][System.Security.AccessControl.RawAcl]$Acl)
+    if ($null -eq $Acl) { return '<null-dacl>' }
+    [string[]]$aces = @(
+        for ($index = 0; $index -lt $Acl.Count; $index++) {
+            $ace = $Acl[$index]
+            $bytes = New-Object byte[] $ace.BinaryLength
+            $ace.GetBinaryForm($bytes, 0)
+            (($bytes | ForEach-Object { $_.ToString('x2') }) -join '')
+        }
+    )
+    [array]::Sort($aces, [System.StringComparer]::Ordinal)
+    ([string]$Acl.Count) + '|' + ($aces -join "`n")
+}
+
 function Set-NgcdProtectedDirectoryAcl {
     param(
         [string]$Path, [string]$ServiceSid, [string]$SshSid, [bool]$AllowSshRead,
@@ -557,13 +572,17 @@ function Set-NgcdFileSddl {
 
         $readbackSddl = ([System.IO.File]::GetAccessControl($Path)).Sddl
         $actual = New-Object System.Security.AccessControl.RawSecurityDescriptor($readbackSddl)
-        $wantedBytes = New-Object byte[] $wanted.BinaryLength
-        $actualBytes = New-Object byte[] $actual.BinaryLength
-        $wanted.GetBinaryForm($wantedBytes, 0)
-        $actual.GetBinaryForm($actualBytes, 0)
-        if (-not (Test-NgcdFixedHexEquals `
-                (Get-NgcdSha256Bytes $wantedBytes) `
-                (Get-NgcdSha256Bytes $actualBytes))) {
+        $wantedOwner = if ($null -eq $wanted.Owner) { '' } else { [string]$wanted.Owner.Value }
+        $actualOwner = if ($null -eq $actual.Owner) { '' } else { [string]$actual.Owner.Value }
+        $wantedGroup = if ($null -eq $wanted.Group) { '' } else { [string]$wanted.Group.Value }
+        $actualGroup = if ($null -eq $actual.Group) { '' } else { [string]$actual.Group.Value }
+        $protectedFlag = [System.Security.AccessControl.ControlFlags]::DiscretionaryAclProtected
+        $wantedProtected = (($wanted.ControlFlags -band $protectedFlag) -ne 0)
+        $actualProtected = (($actual.ControlFlags -band $protectedFlag) -ne 0)
+        $wantedDacl = Get-NgcdRawAclFingerprint $wanted.DiscretionaryAcl
+        $actualDacl = Get-NgcdRawAclFingerprint $actual.DiscretionaryAcl
+        if ($wantedOwner -cne $actualOwner -or $wantedGroup -cne $actualGroup -or
+            $wantedProtected -ne $actualProtected -or $wantedDacl -cne $actualDacl) {
             Stop-Ngcd 'NGCOR-DEPLOYMENT-ACL-READBACK-FAILED'
         }
     }
