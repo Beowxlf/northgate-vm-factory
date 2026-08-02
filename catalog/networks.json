@@ -2,7 +2,7 @@
   "$schema": "../schemas/network-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "NetworkCatalog",
-  "catalogVersion": "2026.07.31.1",
+  "catalogVersion": "2026.08.01.1",
   "profiles": [
     {
       "id": "tooling-primary",
@@ -23,6 +23,22 @@
     {
       "id": "isolated-northgate",
       "serverPolicyId": "ng-network-isolated-northgate-v1",
+      "approvalStatus": "proposed",
+      "allowAttach": true,
+      "allowCreate": false,
+      "allowRebind": false
+    },
+    {
+      "id": "mail-dmz",
+      "serverPolicyId": "ng-network-mail-dmz-v1",
+      "approvalStatus": "proposed",
+      "allowAttach": true,
+      "allowCreate": false,
+      "allowRebind": false
+    },
+    {
+      "id": "sim-wan",
+      "serverPolicyId": "ng-network-sim-wan-v1",
       "approvalStatus": "proposed",
       "allowAttach": true,
       "allowCreate": false,
