@@ -4,6 +4,7 @@ param()
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = [System.IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $schemaValidationCount = 0
+$negativeTestCount = 0
 
 function Test-IsUnderRepository {
     param([Parameter(Mandatory)][string]$Path)
@@ -93,6 +94,111 @@ function Test-CatalogIdentities {
     }
 }
 
+function Assert-ExactPropertySet {
+    param(
+        [Parameter(Mandatory)][object]$InputObject,
+        [Parameter(Mandatory)][string[]]$ExpectedProperties,
+        [Parameter(Mandatory)][string]$Location
+    )
+
+    $actual = @($InputObject.PSObject.Properties.Name | Sort-Object)
+    $expected = @($ExpectedProperties | Sort-Object)
+    if (($actual -join '|') -cne ($expected -join '|')) {
+        throw "$Location must contain exactly [$($expected -join ', ')]."
+    }
+}
+
+function Assert-PlanOnlyResourcePolicy {
+    param([Parameter(Mandatory)][object]$Policy)
+
+    if ($Policy.applyEnabled -ne $false -or $Policy.status -ne 'proposed' -or @($Policy.executableActions).Count -ne 0) {
+        throw 'Resource policy must remain proposed with applyEnabled=false and no executable actions.'
+    }
+}
+
+function Assert-CanaryExecutionStageProposal {
+    param([Parameter(Mandatory)][object]$Stage)
+
+    Assert-ExactPropertySet -InputObject $Stage -ExpectedProperties @(
+        '$schema', 'apiVersion', 'kind', 'stageVersion', 'status', 'effectiveState', 'proposedStage'
+    ) -Location 'Canary execution-stage proposal'
+    Assert-ExactPropertySet -InputObject $Stage.effectiveState -ExpectedProperties @(
+        'applyEnabled', 'executableActions'
+    ) -Location 'Canary effective state'
+    Assert-ExactPropertySet -InputObject $Stage.proposedStage -ExpectedProperties @(
+        'activationMode',
+        'authorizationClass',
+        'requestKind',
+        'plannerAction',
+        'maximumConcurrent',
+        'normalVirtualMachineManifestsAllowed',
+        'requestMaySharePromotion',
+        'requiredGates'
+    ) -Location 'Proposed canary stage'
+
+    if ($Stage.'$schema' -cne '../schemas/canary-execution-stage.schema.json' -or
+        $Stage.apiVersion -cne 'northgate/v1alpha1' -or
+        $Stage.kind -cne 'CanaryExecutionStageProposal' -or
+        $Stage.status -cne 'proposed') {
+        throw 'Only the proposed CanaryExecutionStageProposal contract is permitted.'
+    }
+    if ($Stage.stageVersion -cnotmatch '^[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+$') {
+        throw 'Canary execution-stage version is invalid.'
+    }
+    if ($Stage.effectiveState.applyEnabled -ne $false -or @($Stage.effectiveState.executableActions).Count -ne 0) {
+        throw 'The canary proposal is non-operative: effective apply must be false and effective actions empty.'
+    }
+
+    $proposal = $Stage.proposedStage
+    if ($proposal.activationMode -cne 'separate-reviewed-change' -or
+        $proposal.authorizationClass -cne 'disposable-canary-only' -or
+        $proposal.requestKind -cne 'DisposableCanaryRequest' -or
+        $proposal.plannerAction -cne 'Create' -or
+        $proposal.maximumConcurrent -ne 1 -or
+        $proposal.normalVirtualMachineManifestsAllowed -ne $false -or
+        $proposal.requestMaySharePromotion -ne $false) {
+        throw 'The proposed stage must remain a separate, single disposable-canary Create path that rejects normal VM manifests.'
+    }
+
+    $expectedGates = @(
+        'control-plane-negative-tests-passed',
+        'installed-canary-policy-promoted',
+        'immutable-canary-image-promoted',
+        'opaque-profiles-approved',
+        'identity-ledger-reservation',
+        'host-issued-plan-registered',
+        'exact-plan-human-approval',
+        'quarantine-route-proven',
+        'signed-receipt-ready'
+    )
+    if ((@($proposal.requiredGates) -join '|') -cne ($expectedGates -join '|')) {
+        throw 'The proposed canary stage gate set was changed from the reviewed fail-closed contract.'
+    }
+}
+
+function Assert-MutationRejected {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][object]$Baseline,
+        [Parameter(Mandatory)][scriptblock]$Mutate,
+        [Parameter(Mandatory)][scriptblock]$Assert
+    )
+
+    $candidate = $Baseline | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+    & $Mutate $candidate
+    $rejected = $false
+    try {
+        & $Assert $candidate
+    }
+    catch {
+        $rejected = $true
+    }
+    if (-not $rejected) {
+        throw "Negative policy test '$Name' did not fail closed."
+    }
+    $script:negativeTestCount++
+}
+
 function Test-ForbiddenManifestData {
     param(
         [Parameter(Mandatory)][object]$InputObject,
@@ -151,6 +257,7 @@ $bootstrapCatalog = Read-JsonFile -Path (Join-Path $repositoryRoot 'catalog\boot
 $recoveryCatalog = Read-JsonFile -Path (Join-Path $repositoryRoot 'catalog\recovery-profiles.json')
 $firmwareCatalog = Read-JsonFile -Path (Join-Path $repositoryRoot 'catalog\firmware-profiles.json')
 $resourcePolicy = Read-JsonFile -Path (Join-Path $repositoryRoot 'policy\resource-limits.json')
+$canaryStage = Read-JsonFile -Path (Join-Path $repositoryRoot 'policy\canary-execution-stage.proposed.json')
 
 Test-CatalogIdentities -Catalog $networkCatalog -Name 'Network'
 Test-CatalogIdentities -Catalog $storageCatalog -Name 'Storage'
@@ -170,8 +277,30 @@ foreach ($network in $networkCatalog.profiles) {
     }
 }
 
-if ($resourcePolicy.applyEnabled -ne $false -or $resourcePolicy.status -ne 'proposed' -or @($resourcePolicy.executableActions).Count -ne 0) {
-    throw 'Initial repository must remain plan-only with proposed policy, applyEnabled=false, and no executable actions.'
+Assert-PlanOnlyResourcePolicy -Policy $resourcePolicy
+Assert-CanaryExecutionStageProposal -Stage $canaryStage
+
+Assert-MutationRejected -Name 'normal resource policy Create enablement' -Baseline $resourcePolicy `
+    -Mutate { param($policy) $policy.applyEnabled = $true; $policy.executableActions = @('Create') } `
+    -Assert { param($policy) Assert-PlanOnlyResourcePolicy -Policy $policy }
+
+$canaryNegativeCases = @(
+    @{ Name = 'effective canary apply'; Mutate = { param($stage) $stage.effectiveState.applyEnabled = $true } },
+    @{ Name = 'effective canary Create'; Mutate = { param($stage) $stage.effectiveState.executableActions = @('Create') } },
+    @{ Name = 'approved status in proposal record'; Mutate = { param($stage) $stage.status = 'approved' } },
+    @{ Name = 'automatic activation'; Mutate = { param($stage) $stage.proposedStage.activationMode = 'automatic' } },
+    @{ Name = 'normal VirtualMachine request kind'; Mutate = { param($stage) $stage.proposedStage.requestKind = 'VirtualMachine' } },
+    @{ Name = 'normal workload admission'; Mutate = { param($stage) $stage.proposedStage.normalVirtualMachineManifestsAllowed = $true } },
+    @{ Name = 'broader online update action'; Mutate = { param($stage) $stage.proposedStage.plannerAction = 'UpdateOnline' } },
+    @{ Name = 'more than one concurrent canary'; Mutate = { param($stage) $stage.proposedStage.maximumConcurrent = 2 } },
+    @{ Name = 'co-promotion with canary request'; Mutate = { param($stage) $stage.proposedStage.requestMaySharePromotion = $true } },
+    @{ Name = 'missing exact plan approval gate'; Mutate = { param($stage) $stage.proposedStage.requiredGates = @($stage.proposedStage.requiredGates | Where-Object { $_ -ne 'exact-plan-human-approval' }) } },
+    @{ Name = 'missing quarantine gate'; Mutate = { param($stage) $stage.proposedStage.requiredGates = @($stage.proposedStage.requiredGates | Where-Object { $_ -ne 'quarantine-route-proven' }) } },
+    @{ Name = 'missing receipt gate'; Mutate = { param($stage) $stage.proposedStage.requiredGates = @($stage.proposedStage.requiredGates | Where-Object { $_ -ne 'signed-receipt-ready' }) } }
+)
+foreach ($case in $canaryNegativeCases) {
+    Assert-MutationRejected -Name $case.Name -Baseline $canaryStage -Mutate $case.Mutate `
+        -Assert { param($stage) Assert-CanaryExecutionStageProposal -Stage $stage }
 }
 
 $expectedPlannerActions = @('NoOp', 'Create', 'UpdateOnline', 'UpdateOffline', 'ReplaceRequired', 'DecommissionRequired')
@@ -281,4 +410,4 @@ if ($readme -notmatch '```mermaid' -or $readme -notmatch 'No GitHub Actions runn
     throw 'Architecture safety statements are missing or were weakened.'
 }
 
-Write-Host "Repository validation passed: $($jsonFiles.Count) JSON files; $($manifestFiles.Count) managed VM manifests; $schemaValidationCount schema validations; plan-only apply disabled."
+Write-Host "Repository validation passed: $($jsonFiles.Count) JSON files; $($manifestFiles.Count) managed VM manifests; $schemaValidationCount schema validations; $negativeTestCount policy negative tests; plan-only apply disabled."

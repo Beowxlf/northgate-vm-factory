@@ -58,6 +58,7 @@ The architecture map in the [repository README](../README.md#architecture-map) i
 ## Separation rules
 
 - VM intent, catalog/policy, and privileged executor/provisioner releases are distinct promotion units. A VM change cannot consume a relaxed policy in the same deployment.
+- The inactive `CanaryExecutionStageProposal` is not an apply authority. Any future canary stage is a separate installed-policy promotion that accepts only a dedicated `DisposableCanaryRequest`, never a standard `VirtualMachine` manifest, and still requires a fresh host-issued plan plus exact human approval.
 - The normal MCP identity cannot invoke a mutating bypass. Direct lifecycle tools, if retained, require a separate break-glass identity and maintenance/change record.
 - The tunnel key is forwarding-only and inaccessible to the planner as a general Administrator credential. The administrative SSH key is inaccessible to the normal executor identity.
 - Hosted CI has no inbound or outbound path to the private lab. The workstation is invoked manually or polls outbound; it exposes no webhook listener.

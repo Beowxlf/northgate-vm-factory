@@ -89,7 +89,7 @@ The canonical explanation of trust boundaries, authorization, data flow, and fai
 catalog/                    Approved opaque references; host mapping remains authoritative
 docs/                       Architecture, governance, acceptance tests, and decision records
 manifests/vms/              Managed VM desired state; intentionally empty initially
-policy/                     Proposed plan-only resource and action policy
+policy/                     Proposed plan-only resource and canary-stage policy
 schemas/                    Strict JSON Schema 2020-12 contracts
 scripts/                    Unprivileged repository validation only
 .github/                    CODEOWNERS, PR template, and hosted static validation
@@ -108,8 +108,8 @@ PowerShell 7 also performs JSON Schema validation. Windows PowerShell 5.1 perfor
 ## Rollout state
 
 1. **Current:** private repository bootstrap and plan-only controls.
-2. **Next:** harden MCP code and audit ACLs, establish separate tunnel/application identities, reconcile releases, and build normalized read-only planning.
-3. **Then:** prove one disposable canary with stale-plan, capacity, collision, concurrency, secret, path, identity, and rollback tests.
+2. **Next:** harden MCP code and audit ACLs, establish separate tunnel/application identities, reconcile releases, and build normalized read-only planning. The separately reviewed but non-operative [disposable canary execution-stage proposal](docs/canary-execution-stage.md) defines a path through the bootstrap deadlock without relaxing normal workload policy.
+3. **Then:** activate that canary-only path through a different reviewed control-plane change and prove one disposable canary with stale-plan, capacity, collision, concurrency, secret, path, identity, and rollback tests.
 4. **Later:** promote image construction, guest bootstrap, drift reporting, and narrowly scoped low-risk automation.
 
 See [the acceptance gates](docs/acceptance-tests.md), [the manifest contract](docs/manifest-contract.md), and [ADR-0001](docs/decision-records/ADR-0001-gitops-lite.md). Live assessment evidence and environment-specific mappings remain off Git in Operation-SeeSaw.

@@ -40,6 +40,8 @@ An exact SHA alone is insufficient. The host accepts and registers the canonical
 
 Catalog/policy changes and the first VM change that consumes them cannot share one deployment approval. Privileged code and policy are promoted as installed, signed bundles separate from repository data.
 
+The plan-only canary proposal is likewise not deployment approval. Activating a canary-only stage, introducing its dedicated request contract, and submitting the first disposable-canary request are separate review and promotion units. A standard `VirtualMachine` manifest can never use that stage.
+
 ## Evidence
 
 Every lab-affecting action is correlated with one change ID across the pull request, commit/tree, plan registration, approval, MCP audit events, before/after inventory, signed receipt, and Operation-SeeSaw records.
