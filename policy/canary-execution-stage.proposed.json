@@ -1,0 +1,31 @@
+{
+  "$schema": "../schemas/canary-execution-stage.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "CanaryExecutionStageProposal",
+  "stageVersion": "2026.08.01.1",
+  "status": "proposed",
+  "effectiveState": {
+    "applyEnabled": false,
+    "executableActions": []
+  },
+  "proposedStage": {
+    "activationMode": "separate-reviewed-change",
+    "authorizationClass": "disposable-canary-only",
+    "requestKind": "DisposableCanaryRequest",
+    "plannerAction": "Create",
+    "maximumConcurrent": 1,
+    "normalVirtualMachineManifestsAllowed": false,
+    "requestMaySharePromotion": false,
+    "requiredGates": [
+      "control-plane-negative-tests-passed",
+      "installed-canary-policy-promoted",
+      "immutable-canary-image-promoted",
+      "opaque-profiles-approved",
+      "identity-ledger-reservation",
+      "host-issued-plan-registered",
+      "exact-plan-human-approval",
+      "quarantine-route-proven",
+      "signed-receipt-ready"
+    ]
+  }
+}

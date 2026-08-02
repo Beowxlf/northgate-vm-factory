@@ -6,7 +6,7 @@
 - Default branch is `main`.
 - Initial bootstrap may be committed directly; subsequent changes use pull requests.
 - Require validation checks and resolved review conversations before merge.
-- Require review of `.github/`, `schemas/`, `catalog/`, `policy/`, and future privileged source changes.
+- Require review of `.github/`, `schemas/`, `catalog/`, `policy/`, `proposals/`, and future privileged source changes.
 - Do not require an independent reviewer until a second trusted reviewer exists; otherwise a single-owner repository can deadlock itself. This is a residual separation-of-duties risk, not a compensating control.
 - Disable force pushes and branch deletion when branch protection is enabled.
 - Pin Actions to full commit identifiers and keep workflow permissions read-only.
@@ -39,6 +39,10 @@ An exact SHA alone is insufficient. The host accepts and registers the canonical
 | Control plane | MCP, executor, workflow, identities, ACLs, storage/network policy | Privileged change process with backup, negative tests, signed release/hash gate, rollback |
 
 Catalog/policy changes and the first VM change that consumes them cannot share one deployment approval. Privileged code and policy are promoted as installed, signed bundles separate from repository data.
+
+An owner-authorized source artifact, VLAN number, or target design may be recorded as a proposed catalog or workload-proposal entry. That records intent only: it does not approve the installed host/OPNsense mapping, image promotion, fabric mutation, standard manifest, host-issued plan, or apply. Network/fabric activation remains a control-plane change with configuration backup and readback; the first VM using that mapping is a later deployment unit.
+
+The plan-only canary proposal is likewise not deployment approval. Activating a canary-only stage, introducing its dedicated request contract, and submitting the first disposable-canary request are separate review and promotion units. A standard `VirtualMachine` manifest can never use that stage.
 
 ## Evidence
 

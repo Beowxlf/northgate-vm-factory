@@ -89,7 +89,8 @@ The canonical explanation of trust boundaries, authorization, data flow, and fai
 catalog/                    Approved opaque references; host mapping remains authoritative
 docs/                       Architecture, governance, acceptance tests, and decision records
 manifests/vms/              Managed VM desired state; intentionally empty initially
-policy/                     Proposed plan-only resource and action policy
+policy/                     Proposed plan-only resource and canary-stage policy
+proposals/                  Strict non-deployable workload design records; never host-issued plans
 schemas/                    Strict JSON Schema 2020-12 contracts
 scripts/                    Unprivileged repository validation only
 .github/                    CODEOWNERS, PR template, and hosted static validation
@@ -108,10 +109,10 @@ PowerShell 7 also performs JSON Schema validation. Windows PowerShell 5.1 perfor
 ## Rollout state
 
 1. **Current:** private repository bootstrap and plan-only controls.
-2. **Next:** harden MCP code and audit ACLs, establish separate tunnel/application identities, reconcile releases, and build normalized read-only planning.
-3. **Then:** prove one disposable canary with stale-plan, capacity, collision, concurrency, secret, path, identity, and rollback tests.
+2. **Next:** harden MCP code and audit ACLs, establish separate tunnel/application identities, reconcile releases, and build normalized read-only planning. The separately reviewed but non-operative [disposable canary execution-stage proposal](docs/canary-execution-stage.md) defines a path through the bootstrap deadlock without relaxing normal workload policy.
+3. **Then:** activate that canary-only path through a different reviewed control-plane change and prove one disposable canary with stale-plan, capacity, collision, concurrency, secret, path, identity, and rollback tests.
 4. **Later:** promote image construction, guest bootstrap, drift reporting, and narrowly scoped low-risk automation.
 
 See [the acceptance gates](docs/acceptance-tests.md), [the manifest contract](docs/manifest-contract.md), and [ADR-0001](docs/decision-records/ADR-0001-gitops-lite.md). Live assessment evidence and environment-specific mappings remain off Git in Operation-SeeSaw.
 
-Proposed workload designs remain non-operative until their stated control-plane and VM Factory gates pass. The distinct internal and simulated-external SMTP services and Kali design are recorded in [ADR-0002](docs/decision-records/ADR-0002-segmented-mail-and-external-simulation.md), with an operator handoff in the [mail lab deployment plan](docs/mail-lab-deployment-plan.md). The five-role Windows fleet, target VLAN architecture, and phased implementation decision are in [ADR-0003](docs/decision-records/ADR-0003-segmented-windows-workstation-fleet.md), with an operator handoff in the [Windows workstation deployment plan](docs/windows-workstation-deployment-plan.md). Proposed fixed address intent is in the [IPAM plan](docs/ipam-plan.md). Retained and future endpoint, firewall, workstation, mail, and red-team visibility follows the plan-only [Wazuh sensor and detection-engineering standard](docs/wazuh-sensor-and-detection-standard.md).
+Proposed workload designs remain non-operative until their stated control-plane and VM Factory gates pass. The distinct internal and simulated-external SMTP services and Kali design are recorded in [ADR-0002](docs/decision-records/ADR-0002-segmented-mail-and-external-simulation.md), with an operator handoff in the [mail lab deployment plan](docs/mail-lab-deployment-plan.md). The five-role Windows fleet, target VLAN architecture, and phased implementation decision are in [ADR-0003](docs/decision-records/ADR-0003-segmented-windows-workstation-fleet.md), with an operator handoff in the [Windows workstation deployment plan](docs/windows-workstation-deployment-plan.md). The independent Debian Employee Hub and Sentinel Atlas service-hosting decision is in [ADR-0004](docs/decision-records/ADR-0004-aegis-debian-application-services.md), with its gate and canary handoff in the [Aegis application deployment plan](docs/aegis-application-deployment-plan.md). Their selected but non-deployable catalog bundle and workload envelopes are in the strict [Aegis provisioning proposal](proposals/aegis-debian-workloads.proposed.json); it is not a standard VM manifest or host-issued plan. Proposed fixed address intent is in the [IPAM plan](docs/ipam-plan.md). Retained and future endpoint, firewall, workstation, mail, and red-team visibility follows the plan-only [Wazuh sensor and detection-engineering standard](docs/wazuh-sensor-and-detection-standard.md).

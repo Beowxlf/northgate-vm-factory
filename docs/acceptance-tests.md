@@ -28,6 +28,8 @@ The repository is plan-only. These tests define the minimum exit criteria before
 13. Prove loopback requests without application authentication or a one-time plan capability cannot mutate state.
 14. Prove all normal mutation paths contend on the same host lock and concurrent apply fails closed.
 15. Produce a signed receipt with repository, commit/tree, plan, actor, operations, and before/after hashes, and preserve an evidence-reconciliation finding if vault anchoring fails.
+16. Reject any attempt to treat the canary proposal as active, give it effective actions, admit a standard `VirtualMachine` request, broaden it beyond `Create`, run more than one canary, co-promote its first request, or omit an exact-plan, quarantine, or receipt gate.
+17. Reject any workload proposal that claims deployability, bypasses a host-issued plan, bundles a standard manifest, enables resource policy, collapses catalog/fabric promotion into a consuming workload, claims reserved identity, references an approved/unknown prerequisite instead of the exact proposed set, or introduces a raw path, VLAN/IP field, command, or secret-like value.
 
 ## Canary exit
 

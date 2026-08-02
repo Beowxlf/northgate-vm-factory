@@ -39,6 +39,7 @@ The architecture map in the [repository README](../README.md#architecture-map) i
 - An unmanaged same-name VM, mismatched VM ID, reused disk, missing ledger binding, or name drift is a collision and hard stop. It is never implicit adoption.
 - Observed inventory is non-actionable. Adoption and decommission use separate typed records and approvals; neither is represented by a standard VM manifest.
 - The host-side installed policy is authoritative for storage roots, switch identity/fingerprint, image artifacts, firmware, capacity, and action allowlists. Git catalogs can narrow but never widen it.
+- A proposed image or profile is design inventory only. `promotedOnly: true` means a standard manifest may resolve only an active promoted image even when the image catalog also carries a pinned proposed candidate awaiting artifact and boot evidence.
 
 ## Failure behavior
 
@@ -58,6 +59,8 @@ The architecture map in the [repository README](../README.md#architecture-map) i
 ## Separation rules
 
 - VM intent, catalog/policy, and privileged executor/provisioner releases are distinct promotion units. A VM change cannot consume a relaxed policy in the same deployment.
+- A `WorkloadProvisioningProposal` is a strict, non-deployable design record. It cannot reserve an identity, stand in for a standard VM manifest, become a host-issued plan, or co-promote catalog/fabric policy with its first consuming workload.
+- The inactive `CanaryExecutionStageProposal` is not an apply authority. Any future canary stage is a separate installed-policy promotion that accepts only a dedicated `DisposableCanaryRequest`, never a standard `VirtualMachine` manifest, and still requires a fresh host-issued plan plus exact human approval.
 - The normal MCP identity cannot invoke a mutating bypass. Direct lifecycle tools, if retained, require a separate break-glass identity and maintenance/change record.
 - The tunnel key is forwarding-only and inaccessible to the planner as a general Administrator credential. The administrative SSH key is inaccessible to the normal executor identity.
 - Hosted CI has no inbound or outbound path to the private lab. The workstation is invoked manually or polls outbound; it exposes no webhook listener.

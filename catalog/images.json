@@ -2,8 +2,23 @@
   "$schema": "../schemas/image-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "ImageCatalog",
-  "catalogVersion": "2026.07.31.1",
+  "catalogVersion": "2026.08.01.1",
   "promotedOnly": true,
-  "images": [],
+  "images": [
+    {
+      "id": "debian-12.12-amd64-netinst",
+      "sha256": "dfc30e04fd095ac2c07e998f145e94bb8f7d3a8eca3a631d2eb012398deae531",
+      "sizeBytes": 704643072,
+      "guestFamily": "linux",
+      "architecture": "x86_64",
+      "allowedGenerations": [2],
+      "allowedFirmwareProfiles": [
+        "linux-gen2"
+      ],
+      "sourceArtifactId": "debian-12.12.0-amd64-netinst-iso",
+      "approvalStatus": "proposed",
+      "retirementStatus": "proposed"
+    }
+  ],
   "status": "inventory-required"
 }

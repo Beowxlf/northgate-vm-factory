@@ -2,7 +2,7 @@
   "$schema": "../schemas/storage-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "StorageCatalog",
-  "catalogVersion": "2026.07.31.1",
+  "catalogVersion": "2026.08.01.1",
   "profiles": [
     {
       "id": "lab-ephemeral",
@@ -17,6 +17,13 @@
       "approvalStatus": "proposed",
       "allowProvision": true,
       "criticalWorkloadsAllowed": false
+    },
+    {
+      "id": "persistent-app-protected",
+      "serverPolicyId": "ng-storage-persistent-app-protected-v1",
+      "approvalStatus": "proposed",
+      "allowProvision": true,
+      "criticalWorkloadsAllowed": true
     }
   ]
 }
