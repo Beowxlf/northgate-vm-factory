@@ -53,6 +53,9 @@ try {
     Assert-True ($kaliImage.sha256 -ceq 'd32f929dacc48134a31461a09f2160d13ad1d26b820cee920446813ca979b39b' -and [long]$kaliImage.sizeBytes -eq 779091968) 'Kali source identity'
     Assert-True ($debianImage.secureBoot -eq $true -and $windowsImage.secureBoot -eq $true -and $kaliImage.secureBoot -eq $false) 'family-specific Secure Boot policy'
     Assert-True ($kaliImage.firmwareProfile -ceq 'kali-gen2-unsigned' -and $kaliImage.secureBootExceptionId -ceq 'NG-FW-20260802-KALI-UNSIGNED') 'Kali exception binding'
+    $linuxExtractedEfiPath = '/EFI/boot/bootx64.efi'
+    Assert-True (@($debianImage.requiredIsoPaths) -ccontains $linuxExtractedEfiPath -and @($kaliImage.requiredIsoPaths) -ccontains $linuxExtractedEfiPath) 'Linux source paths use the exact case emitted by xorriso Rock Ridge extraction'
+    Assert-True (@($debianImage.requiredIsoPaths) -cnotcontains '/EFI/BOOT/BOOTX64.EFI' -and @($kaliImage.requiredIsoPaths) -cnotcontains '/EFI/BOOT/BOOTX64.EFI') 'Linux source paths reject the case-only ISO9660 alias that is absent from the extracted tree'
 
     $fleet = Get-NorthGateBootstrapFleetMap
     Assert-True (@($fleet.assets).Count -eq 12) 'twelve exact fleet mappings'
