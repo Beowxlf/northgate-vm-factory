@@ -293,6 +293,17 @@ function Assert-NgcdAdministrator {
     }
 }
 
+function Get-NgcdAclRuleFingerprint {
+    param([Parameter(Mandatory)][System.Security.AccessControl.FileSystemAccessRule]$Rule)
+    '{0}|{1}|{2}|{3}|{4}|{5}' -f `
+        ([string]$Rule.IdentityReference.Value),
+        ([int]$Rule.AccessControlType),
+        ([int64]$Rule.FileSystemRights),
+        ([int]$Rule.InheritanceFlags),
+        ([int]$Rule.PropagationFlags),
+        ([bool]$Rule.IsInherited)
+}
+
 function Set-NgcdProtectedDirectoryAcl {
     param(
         [string]$Path, [string]$ServiceSid, [string]$SshSid, [bool]$AllowSshRead,
@@ -329,17 +340,25 @@ function Set-NgcdProtectedDirectoryAcl {
     [System.IO.Directory]::SetAccessControl($directory, $security)
     $readback = [System.IO.Directory]::GetAccessControl($directory)
     if (-not $readback.AreAccessRulesProtected) { Stop-Ngcd 'NGCOR-DEPLOYMENT-ACL-READBACK-FAILED' }
-    # Compare the security-relevant owner and DACL only. Windows may populate or
-    # normalize the POSIX-style primary-group field during readback even though
-    # that field does not grant Windows file-system access. Comparing the whole
-    # descriptor therefore creates a host-dependent false failure. The protected
-    # DACL, owner, exact identities, rights, inheritance, and propagation remain
-    # byte-for-byte bound through their canonical SDDL representation.
-    $sections = [System.Security.AccessControl.AccessControlSections]::Owner -bor
-        [System.Security.AccessControl.AccessControlSections]::Access
-    $wanted = $security.GetSecurityDescriptorSddlForm($sections)
-    $actual = $readback.GetSecurityDescriptorSddlForm($sections)
-    if (-not (Test-NgcdFixedHexEquals $wanted $actual)) { Stop-Ngcd 'NGCOR-DEPLOYMENT-ACL-READBACK-FAILED' }
+    $actualOwner = [string]$readback.GetOwner([System.Security.Principal.SecurityIdentifier]).Value
+    if ($actualOwner -cne [string]$administrators.Value) {
+        Stop-Ngcd 'NGCOR-DEPLOYMENT-ACL-READBACK-FAILED'
+    }
+    # Windows can normalize descriptor control flags and ACE ordering during
+    # persistence. Compare the complete authorization semantics instead: the
+    # protected flag and owner above, then every explicit/inherited DACL rule by
+    # trustee, type, rights bitmask, inheritance, propagation, and origin.
+    [string[]]$wantedRules = @($security.GetAccessRules(
+        $true, $true, [System.Security.Principal.SecurityIdentifier]
+    ) | ForEach-Object { Get-NgcdAclRuleFingerprint $_ })
+    [string[]]$actualRules = @($readback.GetAccessRules(
+        $true, $true, [System.Security.Principal.SecurityIdentifier]
+    ) | ForEach-Object { Get-NgcdAclRuleFingerprint $_ })
+    [array]::Sort($wantedRules, [System.StringComparer]::Ordinal)
+    [array]::Sort($actualRules, [System.StringComparer]::Ordinal)
+    if (($wantedRules -join "`n") -cne ($actualRules -join "`n")) {
+        Stop-Ngcd 'NGCOR-DEPLOYMENT-ACL-READBACK-FAILED'
+    }
     $directory
 }
 

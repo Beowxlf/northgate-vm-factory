@@ -164,10 +164,11 @@ try {
     Assert-NgcdTest ($source -match 'Set-NgcdProtectedDirectoryAcl \$stateRoot[^\r\n]*\$serviceRead' -and
         $source -match 'Set-NgcdProtectedDirectoryAcl \(Join-Path \$stateRoot ''deployment-transactions''\)[\s\S]{0,160}\$serviceRead') `
         'Runtime service has read-only deployment-state access.'
-    Assert-NgcdTest ($source -match 'AccessControlSections\]::Owner[\s\S]{0,180}AccessControlSections\]::Access' -and
-        $source -match 'GetSecurityDescriptorSddlForm\(\$sections\)' -and
-        $source -cnotmatch 'GetSecurityDescriptorBinaryForm\(\)') `
-        'ACL readback binds the protected owner and exact DACL without host-normalized group metadata.'
+    Assert-NgcdTest ($source -match 'GetOwner\(\[System\.Security\.Principal\.SecurityIdentifier\]\)' -and
+        $source -match 'GetAccessRules\([\s\S]{0,100}\$true, \$true, \[System\.Security\.Principal\.SecurityIdentifier\]' -and
+        $source -match 'Get-NgcdAclRuleFingerprint' -and
+        $source -cnotmatch 'GetSecurityDescriptor(?:BinaryForm|SddlForm)\(') `
+        'ACL readback binds the protected owner and exact authorization rules without host-normalized representation metadata.'
 
     $key = New-Object byte[] 32
     [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($key)
