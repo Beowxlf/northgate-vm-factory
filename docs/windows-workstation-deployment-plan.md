@@ -43,14 +43,14 @@ Every workstation must satisfy this contract before acceptance:
 | Setting | Worker | Manager | IT | Cyber |
 | --- | --- | --- | --- | --- |
 | vCPU | 2 | 2 | 4 | 4 |
-| Dynamic memory minimum/startup/maximum | 4/4/8 GiB | 4/4/8 GiB | 4/8/16 GiB | 4/8/16 GiB |
+| Dynamic memory minimum/startup/maximum | 4/4/6 GiB | 4/4/6 GiB | 4/8/12 GiB | 4/8/12 GiB |
 | OS disk | 80 GiB | 80 GiB | 100 GiB | 120 GiB |
 | Data classification | Internal | Internal | Confidential | Restricted |
 | Criticality | Low | Moderate | Moderate | Moderate |
 | Interactive administration | No | No | Approved privileged path | Security tools only; no default domain administration |
 | General email/web | Authenticated STARTTLS submission and trusted IMAPS to internal mail only; normal approved web policy | Authenticated STARTTLS submission and trusted IMAPS to internal mail only; normal approved web policy | Email/web minimized | Restricted to approved research/update sources; no direct external-mail or SIM-WAN path |
 
-The resources, data classifications, criticalities, and recovery tiers in this table are proposed owner decisions, not approved manifest values. The five configured startup allocations total 28 GiB and the configured maximums total 56 GiB. Disk ceilings total 460 GiB. These are design values, not evidence of current host headroom; the planner must recalculate host and volume reserves immediately before deployment.
+The resources, data classifications, criticalities, and recovery tiers in this table are proposed owner decisions, not approved manifest values. The five configured startup allocations total 28 GiB and the configured maximums total 42 GiB. Disk ceilings total 460 GiB. These reduced maxima preserve the approved 48 GiB host reserve at the last normalized snapshot, but they remain design values rather than current-capacity evidence; the planner must recalculate host and volume reserves immediately before deployment.
 
 ## Bootstrap sequence
 

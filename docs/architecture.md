@@ -2,9 +2,11 @@
 
 ## Decision
 
-Use a Git-backed, human-approved GitOps-lite model with native Hyper-V PowerShell behind the guarded NorthGate MCP boundary. Keep GitHub, Codex, planning, and deployment control off the hypervisor. Treat Git as reviewed input, not an authority to mutate the host.
+Use a Git-backed, human-approved GitOps-lite model with native Hyper-V PowerShell behind a dedicated forced-command create-only boundary. Keep GitHub, Codex, planning, and deployment control off the hypervisor. Treat Git as reviewed input, not an authority to mutate the host. Legacy broad MCP mutation remains a separate Administrator break-glass path; it is not routine factory transport.
 
 The architecture map in the [repository README](../README.md#architecture-map) is canonical.
+
+Source-restricted public-key authentication plus the server-enforced forced command is the create-only application authentication boundary. Network locality, loopback binding, and SSH reachability alone are never client authorization.
 
 ## Trust boundaries
 
@@ -13,8 +15,8 @@ The architecture map in the [repository README](../README.md#architecture-map) i
 | GitHub private repository | Canonical JSON manifests, opaque catalogs, proposed policy, tests, source, documentation | Secrets, live plans, receipts, identity ledger, private keys, generated credentials, Terraform state, lab credentials |
 | GitHub-hosted CI | Read-only checkout; static syntax, schema, policy, and negative tests | NorthGate route, deployment credential, self-hosted runner, privileged apply, writable workflow token |
 | Authorized workstation | Fixed data-only fetcher, installed signed planner/executor, protected credentials, manual invocation, receipt collection | Executing checkout content in the privileged path, moving branch references, accepting arbitrary commits, bypassing plan expiry |
-| Forwarding tunnel | Dedicated forwarding-only identity, pinned endpoints, local loopback, application-authenticated requests | Reuse of the Administrator key, general shell, treating loopback as client authentication |
-| NorthGate MCP | Typed inventory, plan registration, plan-ID apply, host policy, audit, single-writer lock | Public/LAN listener, generic routine shell, trusting client validation, mutating calls that bypass the plan registry |
+| Routine application transport | Dedicated source-restricted forced-command identity for `status`, `plan`, `apply`, and `receipt`; a future read-only tunnel must use a distinct endpoint and credential | Reuse of the Administrator key, general shell, forwarding to the broad MCP endpoint, treating loopback as client authentication |
+| Create-only host operator | Typed status, plan registration, plan-ID apply, receipts, host policy, audit, single-writer lock | Public/LAN listener, forwarding, generic routine shell, trusting client validation, mutating calls that bypass the plan registry |
 | NorthGate Hyper-V host | Installed provisioner and policy bundle; native Hyper-V state transition | GitHub runner, Git credential, arbitrary checkout, automatic fabric, firewall, feature, or storage-root mutation |
 | Operation-SeeSaw | Decisions, assets, risks, evidence hashes, signed receipt outcome | Credentials, private keys, unredacted secrets, executor write access, raw logs as executive narrative |
 
@@ -25,7 +27,7 @@ The architecture map in the [repository README](../README.md#architecture-map) i
 3. A human reviews and merges. Merge approves intent but does not approve deployment.
 4. A fixed fetcher obtains only allowlisted data from the approved repository identity and exact merged commit/tree. It disables hooks, filters, submodules, LFS execution, and repository-supplied code.
 5. The installed planner collects a normalized read set through the authenticated loopback tunnel and calculates the post-merge delta.
-6. The plan binds repository identity, protected-branch reachability, commit, tree, manifest, catalog, policy, observed state, image, and installed executor/provisioner versions.
+6. The plan binds repository identity, the reviewed promotion anchor, commit, tree, signed release hash, host allowlist, manifest, catalog, policy, observed state, image, and installed executor/provisioner versions. On the current private GitHub tier, the promotion anchor is the exact merged commit/tree plus signed-release allowlist defined in ADR-0005, not a moving branch.
 7. The host independently validates the canonical plan against authoritative policy and live state, registers it, and issues an expiring plan ID plus an authenticated plan hash.
 8. A human approves that exact plan ID and hash. A model, repository merge, or ordinary client-computed SHA-256 is not deployment approval.
 9. The installed executor submits only the approved plan ID using a dedicated application identity. The host lock covers every routine mutating operation.
@@ -62,7 +64,7 @@ The architecture map in the [repository README](../README.md#architecture-map) i
 - A `WorkloadProvisioningProposal` is a strict, non-deployable design record. It cannot reserve an identity, stand in for a standard VM manifest, become a host-issued plan, or co-promote catalog/fabric policy with its first consuming workload.
 - The inactive `CanaryExecutionStageProposal` is not an apply authority. Any future canary stage is a separate installed-policy promotion that accepts only a dedicated `DisposableCanaryRequest`, never a standard `VirtualMachine` manifest, and still requires a fresh host-issued plan plus exact human approval.
 - The normal MCP identity cannot invoke a mutating bypass. Direct lifecycle tools, if retained, require a separate break-glass identity and maintenance/change record.
-- The tunnel key is forwarding-only and inaccessible to the planner as a general Administrator credential. The administrative SSH key is inaccessible to the normal executor identity.
+- The create-only SSH key is source-restricted and forced-command only. It is inaccessible to the Administrator approval writer and cannot forward to MCP. The administrative SSH key is inaccessible to the normal executor identity.
 - Hosted CI has no inbound or outbound path to the private lab. The workstation is invoked manually or polls outbound; it exposes no webhook listener.
 
 ## Explicit non-goals for the initial release

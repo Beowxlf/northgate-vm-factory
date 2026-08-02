@@ -2,11 +2,41 @@
   "$schema": "../schemas/profile-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "AccessCatalog",
-  "catalogVersion": "2026.08.01.1",
+  "catalogVersion": "2026.08.02.1",
   "profiles": [
     {
       "id": "debian-app-keyonly-admin",
       "serverPolicyId": "ng-access-debian-app-keyonly-admin-v1",
+      "approvalStatus": "proposed"
+    },
+    {
+      "id": "disposable-canary-keyonly-admin",
+      "serverPolicyId": "ng-access-disposable-canary-keyonly-admin-v1",
+      "approvalStatus": "proposed"
+    },
+    {
+      "id": "windows-disposable-canary",
+      "serverPolicyId": "ng-access-windows-disposable-canary-v1",
+      "approvalStatus": "proposed"
+    },
+    {
+      "id": "windows-domain-managed",
+      "serverPolicyId": "ng-access-windows-domain-managed-v1",
+      "approvalStatus": "proposed"
+    },
+    {
+      "id": "windows-privileged-workstation",
+      "serverPolicyId": "ng-access-windows-privileged-workstation-v1",
+      "approvalStatus": "proposed"
+    },
+    {
+      "id": "linux-server-keyonly-admin",
+      "serverPolicyId": "ng-access-linux-server-keyonly-admin-v1",
+      "approvalStatus": "proposed"
+    },
+    {
+      "id": "kali-lab-keyonly-admin",
+      "serverPolicyId": "ng-access-kali-lab-keyonly-admin-v1",
       "approvalStatus": "proposed"
     }
   ]

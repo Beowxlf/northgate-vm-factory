@@ -1,0 +1,280 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Beowxlf/northgate-vm-factory/schemas/full-fleet-provisioning-proposal.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "apiVersion",
+    "kind",
+    "proposalVersion",
+    "status",
+    "execution",
+    "governance",
+    "blockingFindings",
+    "catalogPromotion",
+    "capacity",
+    "rollout",
+    "workloads"
+  ],
+  "properties": {
+    "$schema": { "const": "../schemas/full-fleet-provisioning-proposal.schema.json" },
+    "apiVersion": { "const": "northgate/v1alpha1" },
+    "kind": { "const": "FullFleetProvisioningProposal" },
+    "proposalVersion": { "$ref": "#/$defs/version" },
+    "status": { "const": "proposed" },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deployable",
+        "hostPlanRequired",
+        "standardManifestsIncluded",
+        "resourcePolicyMustRemainDisabled",
+        "promotionMode",
+        "overallState"
+      ],
+      "properties": {
+        "deployable": { "const": false },
+        "hostPlanRequired": { "const": true },
+        "standardManifestsIncluded": { "const": false },
+        "resourcePolicyMustRemainDisabled": { "const": true },
+        "promotionMode": { "const": "separate-reviewed-stages" },
+        "overallState": { "const": "blocked" }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assetIdentityState",
+        "addressReservationState",
+        "dnsRegistrationState",
+        "catalogState",
+        "changeReferenceState"
+      ],
+      "properties": {
+        "assetIdentityState": { "const": "candidate-unreserved" },
+        "addressReservationState": { "const": "proposed-unallocated" },
+        "dnsRegistrationState": { "const": "proposed-unregistered" },
+        "catalogState": { "const": "proposed" },
+        "changeReferenceState": { "const": "required-before-manifest" }
+      }
+    },
+    "blockingFindings": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 12,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "state", "resolutionClass"],
+        "properties": {
+          "id": { "$ref": "#/$defs/profileRef" },
+          "state": { "const": "blocked" },
+          "resolutionClass": {
+            "enum": [
+              "control-plane-promotion",
+              "catalog-promotion",
+              "artifact-acquisition",
+              "capacity-decision",
+              "identity-and-change-approval",
+              "network-reservation-change"
+            ]
+          }
+        }
+      }
+    },
+    "catalogPromotion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidateImageRefs",
+        "blockedImageRefs",
+        "firmwareProfileRefs",
+        "storageProfileRefs",
+        "networkProfileRefs",
+        "bootstrapProfileRefs",
+        "recoveryProfileRefs",
+        "accessProfileRefs"
+      ],
+      "properties": {
+        "candidateImageRefs": { "$ref": "#/$defs/profileRefSet" },
+        "blockedImageRefs": { "$ref": "#/$defs/profileRefSetMaybeEmpty" },
+        "firmwareProfileRefs": { "$ref": "#/$defs/profileRefSet" },
+        "storageProfileRefs": { "$ref": "#/$defs/profileRefSet" },
+        "networkProfileRefs": { "$ref": "#/$defs/profileRefSet" },
+        "bootstrapProfileRefs": { "$ref": "#/$defs/profileRefSet" },
+        "recoveryProfileRefs": { "$ref": "#/$defs/profileRefSet" },
+        "accessProfileRefs": { "$ref": "#/$defs/profileRefSet" }
+      }
+    },
+    "capacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "persistentFleet",
+        "largestDisposableCanary",
+        "policyHostReserveMemoryMiB",
+        "configuredMaximumReductionMiB",
+        "reserveMarginMiBAtLastRead",
+        "assessmentState",
+        "liveRevalidationRequired"
+      ],
+      "properties": {
+        "persistentFleet": { "$ref": "#/$defs/resourceTotals" },
+        "largestDisposableCanary": { "$ref": "#/$defs/resourceTotals" },
+        "policyHostReserveMemoryMiB": { "type": "integer", "minimum": 1024 },
+        "configuredMaximumReductionMiB": {
+          "type": "integer",
+          "multipleOf": 128,
+          "minimum": 128
+        },
+        "reserveMarginMiBAtLastRead": {
+          "type": "integer",
+          "multipleOf": 128,
+          "minimum": 128
+        },
+        "assessmentState": { "const": "clear-at-last-read-reduced-maxima" },
+        "liveRevalidationRequired": { "const": true }
+      }
+    },
+    "rollout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maximumConcurrentCanaries",
+        "canariesRetiredBeforePersistentCompletion",
+        "orderedAssetIds"
+      ],
+      "properties": {
+        "maximumConcurrentCanaries": { "const": 1 },
+        "canariesRetiredBeforePersistentCompletion": { "const": true },
+        "orderedAssetIds": {
+          "type": "array",
+          "minItems": 12,
+          "maxItems": 12,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/assetId" }
+        }
+      }
+    },
+    "workloads": {
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "items": { "$ref": "#/$defs/workload" }
+    }
+  },
+  "$defs": {
+    "version": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}\\.[0-9]+$" },
+    "assetId": { "type": "string", "pattern": "^NG-VM-[0-9]{3,}$" },
+    "profileRef": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{1,63}$" },
+    "profileRefSet": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/profileRef" }
+    },
+    "profileRefSetMaybeEmpty": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/profileRef" }
+    },
+    "resourceTotals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["processors", "startupMemoryMiB", "maximumMemoryMiB", "osDiskGiB"],
+      "properties": {
+        "processors": { "type": "integer", "minimum": 1 },
+        "startupMemoryMiB": { "type": "integer", "multipleOf": 128, "minimum": 1024 },
+        "maximumMemoryMiB": { "type": "integer", "multipleOf": 128, "minimum": 1024 },
+        "osDiskGiB": { "type": "integer", "minimum": 20 }
+      }
+    },
+    "workload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assetId",
+        "name",
+        "deploymentClass",
+        "ownerRef",
+        "purpose",
+        "environment",
+        "criticality",
+        "dataClassification",
+        "lifecycle",
+        "reviewOrRetirementDate",
+        "dependencies",
+        "imageRef",
+        "imageState",
+        "firmwareProfileRef",
+        "processors",
+        "memory",
+        "storageProfileRef",
+        "osDiskGiB",
+        "networkProfileRef",
+        "bootstrapProfileRef",
+        "recoveryProfileRef",
+        "accessProfileRef",
+        "desiredPowerState",
+        "destroyProtection",
+        "readinessState",
+        "blockingFindingRefs"
+      ],
+      "properties": {
+        "assetId": { "$ref": "#/$defs/assetId" },
+        "name": { "type": "string", "pattern": "^[A-Z](?:[A-Z0-9-]{0,13}[A-Z0-9])?$" },
+        "deploymentClass": { "enum": ["disposable-canary", "persistent"] },
+        "ownerRef": { "$ref": "#/$defs/profileRef" },
+        "purpose": { "type": "string", "minLength": 1, "maxLength": 240, "pattern": "^[ -~]+$" },
+        "environment": { "enum": ["lab", "tooling", "security", "infrastructure"] },
+        "criticality": { "enum": ["low", "moderate", "high", "critical"] },
+        "dataClassification": { "enum": ["internal", "confidential", "restricted"] },
+        "lifecycle": { "const": "proposed" },
+        "reviewOrRetirementDate": { "type": "string", "format": "date" },
+        "dependencies": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/assetId" }
+        },
+        "imageRef": { "$ref": "#/$defs/profileRef" },
+        "imageState": { "enum": ["candidate-unpromoted", "artifact-missing"] },
+        "firmwareProfileRef": { "$ref": "#/$defs/profileRef" },
+        "processors": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "memory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "minimumMiB", "startupMiB", "maximumMiB"],
+          "properties": {
+            "mode": { "const": "dynamic" },
+            "minimumMiB": { "type": "integer", "multipleOf": 128, "minimum": 512, "maximum": 32768 },
+            "startupMiB": { "type": "integer", "multipleOf": 128, "minimum": 1024, "maximum": 32768 },
+            "maximumMiB": { "type": "integer", "multipleOf": 128, "minimum": 1024, "maximum": 65536 }
+          }
+        },
+        "storageProfileRef": { "$ref": "#/$defs/profileRef" },
+        "osDiskGiB": { "type": "integer", "minimum": 20, "maximum": 256 },
+        "networkProfileRef": { "$ref": "#/$defs/profileRef" },
+        "bootstrapProfileRef": { "$ref": "#/$defs/profileRef" },
+        "recoveryProfileRef": { "$ref": "#/$defs/profileRef" },
+        "accessProfileRef": { "$ref": "#/$defs/profileRef" },
+        "desiredPowerState": { "enum": ["unmanaged", "off", "running"] },
+        "destroyProtection": { "const": true },
+        "readinessState": { "const": "blocked" },
+        "blockingFindingRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/profileRef" }
+        }
+      }
+    }
+  }
+}

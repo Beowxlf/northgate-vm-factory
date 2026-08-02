@@ -1,0 +1,11 @@
+# TEMPLATE ONLY. The installer must replace both placeholders from a separately
+# approved, signed host deployment authorization. Do not append this from a checkout.
+Match User __CREATE_ONLY_SSH_USER__
+    ForceCommand powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy AllSigned -File "__SIGNED_INSTALLED_RELEASE_PATH__\Invoke-NorthGateCreateOnlyForcedCommand.ps1"
+    PermitTTY no
+    AllowTcpForwarding no
+    AllowAgentForwarding no
+    X11Forwarding no
+    PermitTunnel no
+    PermitOpen none
+    GatewayPorts no

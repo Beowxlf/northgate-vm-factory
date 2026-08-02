@@ -3,6 +3,7 @@
 /.github/ @Beowxlf
 /schemas/ @Beowxlf
 /catalog/ @Beowxlf
+/control-plane/ @Beowxlf
 /policy/ @Beowxlf
 /proposals/ @Beowxlf
 /src/ @Beowxlf

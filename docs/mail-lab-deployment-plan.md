@@ -14,7 +14,7 @@ This is the execution handoff for ADR-0002. It is **plan-only** and does not aut
 
 The names, addresses, resources, classifications, recovery tiers, and asset IDs are planning candidates until Operation-SeeSaw and the protected identity ledger approve them. The two mail servers use a promoted immutable Debian artifact; Kali uses a separately promoted immutable Kali artifact. No agent identity, account password, private key, or deployment token is baked into either image.
 
-Together with the five Windows workstations, the proposed workload set is 22 assigned vCPUs, 38 GiB startup memory, 80 GiB configured maximum memory, and 680 GiB of virtual-disk ceilings. Those totals are design inputs, not current-capacity evidence or reservations. The final host plan must recompute memory and per-volume storage reserves, account for existing maximum-memory ceilings and checkpoints, and distribute disks only through approved opaque storage profiles.
+Together with the five Windows workstations, the proposed workload set is 22 assigned vCPUs, 38 GiB startup memory, 66 GiB configured maximum memory, and 680 GiB of virtual-disk ceilings. Those totals reflect the owner-approved reduced workstation maxima and remain design inputs, not current-capacity evidence or reservations. The final host plan must recompute memory and per-volume storage reserves, account for existing maximum-memory ceilings and checkpoints, and distribute disks only through approved opaque storage profiles.
 
 ## Network and SMTP contract
 
@@ -73,8 +73,8 @@ Stop on the first open-relay result, unexpected listener/path, identity mismatch
 ## Current blockers
 
 - VM Factory apply and executable actions remain disabled.
-- No Debian or Kali image, mail bootstrap, owner, storage, firmware, or recovery profile is approved for these workloads. The existing internal-mail and SIM-WAN network profiles remain proposed, and the new EXT-MAIL profile does not yet exist.
-- The guarded control plane cannot yet add and verify the OPNsense trunk adapter or configure Hyper-V trunk/access VLAN state atomically.
+- The exact Debian 12.12 and Kali 2026.2 media are hash-pinned proposed catalog entries, but neither image nor the mail bootstrap, storage, firmware, recovery, access, or network profiles is promoted for workload consumption.
+- The shared OPNsense trunk and VLAN gateways 110,120,130,140,150,160,240,250 are live, verified, and default-deny with no workload adapters attached. The VM Factory still lacks a promoted fixed adapter that can bind a new workload NIC to an opaque network profile and verify the complete host/firewall transaction atomically.
 - The signed planner, host plan registry, application authentication, shared writer lock, signed receipt path, and disposable canary are incomplete.
 - Wazuh mail groups, one-at-a-time enrollment windows, mail configuration, test fixtures, and restore evidence require separate promotion.
 

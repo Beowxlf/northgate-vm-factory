@@ -13,6 +13,8 @@ State the operational or security outcome and affected asset IDs.
 - [ ] Merge approval is not being treated as deployment approval.
 - [ ] The final deployment plan will be generated after merge and authorized by a host-issued plan ID/hash.
 - [ ] Catalog/policy and privileged-code releases are not being promoted with the first VM change that consumes them.
+- [ ] A private-repository release does not rely on a moving branch or tag; promotion will pin the exact merged commit, tree, signer, release SHA-256, and host allowlist.
+- [ ] Repository source is not executed on the host and this PR does not install or activate a release.
 - [ ] Rollback or quarantine behavior is defined for deployment-affecting changes.
 - [ ] Operation-SeeSaw updates are identified.
 

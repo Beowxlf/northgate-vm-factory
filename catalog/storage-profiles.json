@@ -2,7 +2,7 @@
   "$schema": "../schemas/storage-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "StorageCatalog",
-  "catalogVersion": "2026.08.01.1",
+  "catalogVersion": "2026.08.02.1",
   "profiles": [
     {
       "id": "lab-ephemeral",
@@ -21,6 +21,20 @@
     {
       "id": "persistent-app-protected",
       "serverPolicyId": "ng-storage-persistent-app-protected-v1",
+      "approvalStatus": "proposed",
+      "allowProvision": true,
+      "criticalWorkloadsAllowed": true
+    },
+    {
+      "id": "persistent-workstations",
+      "serverPolicyId": "ng-storage-persistent-workstations-v1",
+      "approvalStatus": "proposed",
+      "allowProvision": true,
+      "criticalWorkloadsAllowed": true
+    },
+    {
+      "id": "persistent-mail-protected",
+      "serverPolicyId": "ng-storage-persistent-mail-protected-v1",
       "approvalStatus": "proposed",
       "allowProvision": true,
       "criticalWorkloadsAllowed": true
