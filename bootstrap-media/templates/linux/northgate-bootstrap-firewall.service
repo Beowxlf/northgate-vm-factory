@@ -1,0 +1,14 @@
+[Unit]
+Description=NorthGate temporary source-restricted bootstrap firewall
+Before=ssh.service
+After=network-pre.target
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/nft -f /etc/northgate/bootstrap/northgate-bootstrap.nft
+ExecStop=-/usr/sbin/nft delete table inet northgate_bootstrap
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

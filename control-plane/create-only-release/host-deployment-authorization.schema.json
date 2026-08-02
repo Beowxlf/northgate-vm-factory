@@ -1,84 +1,224 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "northgate/create-only-host-deployment-authorization/v1",
+  "$id": "northgate/create-only-host-deployment-authorization/v2",
   "title": "NorthGate create-only host deployment authorization",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema", "authorizationId", "repository", "releaseManifestSha256",
-    "install", "identity", "switch", "volumes", "images", "initialPolicy"
+    "schema", "authorizationId", "sequence", "issuedAtUtc", "expiresAtUtc",
+    "repository", "releaseManifestSha256", "host", "install", "identity",
+    "switch", "volumes", "images", "bootstrapMedia", "protectedAssets", "accessIsolation",
+    "initialPolicy"
   ],
   "properties": {
-    "schema": { "const": "northgate/create-only-host-deployment-authorization/v1" },
+    "schema": { "const": "northgate/create-only-host-deployment-authorization/v2" },
     "authorizationId": { "type": "string", "pattern": "^ngdeploy-[a-z0-9-]{8,64}$" },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "issuedAtUtc": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
+    "expiresAtUtc": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
     "repository": {
-      "type": "object", "additionalProperties": false,
-      "required": ["identity", "commit", "tree", "hostAllowlistId"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity", "releaseId", "commit", "tree", "hostAllowlistId",
+        "packageAllowlistSha256", "governanceExceptionId"
+      ],
       "properties": {
         "identity": { "const": "Beowxlf/northgate-vm-factory" },
+        "releaseId": { "type": "string", "pattern": "^ngcor-[a-z0-9][a-z0-9.-]{7,63}$" },
         "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
         "tree": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
-        "hostAllowlistId": { "type": "string", "pattern": "^ngallow-[a-z0-9-]{8,64}$" }
+        "hostAllowlistId": { "type": "string", "pattern": "^ngallow-[a-z0-9-]{8,64}$" },
+        "packageAllowlistSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "governanceExceptionId": { "type": "string", "pattern": "^NG-GOV-[0-9]{8}-[A-Z0-9-]{3,32}$" }
       }
     },
     "releaseManifestSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-    "install": {
-      "type": "object", "additionalProperties": false,
-      "required": ["versionedReleaseRoot", "stateRoot"],
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hostId", "computerName", "machineGuidSha256", "hyperVHostId", "osBuild"],
       "properties": {
-        "versionedReleaseRoot": { "type": "string", "minLength": 8, "maxLength": 240 },
-        "stateRoot": { "type": "string", "minLength": 8, "maxLength": 240 }
+        "hostId": { "type": "string", "pattern": "^nghost-[a-z0-9-]{8,64}$" },
+        "computerName": { "type": "string", "pattern": "^[A-Z0-9](?:[A-Z0-9-]{0,13}[A-Z0-9])?$" },
+        "machineGuidSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "hyperVHostId": { "type": "string", "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$" },
+        "osBuild": { "type": "string", "pattern": "^[0-9]{5}(?:\\.[0-9]{1,6})?$" }
+      }
+    },
+    "install": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["versionedReleaseRoot", "stateRoot", "quarantineRoot"],
+      "properties": {
+        "versionedReleaseRoot": { "type": "string", "pattern": "^[A-Za-z]:\\\\", "maxLength": 240 },
+        "stateRoot": { "type": "string", "pattern": "^[A-Za-z]:\\\\", "maxLength": 240 },
+        "quarantineRoot": { "type": "string", "pattern": "^[A-Za-z]:\\\\", "maxLength": 240 }
       }
     },
     "identity": {
-      "type": "object", "additionalProperties": false,
-      "required": ["sshIdentitySid", "serviceIdentitySid", "approvalSignerCertificateSha256", "receiptSignerCertificateSha256"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sshIdentitySid", "serviceIdentitySid", "releaseSignerCertificateSha256",
+        "deploymentAuthorizationSignerCertificateSha256",
+        "approvalSignerCertificateSha256", "receiptSignerCertificateSha256"
+      ],
       "properties": {
         "sshIdentitySid": { "type": "string", "pattern": "^S-1-[0-9-]+$" },
         "serviceIdentitySid": { "type": "string", "pattern": "^S-1-[0-9-]+$" },
+        "releaseSignerCertificateSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "deploymentAuthorizationSignerCertificateSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "approvalSignerCertificateSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "receiptSignerCertificateSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
       }
     },
     "switch": {
-      "type": "object", "additionalProperties": false,
-      "required": ["name", "id", "fingerprint", "vlanProfiles"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "switchPolicyId", "name", "id", "fingerprint", "trunkAdapterId",
+        "trunkAdapterFingerprint", "mode", "allowCreate", "vlanProfiles"
+      ],
       "properties": {
+        "switchPolicyId": { "const": "northgate-app-trunk" },
         "name": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "id": { "type": "string", "pattern": "^[a-f0-9-]{36}$" },
+        "id": { "type": "string", "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$" },
         "fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-        "vlanProfiles": { "type": "object", "minProperties": 8, "additionalProperties": { "type": "integer", "minimum": 1, "maximum": 4094 } }
+        "trunkAdapterId": { "type": "string", "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$" },
+        "trunkAdapterFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "mode": { "const": "existing-only" },
+        "allowCreate": { "const": false },
+        "vlanProfiles": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "business-apps", "commercial-dmz", "cyber-workstations", "external-mail",
+            "it-admin-workstations", "mail-internal", "sim-wan", "users-workstations"
+          ],
+          "properties": {
+            "business-apps": { "const": 150 },
+            "commercial-dmz": { "const": 160 },
+            "cyber-workstations": { "const": 140 },
+            "external-mail": { "const": 240 },
+            "it-admin-workstations": { "const": 130 },
+            "mail-internal": { "const": 120 },
+            "sim-wan": { "const": 250 },
+            "users-workstations": { "const": 110 }
+          }
+        }
       }
     },
     "volumes": {
-      "type": "array", "minItems": 2, "maxItems": 2,
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
       "items": {
-        "type": "object", "additionalProperties": false,
+        "type": "object",
+        "additionalProperties": false,
         "required": ["volumeId", "uniqueId", "root", "persistentCeilingGiB", "canaryCeilingGiB"],
         "properties": {
           "volumeId": { "enum": ["volume-d", "volume-f"] },
           "uniqueId": { "type": "string", "minLength": 8, "maxLength": 128 },
-          "root": { "type": "string", "minLength": 3, "maxLength": 240 },
+          "root": { "type": "string", "pattern": "^[A-Za-z]:\\\\", "maxLength": 240 },
           "persistentCeilingGiB": { "type": "integer", "minimum": 1 },
           "canaryCeilingGiB": { "type": "integer", "minimum": 1 }
         }
       }
     },
     "images": {
-      "type": "array", "minItems": 3, "maxItems": 3,
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
       "items": {
-        "type": "object", "additionalProperties": false,
+        "type": "object",
+        "additionalProperties": false,
         "required": ["imageId", "path", "sha256", "sizeBytes"],
         "properties": {
-          "imageId": { "type": "string", "minLength": 3, "maxLength": 80 },
-          "path": { "type": "string", "minLength": 3, "maxLength": 240 },
+          "imageId": { "enum": [
+            "debian-12.12-amd64-netinst",
+            "kali-2026.2-installer-netinst-amd64",
+            "windows-11-25h2-english-x64"
+          ] },
+          "path": { "type": "string", "pattern": "^[A-Za-z]:\\\\", "maxLength": 240 },
           "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
           "sizeBytes": { "type": "integer", "minimum": 1 }
         }
       }
     },
+    "bootstrapMedia": {
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "assetId", "mediaId", "mode", "path", "sha256", "sizeBytes",
+          "sourceImageId", "sourceImageSha256", "provenancePath", "provenanceSha256",
+          "bundleManifestSha256", "builderId", "builderReleaseSha256", "recipeSha256",
+          "unattendedPayloadSha256", "sourceCommit", "sourceTree"
+        ],
+        "properties": {
+          "assetId": { "enum": ["NG-VM-018", "NG-VM-010", "NG-VM-019", "NG-VM-020", "NG-VM-011", "NG-VM-012", "NG-VM-013", "NG-VM-014", "NG-VM-015", "NG-VM-016", "NG-VM-017", "NG-VM-021"] },
+          "mediaId": { "type": "string", "pattern": "^ngmedia-ng-vm-[0-9]{3}$" },
+          "mode": { "const": "asset-bound-derivative-iso" },
+          "path": { "type": "string", "pattern": "^[A-Za-z]:\\\\", "maxLength": 240 },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "sizeBytes": { "type": "integer", "minimum": 1 },
+          "sourceImageId": { "enum": ["debian-12.12-amd64-netinst", "kali-2026.2-installer-netinst-amd64", "windows-11-25h2-english-x64"] },
+          "sourceImageSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "provenancePath": { "type": "string", "pattern": "^[A-Za-z]:\\\\", "maxLength": 240 },
+          "provenanceSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "bundleManifestSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "builderId": { "const": "northgate-unattended-media-v1" },
+          "builderReleaseSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "recipeSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "unattendedPayloadSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "sourceCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+          "sourceTree": { "type": "string", "pattern": "^[a-f0-9]{40}$" }
+        }
+      }
+    },
+    "protectedAssets": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "vmId", "diskUniqueIds", "adapterIds"],
+        "properties": {
+          "name": { "enum": ["JS-BlueBench", "JS-Server-01", "OPNsense-Tooling", "TRMM-Tooling", "Wazuh-Machine"] },
+          "vmId": { "type": "string", "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$" },
+          "diskUniqueIds": {
+            "type": "array", "minItems": 1, "uniqueItems": true,
+            "items": { "type": "string", "minLength": 8, "maxLength": 128 }
+          },
+          "adapterIds": {
+            "type": "array", "minItems": 1, "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$" }
+          }
+        }
+      }
+    },
+    "accessIsolation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "routineSshIsLocalAdministrator", "routineSshIsHyperVAdministrator",
+        "routineSshCanUsePowerShellRemoting", "routineSshCanReachLegacyMcp"
+      ],
+      "properties": {
+        "routineSshIsLocalAdministrator": { "const": false },
+        "routineSshIsHyperVAdministrator": { "const": false },
+        "routineSshCanUsePowerShellRemoting": { "const": false },
+        "routineSshCanReachLegacyMcp": { "const": false }
+      }
+    },
     "initialPolicy": {
-      "type": "object", "additionalProperties": false,
+      "type": "object",
+      "additionalProperties": false,
       "required": ["applyEnabled", "executableActions", "canaryStage"],
       "properties": {
         "applyEnabled": { "const": false },

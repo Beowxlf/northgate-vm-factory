@@ -2,11 +2,16 @@
 
 ## Current outcome
 
-This directory is a **hard-disabled release candidate**, not an activated control plane.
-It makes no host changes and exposes no working VM mutation. `status` describes the
-missing gates; production `plan`, `apply`, and `receipt` requests reject explicitly.
-The installer, approval writer, and rollback entry points are deliberately
-non-operative until a separately reviewed release bakes in the required trust anchor.
+This directory contains the source implementation of the guarded create-only control
+plane. The installed service routes `status`, `plan`, approval registration, `apply`,
+and `receipt` to the transaction-owned Generation 2 Hyper-V backend. It exposes no
+update, replace, adopt, power, delete, guest-command, or general host-command path.
+
+Source readiness is not host activation. The checked-in installer and rollback scripts
+contain blank public-certificate pins and fail before mutation. A reviewed one-time
+bootstrap copy must bake the exact release and deployment-authorization certificate
+SHA-256 pins, and a separately signed backend policy must explicitly authorize only
+`Create`. No live installation is performed by the tests in this directory.
 
 Do not run repository checkout content on the Hyper-V host. Build an immutable package
 on the workstation, sign and approve it through the release ceremony, and install only
@@ -20,7 +25,7 @@ flowchart LR
     B --> C["ACL-protected local named pipe<br/>exact client SID"]
     C --> D["Fixed privileged service<br/>no caller-selected adapter"]
     D --> E["Authenticated registry, ledger,<br/>journal, audit, approval, receipt"]
-    E --> F["Fixed Hyper-V Create adapter<br/>not implemented in this candidate"]
+    E --> F["Fixed Hyper-V Generation 2<br/>Create-only adapter"]
 ```
 
 The SSH identity must remain unprivileged and must not be a member of Hyper-V
@@ -34,10 +39,17 @@ The forced command accepts only these case-sensitive ASCII forms:
 
 | Command | Standard input | Candidate behavior |
 |---|---|---|
-| `status` | Empty | Returns disabled release status through the pipe service. |
-| `plan` | Canonical UTF-8 JSON, maximum 32,768 bytes | Validates the request, then production rejects because the durable service registry is not promoted. |
-| `apply ngp-<64 lowercase hex>` | Empty | Rejects: live apply is not implemented. |
-| `receipt ngp-<64 lowercase hex>` | Empty | Rejects: asymmetric receipt signing is not implemented. |
+| `status` | Empty | Returns signed backend-policy and transaction state. |
+| `plan` | Canonical UTF-8 JSON, maximum 32,768 bytes | Produces one fresh, expiring, authenticated one-asset Create plan. |
+| `apply ngp-<64 lowercase hex>` | Empty | Consumes one exact registered approval and runs the create-only transaction. |
+| `receipt ngp-<64 lowercase hex>` | Empty | Returns the detached-CMS-signed receipt. |
+
+Two additional named-pipe operations are available only to a native elevated local
+administrator, not the routine SSH identity: `approval-context ngp-<64 lowercase hex>`
+returns the exact authenticated plan evidence, and `approve ngp-<64 lowercase hex>`
+registers canonical approval bytes plus a detached CMS signature. The service binds
+the embedded approving SID to the impersonated pipe client. The approval certificate
+is a distinct, non-exportable CurrentUser key; approval IDs and nonces are single-use.
 
 `plan` accepts only `assetId`, `changeId`, and the exact repository identity, commit,
 tree, signed release SHA-256, and host allowlist ID. It does not accept paths, switch
@@ -46,10 +58,14 @@ The privileged boundary re-parses the full envelope rather than trusting the SSH
 
 ## Fixed fleet policy
 
-Every VM is Generation 2, dynamically allocated memory, dynamically expanding VHDX,
-Secure Boot enabled, initially off, and destroy protected. Windows entries require a
-vTPM. The service never exposes start, update, replace, delete, adopt, guest-command,
-general host-command, switch-create, or VLAN-create operations.
+Every VM is Generation 2, uses the fixed memory and dynamically expanding VHDX policy,
+is destroy protected, and boots from exactly one asset-bound derivative ISO. Secure
+Boot and vTPM settings are fixed per firmware profile, including the explicit Kali
+Secure Boot exception. An approved `Create` may start only the transaction-owned new
+VM after its configuration readback; there is no standalone start, stop, update,
+replace, delete, adopt, guest-command, general host-command, switch-create, or
+VLAN-create operation. Any uncertain result is forced off, disconnected, and
+quarantined.
 
 | Asset | VM name | Class | CPU | Memory MiB min/start/max | Disk GiB | Opaque volume | VLAN profile / ID |
 |---|---|---:|---:|---:|---:|---|---|
@@ -78,15 +94,38 @@ The only rollout order is:
 4. Record independent acceptance and reconcile the durable state.
 5. Enable one persistent asset per fresh host-issued plan.
 
+The immutable signed backend policy carries the initial Debian-only stage and exact
+asset order. Advancing to the Windows canary or persistent fleet uses a same-release,
+approval-signer-authorized promotion containing the prior canary's verified receipt,
+independent acceptance and retirement evidence hashes, plus live readback that the
+canary is absent or off and disconnected. Immutable HMAC/CMS promotion history remains
+under the existing backend state root; an atomic HMAC `rollout/current.json` anchor
+records the monotonic sequence without changing the base policy or moving its ledger
+and receipts. At most one nonterminal transaction may exist, and persistent assets are
+admitted only in the serialized order above.
+
 ## Host deployment authorization
 
 Host paths and identities are not Git defaults. A separate admin-controlled process
 must create and sign a data-only authorization conforming to
-`host-deployment-authorization.schema.json`. It binds the exact release manifest,
-commit, tree, allowlist, protected install/state roots, SSH and service SIDs, independent
-approval and receipt signer certificates, existing switch identity/fingerprint and VLAN
-map, volume UniqueIds plus roots/ceilings, and exact image path/hash/size. The unattended
-ISO is never an allowed image.
+`host-deployment-authorization.schema.json`. Version 2 binds the exact release manifest,
+commit, tree, allowlist, governance decision, target host, protected install/state roots,
+distinct SSH/service identities, four distinct signer roles, existing switch and trunk
+adapter identities, the exact eight-profile VLAN map, both unique volumes, all three
+immutable images, and the five retained VMs plus their disk and adapter identities. The
+authorization expires within 24 hours, begins with apply disabled, and records that the
+routine SSH identity has no local-administrator, Hyper-V-administrator, remoting, or
+legacy-MCP path. Each asset-specific full derivative ISO and provenance sidecar must be
+explicitly bound to one authorized source image by the signed authorization and policy.
+Only the derivative ISO is attached, as the VM's single DVD; neither its path nor a
+source-image path is accepted from a VM manifest or caller.
+
+`Test-NorthGateCreateOnlyHostAuthorization.ps1` performs strict canonical-JSON and
+semantic validation against the pinned package tuple. Its result explicitly says that
+the detached signature has **not** been verified and remains `installable=false`. The
+reviewed bootstrap generator bakes only the exact public signer pins into one-time
+installer and rollback copies; that installer independently verifies every required
+detached CMS signature before importing package code or writing host state.
 
 The release-signing key, approval key, receipt key, SSH private key, state-protection
 keys, and credentials must never be stored in Git, package files, command parameters,
@@ -94,32 +133,47 @@ environment variables, or chat.
 
 ## Package and install state
 
-`New-NorthGateCreateOnlyReleasePackage.ps1` copies a fixed allowlist through
-non-shareable source handles into a new directory outside any repository and emits a
-hash manifest. The output is intentionally unsigned and reports `installable=false`.
+`New-NorthGateCreateOnlyReleasePackage.ps1` accepts only the canonical GitHub repository
+identity at the exact release subtree, requires `HEAD` and the supplied commit/tree to
+agree, rejects a dirty worktree, replacement refs, submodules, special tree entries and
+content filters, then writes the fixed runtime allowlist from raw Git blob object IDs.
+The native service executable is the sole derived artifact: the builder reproduces it
+with an exact-hash Roslyn compiler and framework references, requires byte-identical
+output, and records its detached CMS signature and complete provenance. The canonical
+version-2 manifest binds both artifact kinds. The manifest is signed separately.
 
 `Install-NorthGateCreateOnlyRelease.ps1` requires explicit release-manifest, commit,
-tree, allowlist, and signed-deployment-authorization pins. It then hard-fails with
-`NGCOR-INSTALL-BLOCKED-TRUST-ANCHOR-NOT-BAKED` before any write because this candidate
-does not contain the independent release trust anchor. Do not replace that failure with
-a parameter or environment setting.
+tree, allowlist, signed host authorization, signed backend policy, and signed data-bundle
+hashes. Exact pinned detached CMS verification occurs before packaged code is imported;
+it requires one time-valid, non-CA Code Signing leaf with DigitalSignature usage and
+does not mutate or rely on the Windows trust stores. The transaction stages immutable
+runtime data under the versioned release, creates a service-writable backend-state child
+without granting write access to deployment journals, backs up managed configuration,
+activates the native service and confined SSH path, verifies readback, and quarantines
+ambiguous output on recovery.
 
-## Required work before promotion
+`New-NorthGateCreateOnlyBootstrap.ps1` produces review-required installer and rollback
+copies outside Git with only the two approved public certificate pins substituted. The
+outputs remain non-installable until their hashes are natively reviewed, approved,
+transferred over pinned SSH, and read back on the host.
 
-- Complete the transactional installer and exact code/config-only rollback with
-  non-shareable handle verification, protected ACL readback, signed service setup,
-  SSH backup/readback, negative self-tests, and disabled initial policy.
-- Implement the privileged fixed collector and Hyper-V adapter without runtime
-  delegates or command lookup. Revalidate collisions, capacity, reparse state, media,
-  switch, VLAN, reservations, and observed-state hash while holding the engine lock.
-- Implement separately signed, one-time approval consumption and independently signed
-  receipts. Pin release, approval, and receipt signers independently.
-- Add rollback-detecting external state anchors, sequenced/hash-chained fail-closed
-  audit, `Prepared`/`Applying` crash recovery, and `OutcomeUnknown` reconciliation.
-- Create only by returned VM ID plus transaction markers. On uncertainty, block reuse
-  and disconnect a proven transaction-owned VM; never delete by name or caller path.
-- Prove the routine identity cannot reach the legacy MCP mutators, PowerShell remoting,
-  forwarding, SFTP/SCP, a shell, Hyper-V cmdlets, or writable release/state ancestors.
+Rollout promotion is native-Administrator-only. The service operations
+`rollout-context` and `promote-rollout` are unavailable to the routine SSH identity,
+service identity, SYSTEM, and non-administrators. The installed-only helper
+`New-NorthGateCreateOnlyRolloutPromotion.ps1` obtains the authenticated context, hashes
+the independent acceptance and retirement evidence, creates the canonical expiring
+promotion, signs it with the exact approval-signer certificate, and submits it directly
+through the pinned local named pipe. It never replaces `backend-policy.json`.
+
+## Remaining promotion gates
+
+- Merge the reviewed source and build from the exact clean commit/tree.
+- Author and sign the host authorization, backend policy, fleet data bundle, derivative
+  media bindings, release manifest, and one-time bootstrap hashes with distinct pins.
+- Run the full Windows PowerShell 5.1 negative suite and private CI on that exact tuple.
+- Capture host backup/readiness evidence and conduct a disabled-install rollback drill.
+- Promote the Debian canary first, require independent acceptance, then the Windows
+  canary, and issue a fresh exact approval for each later asset in the approved order.
 
 Run focused simulation and negative tests on the workstation:
 

@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "northgate/create-only-backend-policy/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "policyId", "policyVersion", "authorizationSha256", "releaseManifestSha256", "hostId", "issuedAtUtc", "expiresAtUtc", "applyEnabled", "executableActions", "planTtlSeconds", "approvalTtlSeconds", "stateKeyId", "limits", "rollout", "storageProfiles", "networkProfiles", "images", "bootstrapMedia", "firmwareProfiles", "bootstrapProfiles", "recoveryProfiles", "allowedAssets"],
+  "properties": {
+    "schema": { "const": "northgate/create-only-backend-policy/v1" },
+    "policyId": { "$ref": "#/$defs/id" },
+    "policyVersion": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}\\.[0-9]+$" },
+    "authorizationSha256": { "$ref": "#/$defs/hash" },
+    "releaseManifestSha256": { "$ref": "#/$defs/hash" },
+    "hostId": { "$ref": "#/$defs/id" },
+    "issuedAtUtc": { "$ref": "#/$defs/time" },
+    "expiresAtUtc": { "$ref": "#/$defs/time" },
+    "applyEnabled": { "type": "boolean" },
+    "executableActions": { "const": ["Create"] },
+    "planTtlSeconds": { "type": "integer", "minimum": 30, "maximum": 900 },
+    "approvalTtlSeconds": { "type": "integer", "minimum": 30, "maximum": 600 },
+    "stateKeyId": { "type": "string", "pattern": "^ngkey-[a-z0-9-]{8,64}$" },
+    "limits": {
+      "type": "object", "additionalProperties": false,
+      "required": ["hostReserveMemoryMiB", "hostProcessorReserveCount", "maximumVcpuToLogicalRatio", "minimumVolumeFreeBytes", "minimumVolumeFreePercent", "maximumProcessorCount", "maximumStartupMemoryMiB", "maximumDynamicMemoryMiB", "maximumOsDiskGiB"],
+      "properties": {
+        "hostReserveMemoryMiB": { "type": "integer", "minimum": 8192 },
+        "hostProcessorReserveCount": { "type": "integer", "minimum": 1 },
+        "maximumVcpuToLogicalRatio": { "type": "integer", "minimum": 1, "maximum": 2 },
+        "minimumVolumeFreeBytes": { "type": "integer", "minimum": 10737418240 },
+        "minimumVolumeFreePercent": { "type": "integer", "minimum": 5, "maximum": 50 },
+        "maximumProcessorCount": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "maximumStartupMemoryMiB": { "type": "integer", "minimum": 1024, "maximum": 32768 },
+        "maximumDynamicMemoryMiB": { "type": "integer", "minimum": 1024, "maximum": 65536 },
+        "maximumOsDiskGiB": { "type": "integer", "minimum": 20, "maximum": 256 }
+      }
+    },
+    "rollout": {
+      "type": "object", "additionalProperties": false,
+      "required": ["stage", "exactAssetOrder", "maximumConcurrentTransactions", "debianCanary", "windowsCanary"],
+      "properties": {
+        "stage": { "enum": ["debian-canary", "windows-canary", "persistent-fleet"] },
+        "exactAssetOrder": { "const": ["NG-VM-018", "NG-VM-010", "NG-VM-019", "NG-VM-020", "NG-VM-011", "NG-VM-012", "NG-VM-013", "NG-VM-014", "NG-VM-015", "NG-VM-016", "NG-VM-017", "NG-VM-021"] },
+        "maximumConcurrentTransactions": { "const": 1 },
+        "debianCanary": { "$ref": "#/$defs/canaryGate" }, "windowsCanary": { "$ref": "#/$defs/canaryGate" }
+      }
+    },
+    "storageProfiles": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/storage" } },
+    "networkProfiles": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/network" } },
+    "images": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/image" } },
+    "bootstrapMedia": { "type": "array", "minItems": 12, "maxItems": 12, "uniqueItems": true, "items": { "$ref": "#/$defs/bootstrapMedia" } },
+    "firmwareProfiles": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/profile" } },
+    "bootstrapProfiles": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/profile" } },
+    "recoveryProfiles": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/profile" } },
+    "allowedAssets": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/asset" } }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{1,63}$" },
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "time": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
+    "profile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["profileRef", "catalogServerPolicyId"],
+      "properties": { "profileRef": { "$ref": "#/$defs/id" }, "catalogServerPolicyId": { "$ref": "#/$defs/id" } }
+    },
+    "storage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["profileRef", "catalogServerPolicyId", "volumeId", "root", "reserveBytes", "maximumOsDiskGiB", "workloadClass"],
+      "properties": {
+        "profileRef": { "$ref": "#/$defs/id" }, "catalogServerPolicyId": { "$ref": "#/$defs/id" },
+        "volumeId": { "enum": ["volume-d", "volume-f"] }, "root": { "type": "string", "pattern": "^[A-Za-z]:\\\\", "maxLength": 240 },
+        "reserveBytes": { "type": "integer", "minimum": 10737418240 }, "maximumOsDiskGiB": { "type": "integer", "minimum": 20, "maximum": 256 },
+        "workloadClass": { "enum": ["canary", "persistent"] }
+      }
+    },
+    "network": {
+      "type": "object", "additionalProperties": false,
+      "required": ["profileRef", "catalogServerPolicyId", "switchPolicyId", "vlanId"],
+      "properties": {
+        "profileRef": { "$ref": "#/$defs/id" }, "catalogServerPolicyId": { "$ref": "#/$defs/id" },
+        "switchPolicyId": { "const": "northgate-app-trunk" }, "vlanId": { "enum": [110, 120, 130, 140, 150, 160, 240, 250] }
+      }
+    },
+    "image": {
+      "type": "object", "additionalProperties": false,
+      "required": ["imageRef", "authorizationImageId", "path", "sha256", "sizeBytes", "guestFamily", "firmwareProfileRef", "secureBootEnabled", "secureBootTemplate", "secureBootExceptionId", "vtpmRequired"],
+      "properties": {
+        "imageRef": { "$ref": "#/$defs/id" }, "authorizationImageId": { "$ref": "#/$defs/id" },
+        "path": { "type": "string", "pattern": "^[A-Za-z]:\\\\", "maxLength": 240 }, "sha256": { "$ref": "#/$defs/hash" },
+        "sizeBytes": { "type": "integer", "minimum": 1 }, "guestFamily": { "enum": ["windows", "linux"] },
+        "firmwareProfileRef": { "$ref": "#/$defs/id" }, "secureBootEnabled": { "type": "boolean" },
+        "secureBootTemplate": { "enum": ["MicrosoftWindows", "MicrosoftUEFICertificateAuthority", "None"] },
+        "secureBootExceptionId": { "enum": ["none", "NG-FW-20260802-KALI-UNSIGNED"] }, "vtpmRequired": { "type": "boolean" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "authorizationImageId": { "const": "kali-2026.2-installer-netinst-amd64" } } },
+          "then": { "properties": { "imageRef": { "const": "kali-2026.2-installer-netinst-amd64" }, "guestFamily": { "const": "linux" }, "firmwareProfileRef": { "const": "kali-gen2-unsigned" }, "secureBootEnabled": { "const": false }, "secureBootTemplate": { "const": "None" }, "secureBootExceptionId": { "const": "NG-FW-20260802-KALI-UNSIGNED" }, "vtpmRequired": { "const": false } } }
+        },
+        {
+          "if": { "properties": { "guestFamily": { "const": "windows" } } },
+          "then": { "properties": { "firmwareProfileRef": { "const": "windows-gen2" }, "secureBootEnabled": { "const": true }, "secureBootTemplate": { "const": "MicrosoftWindows" }, "secureBootExceptionId": { "const": "none" }, "vtpmRequired": { "const": true } } }
+        }
+      ]
+    },
+    "bootstrapMedia": {
+      "type": "object", "additionalProperties": false,
+      "required": ["assetId", "mediaId", "mode", "path", "sha256", "sizeBytes", "sourceImageId", "sourceImageSha256", "provenancePath", "provenanceSha256", "bundleManifestSha256", "builderId", "builderReleaseSha256", "recipeSha256", "unattendedPayloadSha256", "sourceCommit", "sourceTree"],
+      "properties": {
+        "assetId": { "type": "string", "pattern": "^NG-VM-[0-9]{3,}$" },
+        "mediaId": { "type": "string", "pattern": "^ngmedia-ng-vm-[0-9]{3,}$" },
+        "mode": { "const": "asset-bound-derivative-iso" },
+        "path": { "$ref": "#/$defs/path" }, "sha256": { "$ref": "#/$defs/hash" },
+        "sizeBytes": { "type": "integer", "minimum": 1 },
+        "sourceImageId": { "enum": ["debian-12.12-amd64-netinst", "kali-2026.2-installer-netinst-amd64", "windows-11-25h2-english-x64"] },
+        "sourceImageSha256": { "$ref": "#/$defs/hash" },
+        "provenancePath": { "$ref": "#/$defs/path" }, "provenanceSha256": { "$ref": "#/$defs/hash" },
+        "bundleManifestSha256": { "$ref": "#/$defs/hash" },
+        "builderId": { "const": "northgate-unattended-media-v1" },
+        "builderReleaseSha256": { "$ref": "#/$defs/hash" }, "recipeSha256": { "$ref": "#/$defs/hash" },
+        "unattendedPayloadSha256": { "$ref": "#/$defs/hash" },
+        "sourceCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "sourceTree": { "type": "string", "pattern": "^[a-f0-9]{40}$" }
+      }
+    },
+    "canaryGate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["assetId", "status", "receiptSha256", "acceptanceEvidenceSha256", "retirementEvidenceSha256"],
+      "properties": {
+        "assetId": { "enum": ["NG-VM-018", "NG-VM-010"] },
+        "status": { "enum": ["pending", "accepted-retired"] },
+        "receiptSha256": { "type": "string", "pattern": "^(?:|[a-f0-9]{64})$" },
+        "acceptanceEvidenceSha256": { "type": "string", "pattern": "^(?:|[a-f0-9]{64})$" },
+        "retirementEvidenceSha256": { "type": "string", "pattern": "^(?:|[a-f0-9]{64})$" }
+      }
+    },
+    "asset": {
+      "type": "object", "additionalProperties": false,
+      "required": ["assetId", "name", "allowedImageRefs", "allowedStorageProfileRefs", "allowedNetworkProfileRefs", "allowedFirmwareProfileRefs", "allowedBootstrapProfileRefs", "allowedRecoveryProfileRefs", "maximumProcessors", "maximumMemoryMiB", "maximumOsDiskGiB", "adapterPolicyId", "staticMacAddress", "bootstrapMediaId"],
+      "properties": {
+        "assetId": { "type": "string", "pattern": "^NG-VM-[0-9]{3,}$" },
+        "name": { "type": "string", "pattern": "^[A-Z](?:[A-Z0-9-]{0,13}[A-Z0-9])?$" },
+        "allowedImageRefs": { "$ref": "#/$defs/idList" }, "allowedStorageProfileRefs": { "$ref": "#/$defs/idList" },
+        "allowedNetworkProfileRefs": { "$ref": "#/$defs/idList" }, "allowedFirmwareProfileRefs": { "$ref": "#/$defs/idList" },
+        "allowedBootstrapProfileRefs": { "$ref": "#/$defs/idList" }, "allowedRecoveryProfileRefs": { "$ref": "#/$defs/idList" },
+        "maximumProcessors": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "maximumMemoryMiB": { "type": "integer", "minimum": 1024, "maximum": 65536 },
+        "maximumOsDiskGiB": { "type": "integer", "minimum": 20, "maximum": 256 },
+        "adapterPolicyId": { "type": "string", "pattern": "^ngnic-[a-z0-9-]{8,64}$" },
+        "staticMacAddress": { "type": "string", "pattern": "^02[0-9A-F]{10}$" },
+        "bootstrapMediaId": { "type": "string", "pattern": "^ngmedia-ng-vm-[0-9]{3,}$" }
+      }
+    },
+    "idList": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+    "path": { "type": "string", "pattern": "^[A-Za-z]:\\\\", "maxLength": 240 }
+  }
+}

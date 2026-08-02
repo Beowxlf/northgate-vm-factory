@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "northgate/create-only-rollout-promotion/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "promotionId", "sequence", "previousAuthorizationSha256", "basePolicySha256", "authorizationSha256", "releaseManifestSha256", "dataBundleSha256", "repository", "fromStage", "toStage", "rollout", "issuedAtUtc", "expiresAtUtc", "approverSid", "nonce"],
+  "properties": {
+    "schema": { "const": "northgate/create-only-rollout-promotion/v1" },
+    "promotionId": { "type": "string", "pattern": "^ngrollout-[a-f0-9]{64}$" },
+    "sequence": { "enum": [1, 2] },
+    "previousAuthorizationSha256": { "$ref": "#/$defs/hash" },
+    "basePolicySha256": { "$ref": "#/$defs/hash" },
+    "authorizationSha256": { "$ref": "#/$defs/hash" },
+    "releaseManifestSha256": { "$ref": "#/$defs/hash" },
+    "dataBundleSha256": { "$ref": "#/$defs/hash" },
+    "repository": {
+      "type": "object", "additionalProperties": false,
+      "required": ["identity", "commit", "tree"],
+      "properties": {
+        "identity": { "const": "Beowxlf/northgate-vm-factory" },
+        "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "tree": { "type": "string", "pattern": "^[a-f0-9]{40}$" }
+      }
+    },
+    "fromStage": { "enum": ["debian-canary", "windows-canary"] },
+    "toStage": { "enum": ["windows-canary", "persistent-fleet"] },
+    "rollout": { "$ref": "create-only-backend-policy.schema.json#/properties/rollout" },
+    "issuedAtUtc": { "$ref": "#/$defs/time" },
+    "expiresAtUtc": { "$ref": "#/$defs/time" },
+    "approverSid": { "type": "string", "pattern": "^S-1-[0-9-]+$" },
+    "nonce": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "sequence": { "const": 1 } } },
+      "then": { "properties": { "fromStage": { "const": "debian-canary" }, "toStage": { "const": "windows-canary" } } }
+    },
+    {
+      "if": { "properties": { "sequence": { "const": 2 } } },
+      "then": { "properties": { "fromStage": { "const": "windows-canary" }, "toStage": { "const": "persistent-fleet" } } }
+    }
+  ],
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "time": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" }
+  }
+}

@@ -1,0 +1,15 @@
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$role = '@@ROLE_HOOK@@'
+switch -CaseSensitive ($role) {
+    'windows11-disposable-canary' { }
+    'windows11-worker' { }
+    'windows11-manager' { }
+    'windows11-it-admin' { }
+    'windows11-cyber' { }
+    default { throw 'NGBM-WINDOWS-ROLE-HOOK-NOT-ALLOWED' }
+}
+$root = Join-Path $env:ProgramData 'NorthGate\Bootstrap'
+if (-not (Test-Path -LiteralPath $root)) { $null = New-Item -ItemType Directory -Path $root -Force }
+[IO.File]::WriteAllText((Join-Path $root 'role-hook'), $role + "`r`n", (New-Object Text.UTF8Encoding($false)))
+# Deliberately no enrollment, download, credential, or application action occurs here.

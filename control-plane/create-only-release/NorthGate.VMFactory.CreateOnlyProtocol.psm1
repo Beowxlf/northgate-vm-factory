@@ -1,7 +1,7 @@
 Set-StrictMode -Version Latest
 
 $script:ProtocolVersion = '0.1.0'
-$script:MaximumCommandCharacters = 80
+$script:MaximumCommandCharacters = 96
 $script:MaximumPlanRequestBytes = 32768
 $script:MaximumJsonDepth = 16
 $script:RepositoryIdentity = 'Beowxlf/northgate-vm-factory'
@@ -124,9 +124,13 @@ function Read-NgcorJsonValue {
 }
 
 function Assert-NgcorStrictJson {
-    param([string]$Json)
-    if ([System.Text.Encoding]::UTF8.GetByteCount($Json) -gt $script:MaximumPlanRequestBytes) {
-        Throw-NgcorProtocolError 'NGCOR-PLAN-SIZE-EXCEEDED'
+    param(
+        [string]$Json,
+        [ValidateRange(1, 1048576)][int]$MaximumBytes = $script:MaximumPlanRequestBytes,
+        [string]$SizeErrorCode = 'NGCOR-PLAN-SIZE-EXCEEDED'
+    )
+    if ([System.Text.Encoding]::UTF8.GetByteCount($Json) -gt $MaximumBytes) {
+        Throw-NgcorProtocolError $SizeErrorCode
     }
     if ($Json -match '[\x00-\x08\x0B\x0C\x0E-\x1F]') {
         Throw-NgcorProtocolError 'NGCOR-JSON-CONTROL-CHARACTER'
@@ -136,6 +140,33 @@ function Assert-NgcorStrictJson {
     Read-NgcorJsonValue $Json $reference
     Skip-NgcorJsonWhitespace $Json $reference
     if ($reference.Value -ne $Json.Length) { Throw-NgcorProtocolError 'NGCOR-JSON-TRAILING-CONTENT' }
+}
+
+function ConvertFrom-NorthGateCreateOnlyCanonicalJsonBytes {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][byte[]]$Bytes,
+        [ValidateRange(1, 1048576)][int]$MaximumBytes = 262144
+    )
+    if ($Bytes.Length -eq 0 -or $Bytes.Length -gt $MaximumBytes) {
+        Throw-NgcorProtocolError 'NGCOR-CANONICAL-JSON-SIZE-INVALID'
+    }
+    if ($Bytes.Length -ge 3 -and $Bytes[0] -eq 0xef -and $Bytes[1] -eq 0xbb -and $Bytes[2] -eq 0xbf) {
+        Throw-NgcorProtocolError 'NGCOR-CANONICAL-JSON-BOM-FORBIDDEN'
+    }
+    try {
+        $utf8 = New-Object System.Text.UTF8Encoding($false, $true)
+        $json = $utf8.GetString($Bytes)
+    }
+    catch { Throw-NgcorProtocolError 'NGCOR-CANONICAL-JSON-UTF8-INVALID' }
+    Assert-NgcorStrictJson $json $MaximumBytes 'NGCOR-CANONICAL-JSON-SIZE-INVALID'
+    try { $value = ConvertFrom-NgcorJsonText $json }
+    catch { Throw-NgcorProtocolError 'NGCOR-JSON-INVALID' }
+    if ($value -isnot [System.Management.Automation.PSCustomObject] -or
+        (ConvertTo-NorthGateCreateOnlyCanonicalJson $value) -cne $json) {
+        Throw-NgcorProtocolError 'NGCOR-CANONICAL-JSON-NONCANONICAL'
+    }
+    [pscustomobject][ordered]@{ Value = $value; CanonicalJson = $json }
 }
 
 function ConvertTo-NgcorJsonString {
@@ -191,11 +222,13 @@ function ConvertTo-NorthGateCreateOnlyCanonicalJson {
     [array]::Sort($names, [System.StringComparer]::Ordinal)
     $properties = @()
     foreach ($name in $names) {
-        $value = if ($InputObject -is [System.Collections.IDictionary]) {
-            $InputObject[$name]
-        } else { $InputObject.PSObject.Properties[$name].Value }
+        $value = $null
+        if ($InputObject -is [System.Collections.IDictionary]) {
+            $value = $InputObject[$name]
+        }
+        else { $value = $InputObject.PSObject.Properties[$name].Value }
         $properties += (ConvertTo-NgcorJsonString $name) + ':' +
-            (ConvertTo-NorthGateCreateOnlyCanonicalJson $value)
+            (ConvertTo-NorthGateCreateOnlyCanonicalJson -InputObject $value)
     }
     return '{' + ($properties -join ',') + '}'
 }
@@ -217,13 +250,10 @@ function ConvertFrom-NorthGateCreateOnlyCommand {
         $Command -notmatch '^[\x20-\x7e]+$') {
         Throw-NgcorProtocolError 'NGCOR-COMMAND-INVALID'
     }
-    if ($Command -ceq 'status') {
-        return [pscustomobject][ordered]@{ operation = 'status'; planId = '' }
+    if ($Command -cin @('status','plan','rollout-context','promote-rollout')) {
+        return [pscustomobject][ordered]@{ operation = $Command; planId = '' }
     }
-    if ($Command -ceq 'plan') {
-        return [pscustomobject][ordered]@{ operation = 'plan'; planId = '' }
-    }
-    if ($Command -cmatch '^(apply|receipt) (ngp-[a-f0-9]{64})$') {
+    if ($Command -cmatch '^(apply|receipt|approval-context|approve) (ngp-[a-f0-9]{64})$') {
         return [pscustomobject][ordered]@{ operation = $Matches[1]; planId = $Matches[2] }
     }
     Throw-NgcorProtocolError 'NGCOR-COMMAND-NOT-ALLOWED'
@@ -304,12 +334,16 @@ function ConvertFrom-NorthGateCreateOnlyServiceEnvelopeBytes {
             Throw-NgcorProtocolError 'NGCOR-ENVELOPE-BODY-NONCANONICAL'
         }
     }
+    elseif ($parsedCommand.operation -in @('approve','promote-rollout')) {
+        $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes([string]$envelope.body)
+        $null = ConvertFrom-NorthGateCreateOnlyCanonicalJsonBytes -Bytes $bodyBytes -MaximumBytes 65536
+    }
     elseif ([string]$envelope.body -cne '') { Throw-NgcorProtocolError 'NGCOR-STDIN-NOT-EMPTY' }
     [pscustomobject][ordered]@{
         Command = [string]$envelope.command
         Operation = [string]$parsedCommand.operation
         PlanId = [string]$parsedCommand.planId
-        BodyBytes = if ($parsedCommand.operation -ceq 'plan') {
+        BodyBytes = if ($parsedCommand.operation -in @('plan','approve','promote-rollout')) {
             [System.Text.Encoding]::UTF8.GetBytes([string]$envelope.body)
         } else { New-Object byte[] 0 }
         CanonicalJson = $json
@@ -320,5 +354,6 @@ Export-ModuleMember -Function @(
     'ConvertFrom-NorthGateCreateOnlyCommand',
     'ConvertFrom-NorthGateCreateOnlyPlanRequestBytes',
     'ConvertFrom-NorthGateCreateOnlyServiceEnvelopeBytes',
+    'ConvertFrom-NorthGateCreateOnlyCanonicalJsonBytes',
     'ConvertTo-NorthGateCreateOnlyCanonicalJson'
 )

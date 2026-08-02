@@ -1,0 +1,7 @@
+table inet northgate_bootstrap {
+  chain input {
+    type filter hook input priority -10; policy accept;
+    ip saddr @@MANAGEMENT_SOURCE@@ tcp dport 22 accept
+    tcp dport 22 drop
+  }
+}

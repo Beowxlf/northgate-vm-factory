@@ -1,0 +1,29 @@
+[CmdletBinding()]
+param([Parameter(Mandatory)][string]$Confirmation)
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+$identity = 'northgate-bootstrap'
+$expected = 'REMOVE @@HOSTNAME@@ BOOTSTRAP'
+if ($Confirmation -cne $expected) { throw 'NGBM-CLEANUP-CONFIRMATION-MISMATCH' }
+$current = [Security.Principal.WindowsIdentity]::GetCurrent()
+if ($current.User.Value -ne 'S-1-5-18' -and -not ([Security.Principal.WindowsPrincipal]$current).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'NGBM-CLEANUP-ADMIN-REQUIRED' }
+
+$computer = Get-CimInstance Win32_ComputerSystem
+if (-not $computer.PartOfDomain -or $computer.Domain -ine 'northgate.tooling') { throw 'NGBM-CLEANUP-DOMAIN-NOT-VERIFIED' }
+$rmm = @(Get-Service | Where-Object { $_.Status -eq 'Running' -and ($_.Name -match 'tactical|mesh') })
+if ($rmm.Count -eq 0) { throw 'NGBM-CLEANUP-RMM-NOT-VERIFIED' }
+$wazuh = Get-Service -Name WazuhSvc -ErrorAction SilentlyContinue
+if ($null -eq $wazuh -or $wazuh.Status -ne 'Running') { throw 'NGBM-CLEANUP-WAZUH-NOT-VERIFIED' }
+
+Remove-NetFirewallRule -Name 'NorthGate-Bootstrap-SSH' -ErrorAction SilentlyContinue
+Stop-Service -Name sshd -Force -ErrorAction SilentlyContinue
+Set-Service -Name sshd -StartupType Disabled
+$sshRoot = Join-Path $env:ProgramData 'ssh'
+Remove-Item -LiteralPath (Join-Path $sshRoot 'administrators_authorized_keys') -Force -ErrorAction SilentlyContinue
+$stateRoot = Join-Path $env:ProgramData 'NorthGate\Bootstrap'
+$backup = Join-Path $stateRoot 'sshd_config.prebootstrap'
+if (Test-Path -LiteralPath $backup) { Copy-Item -LiteralPath $backup -Destination (Join-Path $sshRoot 'sshd_config') -Force }
+Disable-LocalUser -Name $identity -ErrorAction SilentlyContinue
+Remove-LocalUser -Name $identity -ErrorAction SilentlyContinue
+[IO.File]::WriteAllText((Join-Path $stateRoot 'cleanup-status'), "bootstrap_access_removed=true`r`n", (New-Object Text.UTF8Encoding($false)))

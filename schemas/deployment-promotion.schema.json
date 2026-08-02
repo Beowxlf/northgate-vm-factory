@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Beowxlf/northgate-vm-factory/schemas/deployment-promotion.schema.json",
+  "title": "NorthGate exact create-only fleet promotion",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "apiVersion",
+    "kind",
+    "promotionVersion",
+    "status",
+    "changeRef",
+    "approvalReference",
+    "scope",
+    "controls",
+    "retainedAssetNames",
+    "canaryAssetIds",
+    "persistentAssetIds",
+    "orderedAssetIds",
+    "firmwareExceptions",
+    "requiredGates"
+  ],
+  "properties": {
+    "$schema": { "const": "../schemas/deployment-promotion.schema.json" },
+    "apiVersion": { "const": "northgate/v1alpha1" },
+    "kind": { "const": "CreateOnlyDeploymentPromotion" },
+    "promotionVersion": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}\\.[0-9]+$" },
+    "status": { "const": "approved" },
+    "changeRef": { "type": "string", "pattern": "^NG-CHG-[0-9]{8}-[0-9]{3,}$" },
+    "approvalReference": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$" },
+    "scope": { "const": "exact-new-fleet-create-only" },
+    "controls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rawGitDataOnly",
+        "installedSignedReleaseRequired",
+        "signedHostAuthorizationRequired",
+        "freshHostPlanRequired",
+        "exactOneTimePlanApprovalRequired",
+        "oneAssetPerPlan",
+        "retainedAssetMutationAllowed",
+        "deletePathAllowed",
+        "replacePathAllowed",
+        "adoptPathAllowed",
+        "quarantineOnUncertainty",
+        "signedReceiptRequired"
+      ],
+      "properties": {
+        "rawGitDataOnly": { "const": true },
+        "installedSignedReleaseRequired": { "const": true },
+        "signedHostAuthorizationRequired": { "const": true },
+        "freshHostPlanRequired": { "const": true },
+        "exactOneTimePlanApprovalRequired": { "const": true },
+        "oneAssetPerPlan": { "const": true },
+        "retainedAssetMutationAllowed": { "const": false },
+        "deletePathAllowed": { "const": false },
+        "replacePathAllowed": { "const": false },
+        "adoptPathAllowed": { "const": false },
+        "quarantineOnUncertainty": { "const": true },
+        "signedReceiptRequired": { "const": true }
+      }
+    },
+    "retainedAssetNames": {
+      "type": "array",
+      "const": ["JS-BlueBench", "JS-Server-01", "OPNsense-Tooling", "TRMM-Tooling", "Wazuh-Machine"]
+    },
+    "canaryAssetIds": {
+      "type": "array",
+      "const": ["NG-VM-018", "NG-VM-010"]
+    },
+    "persistentAssetIds": {
+      "type": "array",
+      "const": [
+        "NG-VM-019", "NG-VM-020", "NG-VM-011", "NG-VM-012", "NG-VM-013",
+        "NG-VM-014", "NG-VM-015", "NG-VM-016", "NG-VM-017", "NG-VM-021"
+      ]
+    },
+    "orderedAssetIds": {
+      "type": "array",
+      "const": [
+        "NG-VM-018", "NG-VM-010", "NG-VM-019", "NG-VM-020", "NG-VM-011", "NG-VM-012",
+        "NG-VM-013", "NG-VM-014", "NG-VM-015", "NG-VM-016", "NG-VM-017", "NG-VM-021"
+      ]
+    },
+    "firmwareExceptions": {
+      "type": "array",
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["exceptionId", "assetId", "profileRef", "secureBootEnabled", "reason"],
+        "properties": {
+          "exceptionId": { "const": "NG-FW-20260802-KALI-UNSIGNED" },
+          "assetId": { "const": "NG-VM-021" },
+          "profileRef": { "const": "kali-gen2-unsigned" },
+          "secureBootEnabled": { "const": false },
+          "reason": { "const": "official-kali-installer-kernel-is-not-secure-boot-signed" }
+        }
+      }
+    },
+    "requiredGates": {
+      "type": "array",
+      "const": [
+        "control-plane-negative-tests-passed",
+        "immutable-signed-release-installed",
+        "signed-host-authorization-verified",
+        "immutable-images-promoted",
+        "opaque-profiles-approved",
+        "retained-system-backups-verified",
+        "debian-canary-before-windows-canary",
+        "canaries-accepted-before-persistent-fleet",
+        "one-asset-per-fresh-plan",
+        "exact-plan-human-approval",
+        "quarantine-route-proven",
+        "signed-receipt-ready"
+      ]
+    }
+  }
+}

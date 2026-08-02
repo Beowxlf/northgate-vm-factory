@@ -1,0 +1,136 @@
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+
+$identity = 'northgate-bootstrap'
+$expectedComputerName = '@@HOSTNAME@@'
+$expectedMac = '@@STATIC_MAC@@'
+$ipAddress = '@@IP_ADDRESS@@'
+$prefixLength = @@PREFIX_LENGTH@@
+$gateway = '@@GATEWAY@@'
+$dnsServers = @(@@DNS_SERVERS_PS@@)
+$domainSuffix = '@@DOMAIN_SUFFIX@@'
+$managementSource = '@@MANAGEMENT_SOURCE@@'
+$accessHours = @@ACCESS_HOURS@@
+$stateRoot = Join-Path $env:ProgramData 'NorthGate\Bootstrap'
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+function Write-NgStatus([string]$State) {
+    if (-not (Test-Path -LiteralPath $stateRoot)) { $null = New-Item -ItemType Directory -Path $stateRoot -Force }
+    [IO.File]::WriteAllText((Join-Path $stateRoot 'status'), "status=$State`r`n", (New-Object Text.UTF8Encoding($false)))
+}
+
+function New-NgSecureCredential([int]$Length) {
+    $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#%_-'
+    $bytes = New-Object byte[] $Length
+    $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+    $secure = New-Object Security.SecureString
+    try {
+        $rng.GetBytes($bytes)
+        foreach ($value in $bytes) { $secure.AppendChar($alphabet[[int]$value % $alphabet.Length]) }
+        $secure.MakeReadOnly()
+        return $secure
+    }
+    finally {
+        [Array]::Clear($bytes, 0, $bytes.Length)
+        $rng.Dispose()
+    }
+}
+
+try {
+    Write-NgStatus 'starting'
+    $windowsIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    if ($windowsIdentity.User.Value -ne 'S-1-5-18') { throw 'NGBM-WINDOWS-SYSTEM-REQUIRED' }
+    if ($env:COMPUTERNAME -cne $expectedComputerName) { throw 'NGBM-WINDOWS-HOSTNAME-MISMATCH' }
+
+    $adapters = @(Get-NetAdapter -Physical | Where-Object Status -eq 'Up')
+    if ($adapters.Count -ne 1) { throw 'NGBM-WINDOWS-ADAPTER-COUNT' }
+    $adapter = $adapters[0]
+    $actualMac = ($adapter.MacAddress -replace '[-:]','').ToUpperInvariant()
+    if ($actualMac -cne $expectedMac) { throw 'NGBM-WINDOWS-MAC-MISMATCH' }
+
+    Set-NetIPInterface -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -Dhcp Disabled
+    Get-NetIPAddress -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+        Where-Object IPAddress -ne $ipAddress | Remove-NetIPAddress -Confirm:$false -ErrorAction SilentlyContinue
+    Get-NetRoute -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue |
+        Remove-NetRoute -Confirm:$false -ErrorAction SilentlyContinue
+    if (-not (Get-NetIPAddress -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -IPAddress $ipAddress -ErrorAction SilentlyContinue)) {
+        $null = New-NetIPAddress -InterfaceIndex $adapter.ifIndex -IPAddress $ipAddress -PrefixLength $prefixLength -DefaultGateway $gateway
+    }
+    elseif (-not (Get-NetRoute -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue | Where-Object NextHop -eq $gateway)) {
+        $null = New-NetRoute -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -DestinationPrefix '0.0.0.0/0' -NextHop $gateway
+    }
+    Set-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -ServerAddresses $dnsServers
+    Set-DnsClient -InterfaceIndex $adapter.ifIndex -ConnectionSpecificSuffix $domainSuffix -RegisterThisConnectionsAddress $true
+
+    $credential = New-NgSecureCredential 32
+    try {
+        $existing = Get-LocalUser -Name $identity -ErrorAction SilentlyContinue
+        if ($null -eq $existing) {
+            $null = New-LocalUser -Name $identity -Password $credential -Description 'Temporary NorthGate key-only bootstrap identity'
+        } else {
+            Set-LocalUser -Name $identity -Password $credential
+        }
+        Set-LocalUser -Name $identity -AccountExpires (Get-Date).AddHours($accessHours) -UserMayChangePassword $false
+    }
+    finally { if ($null -ne $credential) { $credential.Dispose() } }
+    $administrators = Get-LocalGroup -SID 'S-1-5-32-544'
+    if (-not (Get-LocalGroupMember -Group $administrators.Name -Member $identity -ErrorAction SilentlyContinue)) {
+        Add-LocalGroupMember -Group $administrators.Name -Member $identity
+    }
+
+    $capability = Get-WindowsCapability -Online -Name 'OpenSSH.Server*' | Select-Object -First 1
+    if ($null -eq $capability) { throw 'NGBM-WINDOWS-OPENSSH-CAPABILITY-MISSING' }
+    if ($capability.State -ne 'Installed') {
+        $result = Add-WindowsCapability -Online -Name $capability.Name
+        if ($result.RestartNeeded) { throw 'NGBM-WINDOWS-OPENSSH-RESTART-REQUIRED' }
+    }
+
+    $sshRoot = Join-Path $env:ProgramData 'ssh'
+    $null = New-Item -ItemType Directory -Path $sshRoot -Force
+    $authorizedKeys = Join-Path $sshRoot 'administrators_authorized_keys'
+    Copy-Item -LiteralPath (Join-Path $scriptRoot 'authorized_key') -Destination $authorizedKeys -Force
+    & icacls.exe $authorizedKeys /inheritance:r /grant '*S-1-5-32-544:F' /grant '*S-1-5-18:F' | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'NGBM-WINDOWS-AUTHORIZED-KEY-ACL' }
+
+    $configPath = Join-Path $sshRoot 'sshd_config'
+    $backupPath = Join-Path $stateRoot 'sshd_config.prebootstrap'
+    if ((Test-Path -LiteralPath $configPath) -and -not (Test-Path -LiteralPath $backupPath)) { Copy-Item -LiteralPath $configPath -Destination $backupPath }
+    $config = @"
+Port 22
+AddressFamily any
+ListenAddress 0.0.0.0
+ListenAddress ::
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+AllowUsers $identity@$managementSource
+AuthorizedKeysFile .ssh/authorized_keys
+Subsystem sftp sftp-server.exe
+Match Group administrators
+       AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys
+"@
+    [IO.File]::WriteAllText($configPath, $config.Replace("`n","`r`n"), (New-Object Text.UTF8Encoding($false)))
+
+    $defaultRules = @(Get-NetFirewallRule -Name 'OpenSSH-Server-In-TCP*' -ErrorAction SilentlyContinue)
+    foreach ($rule in $defaultRules) { Disable-NetFirewallRule -InputObject $rule }
+    Remove-NetFirewallRule -Name 'NorthGate-Bootstrap-SSH' -ErrorAction SilentlyContinue
+    $null = New-NetFirewallRule -Name 'NorthGate-Bootstrap-SSH' -DisplayName 'NorthGate temporary bootstrap SSH' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 22 -RemoteAddress $managementSource -Profile Any
+
+    Set-Service -Name sshd -StartupType Automatic
+    & "$env:WINDIR\System32\OpenSSH\sshd.exe" -t
+    if ($LASTEXITCODE -ne 0) { throw 'NGBM-WINDOWS-SSHD-CONFIG-INVALID' }
+    Restart-Service -Name sshd
+
+    Copy-Item -LiteralPath (Join-Path $scriptRoot 'request.json') -Destination (Join-Path $stateRoot 'request.json') -Force
+    Copy-Item -LiteralPath (Join-Path $scriptRoot 'provenance-input.json') -Destination (Join-Path $stateRoot 'provenance-input.json') -Force
+    & (Join-Path $scriptRoot 'Invoke-RoleHook.ps1')
+    if ($LASTEXITCODE -ne 0) { throw 'NGBM-WINDOWS-ROLE-HOOK-FAILED' }
+    Write-NgStatus 'ready-key-only'
+    exit 0
+}
+catch {
+    Write-NgStatus ('failed-' + $_.Exception.Message)
+    exit 1
+}

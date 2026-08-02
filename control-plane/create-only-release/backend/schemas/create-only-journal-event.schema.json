@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "northgate/create-only-journal-event/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "sequence", "recordedAtUtc", "assetId", "reservationId", "planId", "state", "vmId", "adapterId", "staticMacAddress", "detailCode", "previousEventSha256"],
+  "properties": {
+    "schema": { "const": "northgate/create-only-journal-event/v1" }, "sequence": { "type": "integer", "minimum": 1 },
+    "recordedAtUtc": { "type": "string" }, "assetId": { "type": "string", "pattern": "^NG-VM-[0-9]{3,}$" },
+    "reservationId": { "type": "string", "pattern": "^ngrsv-[a-f0-9]{64}$" }, "planId": { "type": "string", "pattern": "^ngp-[a-f0-9]{64}$" },
+    "state": { "type": "string", "minLength": 1 }, "vmId": { "type": "string" }, "adapterId": { "type": "string" },
+    "staticMacAddress": { "type": "string", "pattern": "^(|02[0-9A-F]{10})$" },
+    "detailCode": { "type": "string", "pattern": "^NGCB-[A-Z0-9-]+$" }, "previousEventSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  }
+}

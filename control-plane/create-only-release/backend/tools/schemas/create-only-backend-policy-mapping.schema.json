@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "northgate/create-only-backend-policy-mapping/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "policyId", "policyVersion", "stateKeyId", "planTtlSeconds", "approvalTtlSeconds",
+    "limits", "rollout", "storageProfiles", "networkProfiles", "images", "bootstrapMedia", "firmwareProfiles",
+    "bootstrapProfiles", "recoveryProfiles", "allowedAssets"
+  ],
+  "properties": {
+    "schema": { "const": "northgate/create-only-backend-policy-mapping/v1" },
+    "policyId": { "$ref": "../../schemas/create-only-backend-policy.schema.json#/$defs/id" },
+    "policyVersion": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}\\.[0-9]+$" },
+    "stateKeyId": { "type": "string", "pattern": "^ngkey-[a-z0-9-]{8,64}$" },
+    "planTtlSeconds": { "type": "integer", "minimum": 30, "maximum": 900 },
+    "approvalTtlSeconds": { "type": "integer", "minimum": 30, "maximum": 600 },
+    "limits": { "$ref": "../../schemas/create-only-backend-policy.schema.json#/properties/limits" },
+    "rollout": { "$ref": "../../schemas/create-only-backend-policy.schema.json#/properties/rollout" },
+    "storageProfiles": { "$ref": "../../schemas/create-only-backend-policy.schema.json#/properties/storageProfiles" },
+    "networkProfiles": { "$ref": "../../schemas/create-only-backend-policy.schema.json#/properties/networkProfiles" },
+    "images": { "$ref": "../../schemas/create-only-backend-policy.schema.json#/properties/images" },
+    "bootstrapMedia": { "$ref": "../../schemas/create-only-backend-policy.schema.json#/properties/bootstrapMedia" },
+    "firmwareProfiles": { "$ref": "../../schemas/create-only-backend-policy.schema.json#/properties/firmwareProfiles" },
+    "bootstrapProfiles": { "$ref": "../../schemas/create-only-backend-policy.schema.json#/properties/bootstrapProfiles" },
+    "recoveryProfiles": { "$ref": "../../schemas/create-only-backend-policy.schema.json#/properties/recoveryProfiles" },
+    "allowedAssets": { "$ref": "../../schemas/create-only-backend-policy.schema.json#/properties/allowedAssets" }
+  }
+}

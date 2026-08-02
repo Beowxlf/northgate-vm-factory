@@ -1,6 +1,8 @@
 # Acceptance gates and negative tests
 
-The repository is plan-only. These tests define the minimum exit criteria before any apply capability is promoted.
+The repository may carry the reviewed create-only implementation, but it cannot mutate
+a host until the exact clean commit is packaged, signed, separately authorized, and
+installed. These tests define the minimum exit criteria for that promotion.
 
 ## Control-plane gates
 
@@ -8,7 +10,7 @@ The repository is plan-only. These tests define the minimum exit criteria before
 - The create-only identity is source-restricted and forced-command only; it cannot open a shell or tunnel, access the break-glass key, or reach the broad MCP endpoint.
 - Create requires application authentication, a live host-issued plan capability, separately recorded exact approval, and the host-wide writer lock.
 - No ordinary MCP or SSH method or identity bypasses plan registration.
-- The installed executor, provisioner, and host policy are signed/versioned promotion units separate from repository data.
+- The installed executor, provisioner, and immutable Debian-first base policy are signed/versioned promotion units separate from repository data; later rollout stages require short-lived same-release signed promotion records.
 - When private-repository branch protection is unavailable, promotion pins the exact merged commit, tree, signed release SHA-256, signer, and host allowlist without making the repository public.
 - Hosted CI has read-only repository permission and no route or credential to NorthGate.
 
@@ -32,7 +34,8 @@ The repository is plan-only. These tests define the minimum exit criteria before
 16. Reject any attempt to treat the canary proposal as active, give it effective actions, admit a standard `VirtualMachine` request, broaden it beyond `Create`, run more than one canary, co-promote its first request, or omit an exact-plan, quarantine, or receipt gate.
 17. Reject any workload proposal that claims deployability, bypasses a host-issued plan, bundles a standard manifest, enables resource policy, collapses catalog/fabric promotion into a consuming workload, claims reserved identity, references an approved/unknown prerequisite instead of the exact proposed set, or introduces a raw path, VLAN/IP field, command, or secret-like value.
 18. Reject any full-fleet proposal that admits fewer or more than the twelve reviewed candidate identities, changes their serialized canary-first order, claims an identity/address/DNS reservation, omits fresh capacity revalidation or the Kali promotion gate, marks a workload ready, catalogs a fabricated Kali artifact, misstates computed persistent-fleet totals, or introduces raw VLAN/IP/DNS fields into its machine-readable manifest envelopes.
-19. Prove the fixed storage split, 15-percent/100-GiB per-volume reserve, one-canary concurrency rule, exact switch fingerprint/VLAN, ISO size/hash, Generation 2/off-only create, Secure Boot, Windows vTPM, collision denial, crash journal, outcome-unknown quarantine, and non-deletion of retained VMs.
+19. Prove the fixed storage split, 15-percent/100-GiB per-volume reserve, serialized Debian-canary/Windows-canary/persistent-fleet order, one-canary concurrency rule, exact switch fingerprint/VLAN, one asset-bound derivative ISO and provenance chain, Generation 2, bounded transaction-owned start with no standalone power action, Secure Boot, Windows vTPM, collision denial, crash journal, off/disconnected outcome-unknown quarantine, and non-deletion of retained VMs.
+20. Reject an advanced initial base-policy stage, routine-SSH/SYSTEM/service rollout promotion, wrong native Administrator SID, wrong signer, stale or noncanonical context, missing/mismatched signed canary receipt, missing evidence hashes, still-running or connected canary, skipped/replayed/conflicting sequence, changed immutable base policy, and any third rollout promotion.
 
 ## Canary exit
 

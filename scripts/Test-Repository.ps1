@@ -126,6 +126,122 @@ function Assert-PlanOnlyResourcePolicy {
     }
 }
 
+function Assert-ApprovedCreateOnlyResourcePolicy {
+    param(
+        [Parameter(Mandatory)][object]$Policy,
+        [Parameter(Mandatory)][object]$Promotion
+    )
+
+    if ($Promotion.status -cne 'approved' -or
+        $Policy.status -cne 'approved' -or
+        $Policy.applyEnabled -ne $true -or
+        (@($Policy.executableActions) -join '|') -cne 'Create') {
+        throw 'An active resource policy requires the exact approved Create-only promotion.'
+    }
+    $requiredDenials = @(
+        'implicit-delete',
+        'automatic-replace',
+        'disk-shrink',
+        'disk-purge',
+        'routine-switch-create',
+        'routine-switch-delete',
+        'routine-switch-rebind',
+        'host-firewall-change',
+        'host-feature-change',
+        'arbitrary-command'
+    )
+    foreach ($denial in $requiredDenials) {
+        if ($denial -notin @($Policy.deniedOperations)) {
+            throw "Approved Create-only policy is missing required denial '$denial'."
+        }
+    }
+}
+
+function Assert-DeploymentPromotion {
+    param([Parameter(Mandatory)][object]$Promotion)
+
+    Assert-ExactPropertySet -InputObject $Promotion -ExpectedProperties @(
+        '$schema', 'apiVersion', 'kind', 'promotionVersion', 'status', 'changeRef',
+        'approvalReference', 'scope', 'controls', 'retainedAssetNames', 'canaryAssetIds',
+        'persistentAssetIds', 'orderedAssetIds', 'firmwareExceptions', 'requiredGates'
+    ) -Location 'Create-only deployment promotion'
+    Assert-ExactPropertySet -InputObject $Promotion.controls -ExpectedProperties @(
+        'rawGitDataOnly', 'installedSignedReleaseRequired', 'signedHostAuthorizationRequired',
+        'freshHostPlanRequired', 'exactOneTimePlanApprovalRequired', 'oneAssetPerPlan',
+        'retainedAssetMutationAllowed', 'deletePathAllowed', 'replacePathAllowed',
+        'adoptPathAllowed', 'quarantineOnUncertainty', 'signedReceiptRequired'
+    ) -Location 'Create-only deployment promotion controls'
+
+    if ($Promotion.'$schema' -cne '../schemas/deployment-promotion.schema.json' -or
+        $Promotion.apiVersion -cne 'northgate/v1alpha1' -or
+        $Promotion.kind -cne 'CreateOnlyDeploymentPromotion' -or
+        $Promotion.status -cne 'approved' -or
+        $Promotion.scope -cne 'exact-new-fleet-create-only' -or
+        $Promotion.changeRef -cnotmatch '^NG-CHG-[0-9]{8}-[0-9]{3,}$') {
+        throw 'The deployment promotion identity is invalid.'
+    }
+    foreach ($property in @(
+        'rawGitDataOnly', 'installedSignedReleaseRequired', 'signedHostAuthorizationRequired',
+        'freshHostPlanRequired', 'exactOneTimePlanApprovalRequired', 'oneAssetPerPlan',
+        'quarantineOnUncertainty', 'signedReceiptRequired'
+    )) {
+        if ($Promotion.controls.$property -ne $true) {
+            throw "Deployment promotion control '$property' must remain true."
+        }
+    }
+    foreach ($property in @('retainedAssetMutationAllowed','deletePathAllowed','replacePathAllowed','adoptPathAllowed')) {
+        if ($Promotion.controls.$property -ne $false) {
+            throw "Deployment promotion control '$property' must remain false."
+        }
+    }
+
+    $expectedRetained = @('JS-BlueBench','JS-Server-01','OPNsense-Tooling','TRMM-Tooling','Wazuh-Machine')
+    $expectedCanaries = @('NG-VM-018','NG-VM-010')
+    $expectedPersistent = @(
+        'NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012','NG-VM-013',
+        'NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021'
+    )
+    $expectedOrder = @($expectedCanaries + $expectedPersistent)
+    if ((@($Promotion.retainedAssetNames) -join '|') -cne ($expectedRetained -join '|') -or
+        (@($Promotion.canaryAssetIds) -join '|') -cne ($expectedCanaries -join '|') -or
+        (@($Promotion.persistentAssetIds) -join '|') -cne ($expectedPersistent -join '|') -or
+        (@($Promotion.orderedAssetIds) -join '|') -cne ($expectedOrder -join '|')) {
+        throw 'Deployment promotion asset scope or rollout order changed from the exact authorized fleet.'
+    }
+    if (@($Promotion.firmwareExceptions).Count -ne 1) {
+        throw 'Exactly one firmware exception is required for the Kali installer.'
+    }
+    $exception = @($Promotion.firmwareExceptions)[0]
+    Assert-ExactPropertySet -InputObject $exception -ExpectedProperties @(
+        'exceptionId','assetId','profileRef','secureBootEnabled','reason'
+    ) -Location 'Kali firmware exception'
+    if ($exception.exceptionId -cne 'NG-FW-20260802-KALI-UNSIGNED' -or
+        $exception.assetId -cne 'NG-VM-021' -or
+        $exception.profileRef -cne 'kali-gen2-unsigned' -or
+        $exception.secureBootEnabled -ne $false -or
+        $exception.reason -cne 'official-kali-installer-kernel-is-not-secure-boot-signed') {
+        throw 'The Kali firmware exception is missing, broadened, or assigned to another asset.'
+    }
+
+    $expectedGates = @(
+        'control-plane-negative-tests-passed',
+        'immutable-signed-release-installed',
+        'signed-host-authorization-verified',
+        'immutable-images-promoted',
+        'opaque-profiles-approved',
+        'retained-system-backups-verified',
+        'debian-canary-before-windows-canary',
+        'canaries-accepted-before-persistent-fleet',
+        'one-asset-per-fresh-plan',
+        'exact-plan-human-approval',
+        'quarantine-route-proven',
+        'signed-receipt-ready'
+    )
+    if ((@($Promotion.requiredGates) -join '|') -cne ($expectedGates -join '|')) {
+        throw 'The approved deployment promotion gate set changed from the fail-closed contract.'
+    }
+}
+
 function Assert-CanaryExecutionStageProposal {
     param([Parameter(Mandatory)][object]$Stage)
 
@@ -684,6 +800,12 @@ $recoveryCatalog = Read-JsonFile -Path (Join-Path $repositoryRoot 'catalog\recov
 $firmwareCatalog = Read-JsonFile -Path (Join-Path $repositoryRoot 'catalog\firmware-profiles.json')
 $accessCatalog = Read-JsonFile -Path (Join-Path $repositoryRoot 'catalog\access-profiles.json')
 $resourcePolicy = Read-JsonFile -Path (Join-Path $repositoryRoot 'policy\resource-limits.json')
+$deploymentPromotionPath = Join-Path $repositoryRoot 'policy\deployment-promotion.json'
+$deploymentPromotion = $null
+if (Test-Path -LiteralPath $deploymentPromotionPath -PathType Leaf) {
+    $deploymentPromotion = Read-JsonFile -Path $deploymentPromotionPath
+    Assert-DeploymentPromotion -Promotion $deploymentPromotion
+}
 $canaryStage = Read-JsonFile -Path (Join-Path $repositoryRoot 'policy\canary-execution-stage.proposed.json')
 $controlPlaneCandidate = Read-JsonFile -Path (Join-Path $repositoryRoot 'control-plane\candidate\release.proposed.json')
 $workloadProposal = Read-JsonFile -Path (Join-Path $repositoryRoot 'proposals\aegis-debian-workloads.proposed.json')
@@ -716,7 +838,67 @@ foreach ($network in $networkCatalog.profiles) {
     }
 }
 
-Assert-PlanOnlyResourcePolicy -Policy $resourcePolicy
+if ($null -eq $deploymentPromotion) {
+    Assert-PlanOnlyResourcePolicy -Policy $resourcePolicy
+
+    $promotionContractFixture = [pscustomobject][ordered]@{
+        '$schema' = '../schemas/deployment-promotion.schema.json'
+        apiVersion = 'northgate/v1alpha1'
+        kind = 'CreateOnlyDeploymentPromotion'
+        promotionVersion = '2026.08.02.1'
+        status = 'approved'
+        changeRef = 'NG-CHG-20260802-001'
+        approvalReference = 'authorized-implementation-20260802'
+        scope = 'exact-new-fleet-create-only'
+        controls = [pscustomobject][ordered]@{
+            rawGitDataOnly = $true
+            installedSignedReleaseRequired = $true
+            signedHostAuthorizationRequired = $true
+            freshHostPlanRequired = $true
+            exactOneTimePlanApprovalRequired = $true
+            oneAssetPerPlan = $true
+            retainedAssetMutationAllowed = $false
+            deletePathAllowed = $false
+            replacePathAllowed = $false
+            adoptPathAllowed = $false
+            quarantineOnUncertainty = $true
+            signedReceiptRequired = $true
+        }
+        retainedAssetNames = @('JS-BlueBench','JS-Server-01','OPNsense-Tooling','TRMM-Tooling','Wazuh-Machine')
+        canaryAssetIds = @('NG-VM-018','NG-VM-010')
+        persistentAssetIds = @(
+            'NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012','NG-VM-013',
+            'NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021'
+        )
+        orderedAssetIds = @(
+            'NG-VM-018','NG-VM-010','NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012',
+            'NG-VM-013','NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021'
+        )
+        firmwareExceptions = @([pscustomobject][ordered]@{
+            exceptionId = 'NG-FW-20260802-KALI-UNSIGNED'
+            assetId = 'NG-VM-021'
+            profileRef = 'kali-gen2-unsigned'
+            secureBootEnabled = $false
+            reason = 'official-kali-installer-kernel-is-not-secure-boot-signed'
+        })
+        requiredGates = @(
+            'control-plane-negative-tests-passed','immutable-signed-release-installed',
+            'signed-host-authorization-verified','immutable-images-promoted','opaque-profiles-approved',
+            'retained-system-backups-verified','debian-canary-before-windows-canary',
+            'canaries-accepted-before-persistent-fleet','one-asset-per-fresh-plan',
+            'exact-plan-human-approval','quarantine-route-proven','signed-receipt-ready'
+        )
+    }
+    Assert-DeploymentPromotion -Promotion $promotionContractFixture
+    $activePolicyFixture = ConvertFrom-RepositoryJsonText -Json ($resourcePolicy | ConvertTo-Json -Depth 20 -Compress)
+    $activePolicyFixture.status = 'approved'
+    $activePolicyFixture.applyEnabled = $true
+    $activePolicyFixture.executableActions = @('Create')
+    Assert-ApprovedCreateOnlyResourcePolicy -Policy $activePolicyFixture -Promotion $promotionContractFixture
+}
+else {
+    Assert-ApprovedCreateOnlyResourcePolicy -Policy $resourcePolicy -Promotion $deploymentPromotion
+}
 Assert-CanaryExecutionStageProposal -Stage $canaryStage
 Assert-ControlPlaneCandidateProposal -Candidate $controlPlaneCandidate
 Assert-WorkloadProvisioningProposal -Proposal $workloadProposal
@@ -726,6 +908,7 @@ if ([int]$fullFleetProposal.capacity.policyHostReserveMemoryMiB -ne [int]$resour
     throw 'The full-fleet proposal must use the current plan-only host memory reserve policy.'
 }
 
+if ($null -eq $deploymentPromotion) {
 $proposedImage = @($imageCatalog.images | Where-Object { $_.id -ieq $workloadProposal.catalogPromotion.imageRef -and $_.approvalStatus -eq 'proposed' })
 $proposedFirmware = @(Get-CatalogProfile -Catalog $firmwareCatalog -Id $workloadProposal.catalogPromotion.firmwareProfileRef -RequiredStatus 'proposed')
 $proposedStorage = @(Get-CatalogProfile -Catalog $storageCatalog -Id $workloadProposal.catalogPromotion.storageProfileRef -RequiredStatus 'proposed')
@@ -851,10 +1034,30 @@ foreach ($referenceProperty in $fullFleetDerivedReferences.Keys) {
         throw "Full-fleet catalog bundle '$referenceProperty' does not exactly match workload references."
     }
 }
+}
 
-Assert-MutationRejected -Name 'normal resource policy Create enablement' -Baseline $resourcePolicy `
-    -Mutate { param($policy) $policy.applyEnabled = $true; $policy.executableActions = @('Create') } `
-    -Assert { param($policy) Assert-PlanOnlyResourcePolicy -Policy $policy }
+if ($null -eq $deploymentPromotion) {
+    Assert-MutationRejected -Name 'normal resource policy Create enablement' -Baseline $resourcePolicy `
+        -Mutate { param($policy) $policy.applyEnabled = $true; $policy.executableActions = @('Create') } `
+        -Assert { param($policy) Assert-PlanOnlyResourcePolicy -Policy $policy }
+}
+else {
+    Assert-MutationRejected -Name 'approved policy delete action' -Baseline $resourcePolicy `
+        -Mutate { param($policy) $policy.executableActions = @('Delete') } `
+        -Assert { param($policy) Assert-ApprovedCreateOnlyResourcePolicy -Policy $policy -Promotion $deploymentPromotion }
+    Assert-MutationRejected -Name 'approved policy disabled apply' -Baseline $resourcePolicy `
+        -Mutate { param($policy) $policy.applyEnabled = $false } `
+        -Assert { param($policy) Assert-ApprovedCreateOnlyResourcePolicy -Policy $policy -Promotion $deploymentPromotion }
+    Assert-MutationRejected -Name 'promotion permits retained mutation' -Baseline $deploymentPromotion `
+        -Mutate { param($promotion) $promotion.controls.retainedAssetMutationAllowed = $true } `
+        -Assert { param($promotion) Assert-DeploymentPromotion -Promotion $promotion }
+    Assert-MutationRejected -Name 'promotion widens fleet' -Baseline $deploymentPromotion `
+        -Mutate { param($promotion) $promotion.orderedAssetIds += 'NG-VM-999' } `
+        -Assert { param($promotion) Assert-DeploymentPromotion -Promotion $promotion }
+    Assert-MutationRejected -Name 'promotion broadens secure-boot exception' -Baseline $deploymentPromotion `
+        -Mutate { param($promotion) $promotion.firmwareExceptions[0].assetId = 'NG-VM-010' } `
+        -Assert { param($promotion) Assert-DeploymentPromotion -Promotion $promotion }
+}
 
 $canaryNegativeCases = @(
     @{ Name = 'effective canary apply'; Mutate = { param($stage) $stage.effectiveState.applyEnabled = $true } },
@@ -1018,9 +1221,18 @@ if ($duplicateAssetIds.Count -or $duplicateVmNames.Count) {
 }
 
 $proposedWorkloadAssetIds = @($workloadProposal.workloads.assetId) + @($fullFleetProposal.workloads.assetId)
-$prematureConsumers = @($proposedWorkloadAssetIds | Where-Object { $_ -in $assetIds } | Select-Object -Unique)
-if ($prematureConsumers.Count) {
-    throw "A proposed prerequisite bundle cannot be co-promoted with its first consuming manifests: $($prematureConsumers -join ', ')"
+if ($null -eq $deploymentPromotion) {
+    $prematureConsumers = @($proposedWorkloadAssetIds | Where-Object { $_ -in $assetIds } | Select-Object -Unique)
+    if ($prematureConsumers.Count) {
+        throw "A proposed prerequisite bundle cannot be co-promoted with its first consuming manifests: $($prematureConsumers -join ', ')"
+    }
+}
+else {
+    $approvedAssetIds = @($deploymentPromotion.orderedAssetIds | Sort-Object)
+    $manifestAssetIds = @($assetIds | Sort-Object)
+    if (($approvedAssetIds -join '|') -cne ($manifestAssetIds -join '|')) {
+        throw 'Active Create-only policy requires exactly one manifest for every and only the approved fleet asset.'
+    }
 }
 
 $unsafeFiles = @(Get-ChildItem -LiteralPath $repositoryRoot -Recurse -File | Where-Object {
@@ -1053,4 +1265,5 @@ if ($readme -notmatch '```mermaid' -or $readme -notmatch 'No GitHub Actions runn
     throw 'Architecture safety statements are missing or were weakened.'
 }
 
-Write-Host "Repository validation passed: $($jsonFiles.Count) JSON files; $($manifestFiles.Count) managed VM manifests; $schemaValidationCount schema validations; $negativeTestCount policy negative tests; plan-only apply disabled."
+$repositoryMode = if ($null -eq $deploymentPromotion) { 'plan-only apply disabled' } else { 'exact Create-only promotion approved' }
+Write-Host "Repository validation passed: $($jsonFiles.Count) JSON files; $($manifestFiles.Count) managed VM manifests; $schemaValidationCount schema validations; $negativeTestCount policy negative tests; $repositoryMode."
