@@ -329,8 +329,16 @@ function Set-NgcdProtectedDirectoryAcl {
     [System.IO.Directory]::SetAccessControl($directory, $security)
     $readback = [System.IO.Directory]::GetAccessControl($directory)
     if (-not $readback.AreAccessRulesProtected) { Stop-Ngcd 'NGCOR-DEPLOYMENT-ACL-READBACK-FAILED' }
-    $wanted = Get-NgcdSha256Bytes $security.GetSecurityDescriptorBinaryForm()
-    $actual = Get-NgcdSha256Bytes $readback.GetSecurityDescriptorBinaryForm()
+    # Compare the security-relevant owner and DACL only. Windows may populate or
+    # normalize the POSIX-style primary-group field during readback even though
+    # that field does not grant Windows file-system access. Comparing the whole
+    # descriptor therefore creates a host-dependent false failure. The protected
+    # DACL, owner, exact identities, rights, inheritance, and propagation remain
+    # byte-for-byte bound through their canonical SDDL representation.
+    $sections = [System.Security.AccessControl.AccessControlSections]::Owner -bor
+        [System.Security.AccessControl.AccessControlSections]::Access
+    $wanted = $security.GetSecurityDescriptorSddlForm($sections)
+    $actual = $readback.GetSecurityDescriptorSddlForm($sections)
     if (-not (Test-NgcdFixedHexEquals $wanted $actual)) { Stop-Ngcd 'NGCOR-DEPLOYMENT-ACL-READBACK-FAILED' }
     $directory
 }
