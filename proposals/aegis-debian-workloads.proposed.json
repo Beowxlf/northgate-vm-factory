@@ -1,0 +1,102 @@
+{
+  "$schema": "../schemas/workload-provisioning-proposal.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "WorkloadProvisioningProposal",
+  "proposalVersion": "2026.08.01.1",
+  "status": "proposed",
+  "execution": {
+    "deployable": false,
+    "hostPlanRequired": true,
+    "standardManifestsIncluded": false,
+    "resourcePolicyMustRemainDisabled": true,
+    "promotionMode": "separate-reviewed-stages"
+  },
+  "governance": {
+    "assetIdentityState": "candidate-unreserved",
+    "changeReferenceState": "required-before-manifest",
+    "catalogState": "proposed",
+    "applicationReleaseState": "external-promotion-required"
+  },
+  "catalogPromotion": {
+    "imageRef": "debian-12.12-amd64-netinst",
+    "firmwareProfileRef": "linux-gen2",
+    "storageProfileRef": "persistent-app-protected",
+    "recoveryProfileRef": "aegis-app-protected",
+    "accessProfileRef": "debian-app-keyonly-admin",
+    "networkProfileRefs": [
+      "business-apps",
+      "commercial-dmz"
+    ],
+    "bootstrapProfileRefs": [
+      "debian12-employee-hub",
+      "debian12-sentinel-atlas"
+    ]
+  },
+  "promotionSequence": [
+    "catalog-and-fabric-policy",
+    "employee-hub-manifest",
+    "employee-hub-host-plan",
+    "sentinel-atlas-manifest",
+    "sentinel-atlas-host-plan"
+  ],
+  "workloads": [
+    {
+      "assetId": "NG-VM-016",
+      "name": "NG-HR-APP01",
+      "ownerRef": "northgate-owner",
+      "purpose": "Internal employee HR application on a dedicated Debian server",
+      "environment": "infrastructure",
+      "criticality": "high",
+      "dataClassification": "restricted",
+      "lifecycle": "proposed",
+      "reviewOrRetirementDate": "2027-08-01",
+      "dependencies": [],
+      "imageRef": "debian-12.12-amd64-netinst",
+      "firmwareProfileRef": "linux-gen2",
+      "processors": 2,
+      "memory": {
+        "mode": "dynamic",
+        "minimumMiB": 2048,
+        "startupMiB": 4096,
+        "maximumMiB": 8192
+      },
+      "storageProfileRef": "persistent-app-protected",
+      "osDiskGiB": 100,
+      "networkProfileRef": "business-apps",
+      "bootstrapProfileRef": "debian12-employee-hub",
+      "recoveryProfileRef": "aegis-app-protected",
+      "accessProfileRef": "debian-app-keyonly-admin",
+      "desiredPowerState": "running",
+      "destroyProtection": true
+    },
+    {
+      "assetId": "NG-VM-017",
+      "name": "NG-PLAT-APP01",
+      "ownerRef": "northgate-owner",
+      "purpose": "Commercial Sentinel Atlas platform on a dedicated Debian server",
+      "environment": "infrastructure",
+      "criticality": "high",
+      "dataClassification": "confidential",
+      "lifecycle": "proposed",
+      "reviewOrRetirementDate": "2027-08-01",
+      "dependencies": [],
+      "imageRef": "debian-12.12-amd64-netinst",
+      "firmwareProfileRef": "linux-gen2",
+      "processors": 4,
+      "memory": {
+        "mode": "dynamic",
+        "minimumMiB": 4096,
+        "startupMiB": 8192,
+        "maximumMiB": 16384
+      },
+      "storageProfileRef": "persistent-app-protected",
+      "osDiskGiB": 120,
+      "networkProfileRef": "commercial-dmz",
+      "bootstrapProfileRef": "debian12-sentinel-atlas",
+      "recoveryProfileRef": "aegis-app-protected",
+      "accessProfileRef": "debian-app-keyonly-admin",
+      "desiredPowerState": "running",
+      "destroyProtection": true
+    }
+  ]
+}

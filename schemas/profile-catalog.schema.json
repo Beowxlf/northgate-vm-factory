@@ -7,7 +7,7 @@
   "properties": {
     "$schema": { "const": "../schemas/profile-catalog.schema.json" },
     "apiVersion": { "const": "northgate/v1alpha1" },
-    "kind": { "enum": ["OwnerCatalog", "BootstrapCatalog", "RecoveryCatalog", "FirmwareCatalog"] },
+    "kind": { "enum": ["OwnerCatalog", "BootstrapCatalog", "RecoveryCatalog", "FirmwareCatalog", "AccessCatalog"] },
     "catalogVersion": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}\\.[0-9]+$" },
     "profiles": {
       "type": "array",

@@ -176,6 +176,134 @@ function Assert-CanaryExecutionStageProposal {
     }
 }
 
+function Assert-ImageCatalogSafety {
+    param([Parameter(Mandatory)][object]$Catalog)
+
+    if ($Catalog.promotedOnly -ne $true -or $Catalog.status -notin @('inventory-required', 'active')) {
+        throw 'The image catalog must permit manifest consumption only from promoted image records.'
+    }
+
+    foreach ($image in @($Catalog.images)) {
+        switch ($image.approvalStatus) {
+            'proposed' {
+                if ($image.retirementStatus -cne 'proposed') {
+                    throw "Proposed image '$($image.id)' must remain non-consumable."
+                }
+            }
+            'promoted' {
+                if ($image.retirementStatus -cne 'active' -or
+                    $image.sha256 -cnotmatch '^[a-f0-9]{64}$' -or
+                    $null -eq $image.sizeBytes -or
+                    [int64]$image.sizeBytes -lt 1) {
+                    throw "Promoted image '$($image.id)' lacks immutable active artifact evidence."
+                }
+            }
+            'rejected' {
+                if ($image.retirementStatus -cne 'retired') {
+                    throw "Rejected image '$($image.id)' must remain retired."
+                }
+            }
+            default {
+                throw "Unknown image approval state for '$($image.id)'."
+            }
+        }
+    }
+
+    if ($Catalog.status -ceq 'inventory-required' -and
+        @($Catalog.images | Where-Object { $_.approvalStatus -eq 'promoted' }).Count -gt 0) {
+        throw 'An inventory-required image catalog may not contain promoted images.'
+    }
+}
+
+function Assert-WorkloadProvisioningProposal {
+    param([Parameter(Mandatory)][object]$Proposal)
+
+    Assert-ExactPropertySet -InputObject $Proposal -ExpectedProperties @(
+        '$schema', 'apiVersion', 'kind', 'proposalVersion', 'status', 'execution', 'governance',
+        'catalogPromotion', 'promotionSequence', 'workloads'
+    ) -Location 'Workload provisioning proposal'
+    Assert-ExactPropertySet -InputObject $Proposal.execution -ExpectedProperties @(
+        'deployable', 'hostPlanRequired', 'standardManifestsIncluded',
+        'resourcePolicyMustRemainDisabled', 'promotionMode'
+    ) -Location 'Workload proposal execution boundary'
+    Assert-ExactPropertySet -InputObject $Proposal.governance -ExpectedProperties @(
+        'assetIdentityState', 'changeReferenceState', 'catalogState', 'applicationReleaseState'
+    ) -Location 'Workload proposal governance state'
+    Assert-ExactPropertySet -InputObject $Proposal.catalogPromotion -ExpectedProperties @(
+        'imageRef', 'firmwareProfileRef', 'storageProfileRef', 'recoveryProfileRef',
+        'accessProfileRef', 'networkProfileRefs', 'bootstrapProfileRefs'
+    ) -Location 'Workload proposal catalog bundle'
+
+    if ($Proposal.'$schema' -cne '../schemas/workload-provisioning-proposal.schema.json' -or
+        $Proposal.apiVersion -cne 'northgate/v1alpha1' -or
+        $Proposal.kind -cne 'WorkloadProvisioningProposal' -or
+        $Proposal.status -cne 'proposed' -or
+        $Proposal.proposalVersion -cnotmatch '^[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+$') {
+        throw 'Only the proposed workload provisioning contract is permitted.'
+    }
+
+    $execution = $Proposal.execution
+    if ($execution.deployable -ne $false -or
+        $execution.hostPlanRequired -ne $true -or
+        $execution.standardManifestsIncluded -ne $false -or
+        $execution.resourcePolicyMustRemainDisabled -ne $true -or
+        $execution.promotionMode -cne 'separate-reviewed-stages') {
+        throw 'The workload proposal must remain non-deployable and separated from manifests and host-issued plans.'
+    }
+
+    if ($Proposal.governance.assetIdentityState -cne 'candidate-unreserved' -or
+        $Proposal.governance.changeReferenceState -cne 'required-before-manifest' -or
+        $Proposal.governance.catalogState -cne 'proposed' -or
+        $Proposal.governance.applicationReleaseState -cne 'external-promotion-required') {
+        throw 'The workload proposal may not claim identity, catalog, change, or application-release approval.'
+    }
+
+    $expectedSequence = @(
+        'catalog-and-fabric-policy',
+        'employee-hub-manifest',
+        'employee-hub-host-plan',
+        'sentinel-atlas-manifest',
+        'sentinel-atlas-host-plan'
+    )
+    if ((@($Proposal.promotionSequence) -join '|') -cne ($expectedSequence -join '|')) {
+        throw 'Catalog/fabric promotion and each first workload must remain separate promotion and plan units.'
+    }
+
+    if (@($Proposal.workloads).Count -ne 2) {
+        throw 'The Aegis proposal must contain exactly the two reviewed workload candidates.'
+    }
+    $assetIds = @($Proposal.workloads.assetId)
+    $names = @($Proposal.workloads.name)
+    if ((Get-DuplicateValues -Values $assetIds).Count -or (Get-DuplicateValues -Values $names).Count) {
+        throw 'Proposed workload identities must be unique.'
+    }
+
+    foreach ($workload in @($Proposal.workloads)) {
+        Assert-ExactPropertySet -InputObject $workload -ExpectedProperties @(
+            'assetId', 'name', 'ownerRef', 'purpose', 'environment', 'criticality',
+            'dataClassification', 'lifecycle', 'reviewOrRetirementDate', 'dependencies',
+            'imageRef', 'firmwareProfileRef', 'processors', 'memory', 'storageProfileRef',
+            'osDiskGiB', 'networkProfileRef', 'bootstrapProfileRef', 'recoveryProfileRef',
+            'accessProfileRef', 'desiredPowerState', 'destroyProtection'
+        ) -Location "Workload proposal '$($workload.assetId)'"
+        Assert-ExactPropertySet -InputObject $workload.memory -ExpectedProperties @(
+            'mode', 'minimumMiB', 'startupMiB', 'maximumMiB'
+        ) -Location "Workload proposal '$($workload.assetId)' memory"
+        if ($workload.lifecycle -cne 'proposed' -or $workload.destroyProtection -ne $true) {
+            throw "Workload proposal '$($workload.assetId)' must remain proposed and destroy-protected."
+        }
+        if ($workload.assetId -in @($workload.dependencies)) {
+            throw "Workload proposal '$($workload.assetId)' cannot depend on itself."
+        }
+        if (-not ($workload.memory.minimumMiB -le $workload.memory.startupMiB -and
+            $workload.memory.startupMiB -le $workload.memory.maximumMiB)) {
+            throw "Workload proposal '$($workload.assetId)' has an invalid dynamic-memory range."
+        }
+    }
+
+    Test-ForbiddenManifestData -InputObject $Proposal
+}
+
 function Assert-MutationRejected {
     param(
         [Parameter(Mandatory)][string]$Name,
@@ -256,8 +384,10 @@ $ownerCatalog = Read-JsonFile -Path (Join-Path $repositoryRoot 'catalog\owners.j
 $bootstrapCatalog = Read-JsonFile -Path (Join-Path $repositoryRoot 'catalog\bootstrap-profiles.json')
 $recoveryCatalog = Read-JsonFile -Path (Join-Path $repositoryRoot 'catalog\recovery-profiles.json')
 $firmwareCatalog = Read-JsonFile -Path (Join-Path $repositoryRoot 'catalog\firmware-profiles.json')
+$accessCatalog = Read-JsonFile -Path (Join-Path $repositoryRoot 'catalog\access-profiles.json')
 $resourcePolicy = Read-JsonFile -Path (Join-Path $repositoryRoot 'policy\resource-limits.json')
 $canaryStage = Read-JsonFile -Path (Join-Path $repositoryRoot 'policy\canary-execution-stage.proposed.json')
+$workloadProposal = Read-JsonFile -Path (Join-Path $repositoryRoot 'proposals\aegis-debian-workloads.proposed.json')
 
 Test-CatalogIdentities -Catalog $networkCatalog -Name 'Network'
 Test-CatalogIdentities -Catalog $storageCatalog -Name 'Storage'
@@ -265,11 +395,20 @@ Test-CatalogIdentities -Catalog $ownerCatalog -Name 'Owner'
 Test-CatalogIdentities -Catalog $bootstrapCatalog -Name 'Bootstrap'
 Test-CatalogIdentities -Catalog $recoveryCatalog -Name 'Recovery'
 Test-CatalogIdentities -Catalog $firmwareCatalog -Name 'Firmware'
+Test-CatalogIdentities -Catalog $accessCatalog -Name 'Access'
 
 $duplicateImages = Get-DuplicateValues -Values @($imageCatalog.images.id)
 if ($duplicateImages.Count) {
     throw "Image catalog identifiers must be case-insensitively unique: $($duplicateImages -join ', ')"
 }
+Assert-ImageCatalogSafety -Catalog $imageCatalog
+
+Assert-MutationRejected -Name 'proposed image active state' -Baseline $imageCatalog `
+    -Mutate { param($catalog) $catalog.images[0].retirementStatus = 'active' } `
+    -Assert { param($catalog) Assert-ImageCatalogSafety -Catalog $catalog }
+Assert-MutationRejected -Name 'image promotion while catalog is inventory-required' -Baseline $imageCatalog `
+    -Mutate { param($catalog) $catalog.images[0].approvalStatus = 'promoted'; $catalog.images[0].retirementStatus = 'active' } `
+    -Assert { param($catalog) Assert-ImageCatalogSafety -Catalog $catalog }
 
 foreach ($network in $networkCatalog.profiles) {
     if ($network.allowCreate -ne $false -or $network.allowRebind -ne $false) {
@@ -279,6 +418,44 @@ foreach ($network in $networkCatalog.profiles) {
 
 Assert-PlanOnlyResourcePolicy -Policy $resourcePolicy
 Assert-CanaryExecutionStageProposal -Stage $canaryStage
+Assert-WorkloadProvisioningProposal -Proposal $workloadProposal
+
+$proposedImage = @($imageCatalog.images | Where-Object { $_.id -ieq $workloadProposal.catalogPromotion.imageRef -and $_.approvalStatus -eq 'proposed' })
+$proposedFirmware = @(Get-CatalogProfile -Catalog $firmwareCatalog -Id $workloadProposal.catalogPromotion.firmwareProfileRef -RequiredStatus 'proposed')
+$proposedStorage = @(Get-CatalogProfile -Catalog $storageCatalog -Id $workloadProposal.catalogPromotion.storageProfileRef -RequiredStatus 'proposed')
+$proposedRecovery = @(Get-CatalogProfile -Catalog $recoveryCatalog -Id $workloadProposal.catalogPromotion.recoveryProfileRef -RequiredStatus 'proposed')
+$proposedAccess = @(Get-CatalogProfile -Catalog $accessCatalog -Id $workloadProposal.catalogPromotion.accessProfileRef -RequiredStatus 'proposed')
+if ($proposedImage.Count -ne 1 -or $proposedFirmware.Count -ne 1 -or $proposedStorage.Count -ne 1 -or
+    $proposedRecovery.Count -ne 1 -or $proposedAccess.Count -ne 1) {
+    throw 'The workload proposal must resolve exactly once to non-consumable proposed prerequisite records.'
+}
+if ($proposedStorage[0].allowProvision -ne $true -or $proposedStorage[0].criticalWorkloadsAllowed -ne $true) {
+    throw 'The proposed application storage profile must be eligible for high-criticality planning before promotion.'
+}
+foreach ($networkRef in @($workloadProposal.catalogPromotion.networkProfileRefs)) {
+    $network = @(Get-CatalogProfile -Catalog $networkCatalog -Id $networkRef -RequiredStatus 'proposed')
+    if ($network.Count -ne 1 -or $network[0].allowAttach -ne $true -or
+        $network[0].allowCreate -ne $false -or $network[0].allowRebind -ne $false) {
+        throw "Proposed network profile '$networkRef' may not create or rebind fabric."
+    }
+}
+foreach ($bootstrapRef in @($workloadProposal.catalogPromotion.bootstrapProfileRefs)) {
+    if (@(Get-CatalogProfile -Catalog $bootstrapCatalog -Id $bootstrapRef -RequiredStatus 'proposed').Count -ne 1) {
+        throw "Proposed bootstrap profile '$bootstrapRef' does not resolve exactly once."
+    }
+}
+foreach ($workload in @($workloadProposal.workloads)) {
+    if (@(Get-CatalogProfile -Catalog $ownerCatalog -Id $workload.ownerRef -RequiredStatus 'proposed').Count -ne 1 -or
+        $workload.imageRef -cne $workloadProposal.catalogPromotion.imageRef -or
+        $workload.firmwareProfileRef -cne $workloadProposal.catalogPromotion.firmwareProfileRef -or
+        $workload.storageProfileRef -cne $workloadProposal.catalogPromotion.storageProfileRef -or
+        $workload.recoveryProfileRef -cne $workloadProposal.catalogPromotion.recoveryProfileRef -or
+        $workload.accessProfileRef -cne $workloadProposal.catalogPromotion.accessProfileRef -or
+        $workload.networkProfileRef -notin @($workloadProposal.catalogPromotion.networkProfileRefs) -or
+        $workload.bootstrapProfileRef -notin @($workloadProposal.catalogPromotion.bootstrapProfileRefs)) {
+        throw "Workload '$($workload.assetId)' is not bound to the reviewed proposed prerequisite set."
+    }
+}
 
 Assert-MutationRejected -Name 'normal resource policy Create enablement' -Baseline $resourcePolicy `
     -Mutate { param($policy) $policy.applyEnabled = $true; $policy.executableActions = @('Create') } `
@@ -301,6 +478,23 @@ $canaryNegativeCases = @(
 foreach ($case in $canaryNegativeCases) {
     Assert-MutationRejected -Name $case.Name -Baseline $canaryStage -Mutate $case.Mutate `
         -Assert { param($stage) Assert-CanaryExecutionStageProposal -Stage $stage }
+}
+
+$proposalNegativeCases = @(
+    @{ Name = 'workload proposal deployment enablement'; Mutate = { param($proposal) $proposal.execution.deployable = $true } },
+    @{ Name = 'workload host-plan bypass'; Mutate = { param($proposal) $proposal.execution.hostPlanRequired = $false } },
+    @{ Name = 'workload manifest co-promotion'; Mutate = { param($proposal) $proposal.execution.standardManifestsIncluded = $true } },
+    @{ Name = 'workload policy enablement'; Mutate = { param($proposal) $proposal.execution.resourcePolicyMustRemainDisabled = $false } },
+    @{ Name = 'workload catalog co-promotion'; Mutate = { param($proposal) $proposal.execution.promotionMode = 'single-stage' } },
+    @{ Name = 'workload promotion sequence collapse'; Mutate = { param($proposal) $proposal.promotionSequence = @('catalog-and-fabric-policy', 'employee-hub-host-plan', 'sentinel-atlas-host-plan') } },
+    @{ Name = 'workload identity approval claim'; Mutate = { param($proposal) $proposal.governance.assetIdentityState = 'reserved' } },
+    @{ Name = 'workload raw VLAN field'; Mutate = { param($proposal) $proposal.workloads[0] | Add-Member -NotePropertyName vlan -NotePropertyValue 150 } },
+    @{ Name = 'workload unexpected nested field'; Mutate = { param($proposal) $proposal.workloads[0] | Add-Member -NotePropertyName deploymentHint -NotePropertyValue 'none' } },
+    @{ Name = 'workload secret-like content'; Mutate = { param($proposal) $proposal.workloads[0].purpose = ('-----BEGIN PRIVATE' + ' KEY-----') } }
+)
+foreach ($case in $proposalNegativeCases) {
+    Assert-MutationRejected -Name $case.Name -Baseline $workloadProposal -Mutate $case.Mutate `
+        -Assert { param($proposal) Assert-WorkloadProvisioningProposal -Proposal $proposal }
 }
 
 $expectedPlannerActions = @('NoOp', 'Create', 'UpdateOnline', 'UpdateOffline', 'ReplaceRequired', 'DecommissionRequired')
@@ -378,6 +572,11 @@ $duplicateAssetIds = Get-DuplicateValues -Values $assetIds
 $duplicateVmNames = Get-DuplicateValues -Values $vmNames
 if ($duplicateAssetIds.Count -or $duplicateVmNames.Count) {
     throw "Manifest identities must be case-insensitively unique. AssetIds=[$($duplicateAssetIds -join ',')], Names=[$($duplicateVmNames -join ',')]"
+}
+
+$prematureConsumers = @($workloadProposal.workloads.assetId | Where-Object { $_ -in $assetIds })
+if ($prematureConsumers.Count) {
+    throw "A proposed prerequisite bundle cannot be co-promoted with its first consuming manifests: $($prematureConsumers -join ', ')"
 }
 
 $unsafeFiles = @(Get-ChildItem -LiteralPath $repositoryRoot -Recurse -File | Where-Object {

@@ -31,10 +31,27 @@
             "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{1,63}$" }
           },
           "sourceArtifactId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{1,127}$" },
-          "approvalStatus": { "enum": ["promoted", "rejected"] },
-          "retirementStatus": { "enum": ["active", "retired"] },
+          "approvalStatus": { "enum": ["proposed", "promoted", "rejected"] },
+          "retirementStatus": { "enum": ["proposed", "active", "retired"] },
           "retirementDate": { "type": "string", "format": "date" }
-        }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "approvalStatus": { "const": "proposed" } } },
+            "then": { "properties": { "retirementStatus": { "const": "proposed" } } }
+          },
+          {
+            "if": { "properties": { "approvalStatus": { "const": "promoted" } } },
+            "then": {
+              "required": ["sha256", "sizeBytes"],
+              "properties": { "retirementStatus": { "const": "active" } }
+            }
+          },
+          {
+            "if": { "properties": { "approvalStatus": { "const": "rejected" } } },
+            "then": { "properties": { "retirementStatus": { "const": "retired" } } }
+          }
+        ]
       }
     }
   }

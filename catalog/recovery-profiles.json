@@ -2,7 +2,7 @@
   "$schema": "../schemas/profile-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "RecoveryCatalog",
-  "catalogVersion": "2026.07.31.1",
+  "catalogVersion": "2026.08.01.1",
   "profiles": [
     {
       "id": "none-canary",
@@ -22,6 +22,11 @@
     {
       "id": "gold",
       "serverPolicyId": "ng-recovery-gold-v1",
+      "approvalStatus": "proposed"
+    },
+    {
+      "id": "aegis-app-protected",
+      "serverPolicyId": "ng-recovery-aegis-app-protected-v1",
       "approvalStatus": "proposed"
     }
   ]

@@ -1,0 +1,13 @@
+{
+  "$schema": "../schemas/profile-catalog.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "AccessCatalog",
+  "catalogVersion": "2026.08.01.1",
+  "profiles": [
+    {
+      "id": "debian-app-keyonly-admin",
+      "serverPolicyId": "ng-access-debian-app-keyonly-admin-v1",
+      "approvalStatus": "proposed"
+    }
+  ]
+}
