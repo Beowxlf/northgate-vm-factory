@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-This file records reviewed **proposed intent** for future isolated lab segments, the Windows workstation fleet, two SMTP servers, Kali, the Employee Hub, and Sentinel Atlas. The owner has authorized VLAN 150 (`BUSINESS-APPS`) and VLAN 160 (`COMMERCIAL-DMZ`) as target design inputs. That authorization still requires a separate guarded fabric/OPNsense change with backup, collision checks, readback, and rollback; neither VLAN is represented here as live. This file is not live-state evidence and does not replace Operation-SeeSaw as the authoritative IPAM and asset record. Any deployment must revalidate collisions, interface identities, routes, and reservations immediately before planning.
+This file records reviewed **proposed intent** for future isolated lab segments, the Windows workstation fleet, two SMTP servers, Kali, the Employee Hub, and Sentinel Atlas. VLAN 150 (`BUSINESS-APPS`) and VLAN 160 (`COMMERCIAL-DMZ`) now exist as isolated OPNsense-routed server zones on the private application fabric. Their gateways are live, DHCP is disabled, no workload adapter is connected, and no service address or DNS name is allocated by this document. This file is not authoritative live-state evidence and does not replace Operation-SeeSaw as the IPAM and asset record. Any deployment must revalidate collisions, interface identities, routes, reservations, default-deny policy, and the installed host mapping immediately before planning.
 
 The existing trusted LAN remains `10.10.100.0/24`; its complete live address inventory stays in Operation-SeeSaw rather than being duplicated here.
 
