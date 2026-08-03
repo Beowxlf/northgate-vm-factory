@@ -148,6 +148,8 @@ try {
 
     $builder = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'bluebench\build-bootstrap-iso.sh'))
     Assert-True ($builder -match 'NGBM-SOURCE-HASH-MISMATCH' -and $builder -match 'NGBM-SOURCE-SIZE-MISMATCH' -and $builder -match 'NGBM-SOURCE-MUTATED') 'BlueBench builder verifies and preserves source artifact'
+    Assert-True ($builder -match 'grep -Fqx ''Type = Udf'' "\$archive_listing"' -and $builder -match '7z x .*NGBM-SOURCE-EXTRACT' -and $builder -match 'xorriso -osirrox on.*NGBM-SOURCE-EXTRACT') 'BlueBench builder selects validated UDF extraction for Windows and Rock Ridge extraction for Linux'
+    Assert-True ($builder -match 'mkisofs_args=\(-iso-level 3 -udf -allow-limited-size') 'Windows UDF output explicitly supports the pinned install.wim larger than four GiB'
     Assert-True ($builder -match 'wimlib-imagex info.* 6' -and $builder -match 'Windows 11 Pro' -and $builder -match 'NGBM-WINDOWS-ARCH-MISMATCH') 'BlueBench builder verifies Windows edition and architecture'
     Assert-True ($builder -match 'report_el_torito plain' -and $builder -match 'NGBM-OUTPUT-NO-UEFI-BOOT') 'BlueBench builder validates UEFI El Torito boot entry'
 

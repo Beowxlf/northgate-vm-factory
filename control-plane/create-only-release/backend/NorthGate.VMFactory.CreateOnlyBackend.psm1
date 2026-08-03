@@ -1377,7 +1377,7 @@ function Get-NgcbTrunkFingerprint {
 function Get-NgcbProductionSnapshot {
     param([object]$Context, [object]$Resolved)
     foreach ($commandName in @(
-        'Hyper-V\Get-VM','Hyper-V\Get-VMHost','Hyper-V\Get-VMSwitch','Hyper-V\Get-VMHardDiskDrive',
+        'Hyper-V\Get-VM','Hyper-V\Get-VMSwitch','Hyper-V\Get-VMHardDiskDrive',
         'Hyper-V\Get-VMNetworkAdapter','Hyper-V\Get-VMNetworkAdapterVlan','Hyper-V\Get-VMMemory',
         'Hyper-V\Get-VMProcessor','Hyper-V\Get-VHD'
     )) { $null = Get-Command $commandName -ErrorAction Stop }
@@ -1386,9 +1386,14 @@ function Get-NgcbProductionSnapshot {
         $machineGuid = [string](Get-ItemPropertyValue `
             -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Cryptography' -Name MachineGuid -ErrorAction Stop)
         $machineGuidHash = Get-NgcbStringSha256Hex $machineGuid.ToLowerInvariant()
-        $vmHost = Hyper-V\Get-VMHost -ErrorAction Stop
+        $hostProducts = @(Get-CimInstance -ClassName Win32_ComputerSystemProduct -ErrorAction Stop)
+        if ($hostProducts.Count -ne 1 -or [string]$hostProducts[0].UUID -cnotmatch
+            '^[A-Fa-f0-9]{8}(?:-[A-Fa-f0-9]{4}){3}-[A-Fa-f0-9]{12}$' -or
+            [string]$hostProducts[0].UUID -in @(
+                '00000000-0000-0000-0000-000000000000','FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF'
+            )) { Throw-NgcbError 'NGCB-HOST-IDENTITY-READ-FAILED' }
         $computerSystem = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
-        $hostId = ([string]$vmHost.Id).ToLowerInvariant()
+        $hostId = ([string]$hostProducts[0].UUID).ToLowerInvariant()
         $os = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction Stop
         $osBuild = [string]$os.CurrentBuildNumber + '.' + [string]$os.UBR
     }

@@ -104,6 +104,7 @@ try {
         '(?i)\bNew-VMSwitch\b','(?i)\bSet-VMSwitch\b','(?i)\bAdd-VMHardDiskDrive\b',
         '(?i)\bMount-VHD\b','(?i)\bInvoke-Expression\b','(?i)\bStart-Process\b'
     )) { Assert-NgcbTest ($source -notmatch $forbidden) "Privileged source excludes $forbidden." }
+    Assert-NgcbTest ($source -match 'Win32_ComputerSystemProduct' -and $source -match '\$hostProducts\[0\]\.UUID' -and $source -notmatch '\$vmHost\.Id') 'Production snapshot binds the supported host to its SMBIOS UUID without assuming a Get-VMHost Id property.'
 
     $approvalPin = Get-NgcbTestCertificateHash $approvalMaterial.Certificate
     $receiptPin = Get-NgcbTestCertificateHash $receiptMaterial.Certificate

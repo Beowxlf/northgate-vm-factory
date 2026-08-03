@@ -44,7 +44,7 @@ Current host inventory on 2026-08-02 confirmed that all three filenames and byte
    ```
 
 5. Transfer the bundle and a copy of the exact authorized source ISO to an owner-approved BlueBench scratch directory. Verify the transfer before building. Do not alter or replace the authoritative host copy.
-6. On BlueBench, provide `python3`, `xorriso`, `genisoimage`, core utilities, and `wimlib-imagex` (`wimtools`) for Windows. The build work root and output parent must already exist and must not be symlinks:
+6. On BlueBench, provide `python3`, `xorriso`, `genisoimage`, core utilities, and, for Windows, `7z` (`p7zip-full`) plus `wimlib-imagex` (`wimtools`). Windows source media is extracted from its validated UDF filesystem; Debian and Kali use their Rock Ridge filesystem. The build work root and output parent must already exist and must not be symlinks:
 
    ```sh
    ./bluebench/build-bootstrap-iso.sh \

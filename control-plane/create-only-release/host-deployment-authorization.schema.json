@@ -42,7 +42,7 @@
         "hostId": { "type": "string", "pattern": "^nghost-[a-z0-9-]{8,64}$" },
         "computerName": { "type": "string", "pattern": "^[A-Z0-9](?:[A-Z0-9-]{0,13}[A-Z0-9])?$" },
         "machineGuidSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-        "hyperVHostId": { "type": "string", "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$" },
+        "hyperVHostId": { "type": "string", "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", "description": "Lowercase SMBIOS UUID from Win32_ComputerSystemProduct.UUID; Get-VMHost has no Id property on the supported Server 2022 host." },
         "osBuild": { "type": "string", "pattern": "^[0-9]{5}(?:\\.[0-9]{1,6})?$" }
       }
     },

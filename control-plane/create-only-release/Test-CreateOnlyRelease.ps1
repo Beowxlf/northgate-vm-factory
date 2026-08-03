@@ -304,6 +304,8 @@ foreach ($file in $runtimeFiles) {
 }
 
 $installer = Join-Path $root 'Install-NorthGateCreateOnlyRelease.ps1'
+$installerSource = [IO.File]::ReadAllText($installer)
+Assert-NgcorTest ($installerSource -match 'Win32_ComputerSystemProduct' -and $installerSource -match '\$hostSystem\[0\]\.UUID' -and $installerSource -notmatch 'Msvm_ComputerSystem') 'Installer binds the supported host to the same SMBIOS UUID used by the backend.'
 $dummyRoot = Join-Path ([IO.Path]::GetTempPath()) ('ngcor-install-' + [guid]::NewGuid().ToString('N'))
 $null = [IO.Directory]::CreateDirectory($dummyRoot)
 $auth = Join-Path $dummyRoot 'authorization.json'
