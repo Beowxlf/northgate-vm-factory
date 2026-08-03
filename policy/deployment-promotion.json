@@ -1,0 +1,84 @@
+{
+  "$schema": "../schemas/deployment-promotion.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "CreateOnlyDeploymentPromotion",
+  "promotionVersion": "2026.08.03.1",
+  "status": "approved",
+  "changeRef": "NG-CHG-20260803-008",
+  "approvalReference": "owner-thread-20260802-full-fleet",
+  "scope": "exact-new-fleet-create-only",
+  "controls": {
+    "rawGitDataOnly": true,
+    "installedSignedReleaseRequired": true,
+    "signedHostAuthorizationRequired": true,
+    "freshHostPlanRequired": true,
+    "exactOneTimePlanApprovalRequired": true,
+    "oneAssetPerPlan": true,
+    "retainedAssetMutationAllowed": false,
+    "deletePathAllowed": false,
+    "replacePathAllowed": false,
+    "adoptPathAllowed": false,
+    "quarantineOnUncertainty": true,
+    "signedReceiptRequired": true
+  },
+  "retainedAssetNames": [
+    "JS-BlueBench",
+    "JS-Server-01",
+    "OPNsense-Tooling",
+    "TRMM-Tooling",
+    "Wazuh-Machine"
+  ],
+  "canaryAssetIds": [
+    "NG-VM-018",
+    "NG-VM-010"
+  ],
+  "persistentAssetIds": [
+    "NG-VM-019",
+    "NG-VM-020",
+    "NG-VM-011",
+    "NG-VM-012",
+    "NG-VM-013",
+    "NG-VM-014",
+    "NG-VM-015",
+    "NG-VM-016",
+    "NG-VM-017",
+    "NG-VM-021"
+  ],
+  "orderedAssetIds": [
+    "NG-VM-018",
+    "NG-VM-010",
+    "NG-VM-019",
+    "NG-VM-020",
+    "NG-VM-011",
+    "NG-VM-012",
+    "NG-VM-013",
+    "NG-VM-014",
+    "NG-VM-015",
+    "NG-VM-016",
+    "NG-VM-017",
+    "NG-VM-021"
+  ],
+  "firmwareExceptions": [
+    {
+      "exceptionId": "NG-FW-20260802-KALI-UNSIGNED",
+      "assetId": "NG-VM-021",
+      "profileRef": "kali-gen2-unsigned",
+      "secureBootEnabled": false,
+      "reason": "official-kali-installer-kernel-is-not-secure-boot-signed"
+    }
+  ],
+  "requiredGates": [
+    "control-plane-negative-tests-passed",
+    "immutable-signed-release-installed",
+    "signed-host-authorization-verified",
+    "immutable-images-promoted",
+    "opaque-profiles-approved",
+    "retained-system-backups-verified",
+    "debian-canary-before-windows-canary",
+    "canaries-accepted-before-persistent-fleet",
+    "one-asset-per-fresh-plan",
+    "exact-plan-human-approval",
+    "quarantine-route-proven",
+    "signed-receipt-ready"
+  ]
+}

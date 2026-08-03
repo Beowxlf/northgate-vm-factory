@@ -2,17 +2,22 @@
   "$schema": "../schemas/profile-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "FirmwareCatalog",
-  "catalogVersion": "2026.07.31.1",
+  "catalogVersion": "2026.08.03.1",
   "profiles": [
     {
       "id": "windows-gen2",
       "serverPolicyId": "ng-firmware-windows-gen2-v1",
-      "approvalStatus": "proposed"
+      "approvalStatus": "approved"
     },
     {
       "id": "linux-gen2",
       "serverPolicyId": "ng-firmware-linux-gen2-v1",
-      "approvalStatus": "proposed"
+      "approvalStatus": "approved"
+    },
+    {
+      "id": "kali-gen2-unsigned",
+      "serverPolicyId": "ng-firmware-kali-gen2-unsigned-v1",
+      "approvalStatus": "approved"
     },
     {
       "id": "firewall-gen2",

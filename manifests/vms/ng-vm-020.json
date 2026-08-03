@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/vm-manifest.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "VirtualMachine",
+  "metadata": {
+    "assetId": "NG-VM-020",
+    "name": "NG-MAIL-INT01",
+    "ownerRef": "northgate-owner",
+    "purpose": "Internal SMTP submission, local delivery, mailbox, antispam, malware scanning, and security telemetry",
+    "environment": "infrastructure",
+    "criticality": "high",
+    "dataClassification": "confidential",
+    "lifecycle": "approved",
+    "reviewOrRetirementDate": "2027-08-02",
+    "changeRef": "NG-CHG-20260803-008",
+    "dependencies": ["NG-VM-019"]
+  },
+  "spec": {
+    "intent": "create",
+    "generation": 2,
+    "imageRef": "debian-12.12-amd64-netinst",
+    "firmwareProfileRef": "linux-gen2",
+    "compute": { "processors": 2, "memory": { "mode": "dynamic", "minimumMiB": 2048, "startupMiB": 4096, "maximumMiB": 8192 } },
+    "storage": { "profileRef": "persistent-mail-protected", "osDiskGiB": 80 },
+    "network": { "profileRef": "mail-internal" },
+    "bootstrapProfileRef": "debian12-mail-internal",
+    "recoveryProfileRef": "silver",
+    "desiredPowerState": "running",
+    "destroyProtection": true
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/vm-manifest.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "VirtualMachine",
+  "metadata": {
+    "assetId": "NG-VM-017",
+    "name": "NG-PLAT-APP01",
+    "ownerRef": "northgate-owner",
+    "purpose": "Commercial Sentinel Atlas platform on a dedicated Debian server",
+    "environment": "infrastructure",
+    "criticality": "high",
+    "dataClassification": "confidential",
+    "lifecycle": "approved",
+    "reviewOrRetirementDate": "2027-08-01",
+    "changeRef": "NG-CHG-20260803-008",
+    "dependencies": ["NG-VM-020"]
+  },
+  "spec": {
+    "intent": "create",
+    "generation": 2,
+    "imageRef": "debian-12.12-amd64-netinst",
+    "firmwareProfileRef": "linux-gen2",
+    "compute": { "processors": 4, "memory": { "mode": "dynamic", "minimumMiB": 4096, "startupMiB": 8192, "maximumMiB": 16384 } },
+    "storage": { "profileRef": "persistent-app-protected", "osDiskGiB": 120 },
+    "network": { "profileRef": "commercial-dmz" },
+    "bootstrapProfileRef": "debian12-sentinel-atlas",
+    "recoveryProfileRef": "aegis-app-protected",
+    "desiredPowerState": "running",
+    "destroyProtection": true
+  }
+}

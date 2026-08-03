@@ -2,9 +2,9 @@
   "$schema": "../schemas/resource-policy.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "ResourcePolicy",
-  "policyVersion": "2026.07.31.1",
-  "status": "proposed",
-  "applyEnabled": false,
+  "policyVersion": "2026.08.03.1",
+  "status": "approved",
+  "applyEnabled": true,
   "hostReserveMemoryMiB": 49152,
   "minimumVolumeFreeGiB": 100,
   "minimumVolumeFreePercent": 15,
@@ -22,7 +22,9 @@
     "ReplaceRequired",
     "DecommissionRequired"
   ],
-  "executableActions": [],
+  "executableActions": [
+    "Create"
+  ],
   "deniedOperations": [
     "implicit-delete",
     "automatic-replace",

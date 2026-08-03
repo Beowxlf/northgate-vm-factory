@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/vm-manifest.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "VirtualMachine",
+  "metadata": {
+    "assetId": "NG-VM-021",
+    "name": "NG-KALI-EXT01",
+    "ownerRef": "northgate-owner",
+    "purpose": "Simulated external client and adversary-validation workstation isolated from trusted networks",
+    "environment": "security",
+    "criticality": "low",
+    "dataClassification": "internal",
+    "lifecycle": "approved",
+    "reviewOrRetirementDate": "2027-08-02",
+    "changeRef": "NG-CHG-20260803-008",
+    "dependencies": ["NG-VM-019", "NG-VM-017"]
+  },
+  "spec": {
+    "intent": "create",
+    "generation": 2,
+    "imageRef": "kali-2026.2-installer-netinst-amd64",
+    "firmwareProfileRef": "kali-gen2-unsigned",
+    "compute": { "processors": 4, "memory": { "mode": "dynamic", "minimumMiB": 4096, "startupMiB": 4096, "maximumMiB": 12288 } },
+    "storage": { "profileRef": "persistent-tooling", "osDiskGiB": 100 },
+    "network": { "profileRef": "sim-wan" },
+    "bootstrapProfileRef": "kali-external-lab",
+    "recoveryProfileRef": "bronze",
+    "desiredPowerState": "running",
+    "destroyProtection": true
+  }
+}

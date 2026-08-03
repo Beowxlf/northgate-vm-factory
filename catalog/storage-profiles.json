@@ -2,40 +2,40 @@
   "$schema": "../schemas/storage-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "StorageCatalog",
-  "catalogVersion": "2026.08.02.1",
+  "catalogVersion": "2026.08.03.1",
   "profiles": [
     {
       "id": "lab-ephemeral",
       "serverPolicyId": "ng-storage-lab-ephemeral-v1",
-      "approvalStatus": "proposed",
+      "approvalStatus": "approved",
       "allowProvision": true,
       "criticalWorkloadsAllowed": false
     },
     {
       "id": "persistent-tooling",
       "serverPolicyId": "ng-storage-persistent-tooling-v1",
-      "approvalStatus": "proposed",
+      "approvalStatus": "approved",
       "allowProvision": true,
       "criticalWorkloadsAllowed": false
     },
     {
       "id": "persistent-app-protected",
       "serverPolicyId": "ng-storage-persistent-app-protected-v1",
-      "approvalStatus": "proposed",
+      "approvalStatus": "approved",
       "allowProvision": true,
       "criticalWorkloadsAllowed": true
     },
     {
       "id": "persistent-workstations",
       "serverPolicyId": "ng-storage-persistent-workstations-v1",
-      "approvalStatus": "proposed",
+      "approvalStatus": "approved",
       "allowProvision": true,
       "criticalWorkloadsAllowed": true
     },
     {
       "id": "persistent-mail-protected",
       "serverPolicyId": "ng-storage-persistent-mail-protected-v1",
-      "approvalStatus": "proposed",
+      "approvalStatus": "approved",
       "allowProvision": true,
       "criticalWorkloadsAllowed": true
     }

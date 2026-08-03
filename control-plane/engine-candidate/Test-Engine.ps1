@@ -253,8 +253,17 @@ try {
     }
 
     $resourcePolicy = ConvertFrom-TestJson -Value (Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'policy\resource-limits.json'))
-    Assert-Engine -Condition ($resourcePolicy.applyEnabled -eq $false -and @($resourcePolicy.executableActions).Count -eq 0) `
-        -Message 'Repository apply policy was enabled by the engine scaffold.'
+    $deploymentPromotionPath = Join-Path $repositoryRoot 'policy\deployment-promotion.json'
+    if (Test-Path -LiteralPath $deploymentPromotionPath -PathType Leaf) {
+        Assert-Engine -Condition ($resourcePolicy.applyEnabled -eq $true -and
+            (@($resourcePolicy.executableActions) -join '|') -ceq 'Create') `
+            -Message 'Create-only promotion did not remain bounded to the Create action.'
+    }
+    else {
+        Assert-Engine -Condition ($resourcePolicy.applyEnabled -eq $false -and
+            @($resourcePolicy.executableActions).Count -eq 0) `
+            -Message 'Repository apply policy was enabled without a deployment promotion.'
+    }
 
     $shortKeyRoot = Join-Path $testSessionRoot 'short-key'
     Assert-EngineThrows -Code 'NGVF-MAC-KEY-INVALID' -Action {

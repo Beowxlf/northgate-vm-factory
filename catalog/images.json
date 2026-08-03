@@ -2,7 +2,7 @@
   "$schema": "../schemas/image-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "ImageCatalog",
-  "catalogVersion": "2026.08.02.2",
+  "catalogVersion": "2026.08.03.1",
   "promotedOnly": true,
   "images": [
     {
@@ -16,8 +16,8 @@
         "linux-gen2"
       ],
       "sourceArtifactId": "debian-12.12.0-amd64-netinst-iso",
-      "approvalStatus": "proposed",
-      "retirementStatus": "proposed"
+      "approvalStatus": "promoted",
+      "retirementStatus": "active"
     },
     {
       "id": "windows-11-25h2-english-x64",
@@ -30,8 +30,8 @@
         "windows-gen2"
       ],
       "sourceArtifactId": "windows-11-25h2-english-x64-iso",
-      "approvalStatus": "proposed",
-      "retirementStatus": "proposed"
+      "approvalStatus": "promoted",
+      "retirementStatus": "active"
     },
     {
       "id": "kali-2026.2-installer-netinst-amd64",
@@ -41,12 +41,12 @@
       "architecture": "x86_64",
       "allowedGenerations": [2],
       "allowedFirmwareProfiles": [
-        "linux-gen2"
+        "kali-gen2-unsigned"
       ],
       "sourceArtifactId": "kali-linux-2026.2-installer-netinst-amd64-iso",
-      "approvalStatus": "proposed",
-      "retirementStatus": "proposed"
+      "approvalStatus": "promoted",
+      "retirementStatus": "active"
     }
   ],
-  "status": "inventory-required"
+  "status": "active"
 }
