@@ -161,6 +161,10 @@ try {
         'Deployment module contains no Hyper-V mutation primitive.'
     Assert-NgcdTest ($source -cnotmatch '(?m)\bRemove-Item\b|Invoke-Expression|ScriptBlock::Create') `
         'Deployment module contains no recursive deletion or dynamic evaluation primitive.'
+    Assert-NgcdTest ($source -match "FixedSshSourceCidr = '10\.10\.100\.20/32'" -and
+        $source -match 'addr=10\.10\.100\.20' -and
+        $source -cnotmatch "FixedSshSourceCidr = '10\.10\.100\.11/32'") `
+        'Forced-command SSH is source-restricted to the authorized management workstation.'
     Assert-NgcdTest ($source -match 'Set-NgcdProtectedDirectoryAcl \$stateRoot[^\r\n]*\$serviceRead' -and
         $source -match 'Set-NgcdProtectedDirectoryAcl \(Join-Path \$stateRoot ''deployment-transactions''\)[\s\S]{0,160}\$serviceRead') `
         'Runtime service has read-only deployment-state access.'

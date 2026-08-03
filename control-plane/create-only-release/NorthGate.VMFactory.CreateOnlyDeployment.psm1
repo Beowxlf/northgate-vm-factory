@@ -16,7 +16,7 @@ $script:ServiceAccount = 'NT SERVICE\NorthGateCreateOnly'
 $script:PipeName = 'NorthGate.VMFactory.CreateOnly.v1'
 $script:ManagedSshBegin = '# BEGIN NORTHGATE CREATE-ONLY MANAGED BLOCK'
 $script:ManagedSshEnd = '# END NORTHGATE CREATE-ONLY MANAGED BLOCK'
-$script:FixedSshSourceCidr = '10.10.100.11/32'
+$script:FixedSshSourceCidr = '10.10.100.20/32'
 $script:HeldDeploymentLocks = @{}
 
 function Stop-Ngcd {
@@ -1620,7 +1620,7 @@ function Test-NgcdSshConfiguration {
     if (-not (Test-Path -LiteralPath $sshd -PathType Leaf)) { Stop-Ngcd 'NGCOR-DEPLOYMENT-SSHD-UNAVAILABLE' }
     $null = @(& $sshd -t -f $ConfigurationPath 2>&1)
     if ($LASTEXITCODE -ne 0) { Stop-Ngcd 'NGCOR-DEPLOYMENT-SSH-SYNTAX-INVALID' }
-    $effective = @(& $sshd -T -f $ConfigurationPath -C ("user=$SshUserName,host=$env:COMPUTERNAME,addr=10.10.100.11") 2>&1)
+    $effective = @(& $sshd -T -f $ConfigurationPath -C ("user=$SshUserName,host=$env:COMPUTERNAME,addr=10.10.100.20") 2>&1)
     if ($LASTEXITCODE -ne 0) { Stop-Ngcd 'NGCOR-DEPLOYMENT-SSH-EFFECTIVE-CONFIG-INVALID' }
     $text = (@($effective | ForEach-Object { [string]$_ }) -join "`n").ToLowerInvariant()
     foreach ($required in @(
