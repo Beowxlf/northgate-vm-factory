@@ -92,7 +92,15 @@ trap cleanup EXIT INT TERM
 tree="$stage/tree"
 mkdir -p -- "$tree"
 
-xorriso -osirrox on -indev "$source_iso" -extract / "$tree" >/dev/null 2>&1 || fail NGBM-SOURCE-EXTRACT
+if [[ "$family" == windows ]]; then
+  command -v 7z >/dev/null || fail NGBM-TOOL-MISSING-7z
+  archive_listing="$stage/source-archive.slt"
+  7z l -slt "$source_iso" >"$archive_listing" || fail NGBM-WINDOWS-UDF-READ
+  grep -Fqx 'Type = Udf' "$archive_listing" || fail NGBM-WINDOWS-UDF-REQUIRED
+  7z x -y -bd -bso0 -bsp0 -o"$tree" "$source_iso" || fail NGBM-SOURCE-EXTRACT
+else
+  xorriso -osirrox on -indev "$source_iso" -extract / "$tree" >/dev/null 2>&1 || fail NGBM-SOURCE-EXTRACT
+fi
 chmod -R u+w -- "$tree"
 
 python3 - "$bundle/bundle-manifest.json" "$tree" <<'PY'
@@ -127,7 +135,7 @@ epoch_seconds=$(date -u -d "$build_epoch" '+%s') || fail NGBM-BUILD-EPOCH
 find "$tree" -print0 | xargs -0 touch --no-dereference --date="@$epoch_seconds"
 if [[ "$family" == windows ]]; then
   label='NGWINBOOT'
-  mkisofs_args=(-iso-level 3 -udf -J -joliet-long -relaxed-filenames -D -N -b boot/etfsboot.com -no-emul-boot -boot-load-size 8 -eltorito-alt-boot -e efi/microsoft/boot/efisys.bin -no-emul-boot -V "$label" -o "$temporary_output" "$tree")
+  mkisofs_args=(-iso-level 3 -udf -allow-limited-size -J -joliet-long -relaxed-filenames -D -N -b boot/etfsboot.com -no-emul-boot -boot-load-size 8 -eltorito-alt-boot -e efi/microsoft/boot/efisys.bin -no-emul-boot -V "$label" -o "$temporary_output" "$tree")
 else
   [[ -f "$tree/isolinux/isolinux.bin" ]] || fail NGBM-LINUX-BIOS-BOOT-IMAGE
   label=$([[ "$family" == kali ]] && printf NGKALIBOOT || printf NGDEBBOOT)

@@ -393,11 +393,14 @@ if ($authorization.host.computerName -cne $env:COMPUTERNAME -or
     Stop-Ngci 'NGCOR-INSTALL-HOST-IDENTITY-MISMATCH'
 }
 try {
-    $hostSystem = @(Get-CimInstance -Namespace 'root\virtualization\v2' -ClassName Msvm_ComputerSystem `
-        -ErrorAction Stop | Where-Object { $_.ElementName -ceq $env:COMPUTERNAME })
+    $hostSystem = @(Get-CimInstance -ClassName Win32_ComputerSystemProduct -ErrorAction Stop)
 }
 catch { Stop-Ngci 'NGCOR-INSTALL-HYPERV-HOST-IDENTITY-UNVERIFIABLE' }
-if ($hostSystem.Count -ne 1 -or ([string]$hostSystem[0].Name).ToLowerInvariant() -cne
+if ($hostSystem.Count -ne 1 -or [string]$hostSystem[0].UUID -cnotmatch
+    '^[A-Fa-f0-9]{8}(?:-[A-Fa-f0-9]{4}){3}-[A-Fa-f0-9]{12}$' -or
+    [string]$hostSystem[0].UUID -in @(
+        '00000000-0000-0000-0000-000000000000','FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF'
+    ) -or ([string]$hostSystem[0].UUID).ToLowerInvariant() -cne
     ([string]$authorization.host.hyperVHostId).ToLowerInvariant()) {
     Stop-Ngci 'NGCOR-INSTALL-HYPERV-HOST-IDENTITY-MISMATCH'
 }

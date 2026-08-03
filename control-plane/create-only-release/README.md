@@ -120,6 +120,16 @@ explicitly bound to one authorized source image by the signed authorization and 
 Only the derivative ISO is attached, as the VM's single DVD; neither its path nor a
 source-image path is accepted from a VM manifest or caller.
 
+The `hyperVHostId` binding is the normalized lowercase SMBIOS UUID returned by
+`Win32_ComputerSystemProduct.UUID`. Windows Server 2022 `Get-VMHost` does not expose an
+`Id` property, and the hosting `Msvm_ComputerSystem.Name` is only the computer name;
+neither is accepted as the stable host GUID.
+
+VM network-adapter bindings use the bare GUID returned by
+`VMNetworkAdapter.AdapterId`. The `Id` property is a composite provider resource path
+(`Microsoft:<VM GUID>\<adapter GUID>`) and is never accepted where the authorization
+schema requires an adapter GUID.
+
 `Test-NorthGateCreateOnlyHostAuthorization.ps1` performs strict canonical-JSON and
 semantic validation against the pinned package tuple. Its result explicitly says that
 the detached signature has **not** been verified and remains `installable=false`. The

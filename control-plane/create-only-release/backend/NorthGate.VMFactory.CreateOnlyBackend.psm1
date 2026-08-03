@@ -1364,7 +1364,7 @@ function Get-NgcbSwitchFingerprint {
 function Get-NgcbTrunkFingerprint {
     param([object]$Adapter, [object]$Vlan, [string]$VmId, [string]$SwitchId)
     $record = [pscustomobject][ordered]@{
-        adapterId = ([string]$Adapter.Id).ToLowerInvariant()
+        adapterId = ([string]$Adapter.AdapterId).ToLowerInvariant()
         vmId = $VmId.ToLowerInvariant()
         switchId = $SwitchId.ToLowerInvariant()
         operationMode = ([string]$Vlan.OperationMode).ToLowerInvariant()
@@ -1377,7 +1377,7 @@ function Get-NgcbTrunkFingerprint {
 function Get-NgcbProductionSnapshot {
     param([object]$Context, [object]$Resolved)
     foreach ($commandName in @(
-        'Hyper-V\Get-VM','Hyper-V\Get-VMHost','Hyper-V\Get-VMSwitch','Hyper-V\Get-VMHardDiskDrive',
+        'Hyper-V\Get-VM','Hyper-V\Get-VMSwitch','Hyper-V\Get-VMHardDiskDrive',
         'Hyper-V\Get-VMNetworkAdapter','Hyper-V\Get-VMNetworkAdapterVlan','Hyper-V\Get-VMMemory',
         'Hyper-V\Get-VMProcessor','Hyper-V\Get-VHD'
     )) { $null = Get-Command $commandName -ErrorAction Stop }
@@ -1386,9 +1386,14 @@ function Get-NgcbProductionSnapshot {
         $machineGuid = [string](Get-ItemPropertyValue `
             -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Cryptography' -Name MachineGuid -ErrorAction Stop)
         $machineGuidHash = Get-NgcbStringSha256Hex $machineGuid.ToLowerInvariant()
-        $vmHost = Hyper-V\Get-VMHost -ErrorAction Stop
+        $hostProducts = @(Get-CimInstance -ClassName Win32_ComputerSystemProduct -ErrorAction Stop)
+        if ($hostProducts.Count -ne 1 -or [string]$hostProducts[0].UUID -cnotmatch
+            '^[A-Fa-f0-9]{8}(?:-[A-Fa-f0-9]{4}){3}-[A-Fa-f0-9]{12}$' -or
+            [string]$hostProducts[0].UUID -in @(
+                '00000000-0000-0000-0000-000000000000','FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF'
+            )) { Throw-NgcbError 'NGCB-HOST-IDENTITY-READ-FAILED' }
         $computerSystem = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
-        $hostId = ([string]$vmHost.Id).ToLowerInvariant()
+        $hostId = ([string]$hostProducts[0].UUID).ToLowerInvariant()
         $os = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction Stop
         $osBuild = [string]$os.CurrentBuildNumber + '.' + [string]$os.UBR
     }
@@ -1423,7 +1428,7 @@ function Get-NgcbProductionSnapshot {
         foreach ($adapter in @(Hyper-V\Get-VMNetworkAdapter -VM $vm -ErrorAction Stop)) {
             $adapterRecords += [pscustomobject][ordered]@{
                 vmId = ([string]$vm.Id).ToLowerInvariant()
-                adapterId = ([string]$adapter.Id).ToLowerInvariant()
+                adapterId = ([string]$adapter.AdapterId).ToLowerInvariant()
                 macAddress = ([string]$adapter.MacAddress).ToUpperInvariant()
                 dynamicMacAddressEnabled = [bool]$adapter.DynamicMacAddressEnabled
                 switchId = ([string]$adapter.SwitchId).ToLowerInvariant()
@@ -1455,7 +1460,7 @@ function Get-NgcbProductionSnapshot {
             $actualDiskIds += ([string](Hyper-V\Get-VHD -Path $drive.Path -ErrorAction Stop).DiskIdentifier).ToLowerInvariant()
         }
         $actualAdapterIds = @(Hyper-V\Get-VMNetworkAdapter -VM $vm -ErrorAction Stop |
-            ForEach-Object { ([string]$_.Id).ToLowerInvariant() })
+            ForEach-Object { ([string]$_.AdapterId).ToLowerInvariant() })
         if ((@($actualDiskIds | Sort-Object) -join '|') -cne
                 (@($protected.diskUniqueIds | ForEach-Object { ([string]$_).ToLowerInvariant() } | Sort-Object) -join '|') -or
             (@($actualAdapterIds | Sort-Object) -join '|') -cne
@@ -1480,7 +1485,7 @@ function Get-NgcbProductionSnapshot {
     }
     $opnsense = @($allVms | Where-Object { $_.Name -ceq 'OPNsense-Tooling' })[0]
     $trunkAdapters = @(Hyper-V\Get-VMNetworkAdapter -VM $opnsense -ErrorAction Stop | Where-Object {
-        ([string]$_.Id).ToLowerInvariant() -ceq ([string]$authorization.switch.trunkAdapterId).ToLowerInvariant()
+        ([string]$_.AdapterId).ToLowerInvariant() -ceq ([string]$authorization.switch.trunkAdapterId).ToLowerInvariant()
     })
     if ($trunkAdapters.Count -ne 1 -or ([string]$trunkAdapters[0].SwitchId).ToLowerInvariant() -cne
         ([string]$authorization.switch.id).ToLowerInvariant()) { Throw-NgcbError 'NGCB-TRUNK-IDENTITY-MISMATCH' }
@@ -1576,7 +1581,7 @@ function Get-NgcbProductionSnapshot {
         switch = [pscustomobject][ordered]@{
             id = ([string]$switch.Id).ToLowerInvariant()
             fingerprint = $switchFingerprint
-            trunkAdapterId = ([string]$trunkAdapters[0].Id).ToLowerInvariant()
+            trunkAdapterId = ([string]$trunkAdapters[0].AdapterId).ToLowerInvariant()
             trunkAdapterFingerprint = $trunkFingerprint
         }
         volumes = @($volumeRecords)
@@ -2246,10 +2251,10 @@ function Get-NgcbRolloutIdentitySnapshot {
             state = [string]$vm.State
             notes = [string]$vm.Notes
         }
-        foreach ($adapter in @(Hyper-V\Get-VMNetworkAdapter -VM $vm -ErrorAction Stop | Sort-Object Id)) {
+        foreach ($adapter in @(Hyper-V\Get-VMNetworkAdapter -VM $vm -ErrorAction Stop | Sort-Object AdapterId)) {
             $adapters += [pscustomobject][ordered]@{
                 vmId = $vmId
-                adapterId = ([string]$adapter.Id).ToLowerInvariant()
+                adapterId = ([string]$adapter.AdapterId).ToLowerInvariant()
                 switchId = if ([string]$adapter.SwitchId -eq '') { '' } `
                     else { ([string]$adapter.SwitchId).ToLowerInvariant() }
             }
@@ -2990,7 +2995,7 @@ function Assert-NgcbProductionVmReadback {
         installationMediaPaths = @($actualDvdPaths)
         switchId = $adapters[0].SwitchId.ToString().ToLowerInvariant(); vlanId = [int]$vlan.AccessVlanId
         adapterPolicyId = [string]$operation.adapterPolicyId
-        adapterId = ([string]$adapters[0].Id).ToLowerInvariant()
+        adapterId = ([string]$adapters[0].AdapterId).ToLowerInvariant()
         staticMacAddress = ([string]$adapters[0].MacAddress).ToUpperInvariant()
         dynamicMacAddressEnabled = [bool]$adapters[0].DynamicMacAddressEnabled
         secureBootEnabled = $secureBootObserved
@@ -3106,7 +3111,7 @@ function Invoke-NgcbProductionCreate {
             [string]$operation.staticMacAddress -or [bool]$adapters[0].DynamicMacAddressEnabled) {
             Throw-NgcbError 'NGCB-VM-ADAPTER-IDENTITY-DRIFT'
         }
-        $adapterId = ([string]$adapters[0].Id).ToLowerInvariant()
+        $adapterId = ([string]$adapters[0].AdapterId).ToLowerInvariant()
         $null = Write-NgcbJournalEvent $Context $operation.assetId $Plan.reservationId $Plan.planId `
             'AdapterIdentityBound' $vmId 'NGCB-STATIC-MAC-AND-ADAPTER-BOUND' $adapterId $operation.staticMacAddress
         Hyper-V\Connect-VMNetworkAdapter -VMNetworkAdapter $adapters[0] `

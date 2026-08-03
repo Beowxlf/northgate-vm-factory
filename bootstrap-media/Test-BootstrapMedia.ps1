@@ -53,6 +53,9 @@ try {
     Assert-True ($kaliImage.sha256 -ceq 'd32f929dacc48134a31461a09f2160d13ad1d26b820cee920446813ca979b39b' -and [long]$kaliImage.sizeBytes -eq 779091968) 'Kali source identity'
     Assert-True ($debianImage.secureBoot -eq $true -and $windowsImage.secureBoot -eq $true -and $kaliImage.secureBoot -eq $false) 'family-specific Secure Boot policy'
     Assert-True ($kaliImage.firmwareProfile -ceq 'kali-gen2-unsigned' -and $kaliImage.secureBootExceptionId -ceq 'NG-FW-20260802-KALI-UNSIGNED') 'Kali exception binding'
+    $linuxExtractedEfiPath = '/EFI/boot/bootx64.efi'
+    Assert-True (@($debianImage.requiredIsoPaths) -ccontains $linuxExtractedEfiPath -and @($kaliImage.requiredIsoPaths) -ccontains $linuxExtractedEfiPath) 'Linux source paths use the exact case emitted by xorriso Rock Ridge extraction'
+    Assert-True (@($debianImage.requiredIsoPaths) -cnotcontains '/EFI/BOOT/BOOTX64.EFI' -and @($kaliImage.requiredIsoPaths) -cnotcontains '/EFI/BOOT/BOOTX64.EFI') 'Linux source paths reject the case-only ISO9660 alias that is absent from the extracted tree'
 
     $fleet = Get-NorthGateBootstrapFleetMap
     Assert-True (@($fleet.assets).Count -eq 12) 'twelve exact fleet mappings'
@@ -145,6 +148,8 @@ try {
 
     $builder = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'bluebench\build-bootstrap-iso.sh'))
     Assert-True ($builder -match 'NGBM-SOURCE-HASH-MISMATCH' -and $builder -match 'NGBM-SOURCE-SIZE-MISMATCH' -and $builder -match 'NGBM-SOURCE-MUTATED') 'BlueBench builder verifies and preserves source artifact'
+    Assert-True ($builder -match 'grep -Fqx ''Type = Udf'' "\$archive_listing"' -and $builder -match '7z x .*NGBM-SOURCE-EXTRACT' -and $builder -match 'xorriso -osirrox on.*NGBM-SOURCE-EXTRACT') 'BlueBench builder selects validated UDF extraction for Windows and Rock Ridge extraction for Linux'
+    Assert-True ($builder -match 'mkisofs_args=\(-iso-level 3 -udf -allow-limited-size') 'Windows UDF output explicitly supports the pinned install.wim larger than four GiB'
     Assert-True ($builder -match 'wimlib-imagex info.* 6' -and $builder -match 'Windows 11 Pro' -and $builder -match 'NGBM-WINDOWS-ARCH-MISMATCH') 'BlueBench builder verifies Windows edition and architecture'
     Assert-True ($builder -match 'report_el_torito plain' -and $builder -match 'NGBM-OUTPUT-NO-UEFI-BOOT') 'BlueBench builder validates UEFI El Torito boot entry'
 

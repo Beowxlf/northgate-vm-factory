@@ -1,6 +1,6 @@
 {
   "$schema": "northgate/bootstrap-source-catalog/v1",
-  "catalogVersion": "2026.08.02.1",
+  "catalogVersion": "2026.08.02.2",
   "status": "proposed-unpromoted",
   "images": [
     {
@@ -20,7 +20,7 @@
         "/install.amd/vmlinuz",
         "/install.amd/initrd.gz",
         "/boot/grub/efi.img",
-        "/EFI/BOOT/BOOTX64.EFI"
+        "/EFI/boot/bootx64.efi"
       ]
     },
     {
@@ -66,7 +66,7 @@
         "/install.amd/vmlinuz",
         "/install.amd/initrd.gz",
         "/boot/grub/efi.img",
-        "/EFI/BOOT/BOOTX64.EFI"
+        "/EFI/boot/bootx64.efi"
       ]
     }
   ]
