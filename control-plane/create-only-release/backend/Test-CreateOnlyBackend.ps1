@@ -105,6 +105,7 @@ try {
         '(?i)\bMount-VHD\b','(?i)\bInvoke-Expression\b','(?i)\bStart-Process\b'
     )) { Assert-NgcbTest ($source -notmatch $forbidden) "Privileged source excludes $forbidden." }
     Assert-NgcbTest ($source -match 'Win32_ComputerSystemProduct' -and $source -match '\$hostProducts\[0\]\.UUID' -and $source -notmatch '\$vmHost\.Id') 'Production snapshot binds the supported host to its SMBIOS UUID without assuming a Get-VMHost Id property.'
+    Assert-NgcbTest ($source -match '\$Adapter\.AdapterId' -and $source -match '\$adapter\.AdapterId' -and $source -match '\$adapters\[0\]\.AdapterId' -and $source -notmatch '\$(?:Adapter|adapter)\.Id' -and $source -notmatch '\$adapters\[0\]\.Id') 'Production snapshots, trunk fingerprints, journals, and readback use the bare Hyper-V AdapterId GUID rather than the composite resource Id.'
 
     $approvalPin = Get-NgcbTestCertificateHash $approvalMaterial.Certificate
     $receiptPin = Get-NgcbTestCertificateHash $receiptMaterial.Certificate
