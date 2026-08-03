@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/vm-manifest.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "VirtualMachine",
+  "metadata": {
+    "assetId": "NG-VM-012",
+    "name": "NG-WRK-02",
+    "ownerRef": "northgate-owner",
+    "purpose": "Ordinary worker workstation",
+    "environment": "infrastructure",
+    "criticality": "moderate",
+    "dataClassification": "internal",
+    "lifecycle": "approved",
+    "reviewOrRetirementDate": "2027-08-02",
+    "changeRef": "NG-CHG-20260803-008",
+    "dependencies": []
+  },
+  "spec": {
+    "intent": "create",
+    "generation": 2,
+    "imageRef": "windows-11-25h2-english-x64",
+    "firmwareProfileRef": "windows-gen2",
+    "compute": { "processors": 2, "memory": { "mode": "dynamic", "minimumMiB": 4096, "startupMiB": 4096, "maximumMiB": 6144 } },
+    "storage": { "profileRef": "persistent-workstations", "osDiskGiB": 80 },
+    "network": { "profileRef": "users-workstations" },
+    "bootstrapProfileRef": "windows11-worker",
+    "recoveryProfileRef": "bronze",
+    "desiredPowerState": "running",
+    "destroyProtection": true
+  }
+}

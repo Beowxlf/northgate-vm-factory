@@ -826,10 +826,10 @@ if ($duplicateImages.Count) {
 Assert-ImageCatalogSafety -Catalog $imageCatalog
 
 Assert-MutationRejected -Name 'proposed image active state' -Baseline $imageCatalog `
-    -Mutate { param($catalog) $catalog.images[0].retirementStatus = 'active' } `
+    -Mutate { param($catalog) $catalog.images[0].approvalStatus = 'proposed'; $catalog.images[0].retirementStatus = 'active' } `
     -Assert { param($catalog) Assert-ImageCatalogSafety -Catalog $catalog }
 Assert-MutationRejected -Name 'image promotion while catalog is inventory-required' -Baseline $imageCatalog `
-    -Mutate { param($catalog) $catalog.images[0].approvalStatus = 'promoted'; $catalog.images[0].retirementStatus = 'active' } `
+    -Mutate { param($catalog) $catalog.status = 'inventory-required' } `
     -Assert { param($catalog) Assert-ImageCatalogSafety -Catalog $catalog }
 
 foreach ($network in $networkCatalog.profiles) {
@@ -1186,14 +1186,14 @@ foreach ($manifestFile in $manifestFiles) {
         throw "Dynamic memory must satisfy minimumMiB <= startupMiB <= maximumMiB in $($manifestFile.FullName)"
     }
 
-    $owner = Get-CatalogProfile -Catalog $ownerCatalog -Id $manifest.metadata.ownerRef
-    $storage = Get-CatalogProfile -Catalog $storageCatalog -Id $manifest.spec.storage.profileRef
-    $network = Get-CatalogProfile -Catalog $networkCatalog -Id $manifest.spec.network.profileRef
-    $bootstrap = Get-CatalogProfile -Catalog $bootstrapCatalog -Id $manifest.spec.bootstrapProfileRef
-    $recovery = Get-CatalogProfile -Catalog $recoveryCatalog -Id $manifest.spec.recoveryProfileRef
-    $firmware = Get-CatalogProfile -Catalog $firmwareCatalog -Id $manifest.spec.firmwareProfileRef
+    $owner = @(Get-CatalogProfile -Catalog $ownerCatalog -Id $manifest.metadata.ownerRef)
+    $storage = @(Get-CatalogProfile -Catalog $storageCatalog -Id $manifest.spec.storage.profileRef)
+    $network = @(Get-CatalogProfile -Catalog $networkCatalog -Id $manifest.spec.network.profileRef)
+    $bootstrap = @(Get-CatalogProfile -Catalog $bootstrapCatalog -Id $manifest.spec.bootstrapProfileRef)
+    $recovery = @(Get-CatalogProfile -Catalog $recoveryCatalog -Id $manifest.spec.recoveryProfileRef)
+    $firmware = @(Get-CatalogProfile -Catalog $firmwareCatalog -Id $manifest.spec.firmwareProfileRef)
     if ($owner.Count -ne 1 -or $storage.Count -ne 1 -or $network.Count -ne 1 -or $bootstrap.Count -ne 1 -or $recovery.Count -ne 1 -or $firmware.Count -ne 1) {
-        throw "Every manifest reference must resolve exactly once to an approved profile in $($manifestFile.FullName)"
+        throw "Every manifest reference must resolve exactly once to an approved profile in $($manifestFile.FullName). owner=$($owner.Count) storage=$($storage.Count) network=$($network.Count) bootstrap=$($bootstrap.Count) recovery=$($recovery.Count) firmware=$($firmware.Count)"
     }
     if ($network[0].allowAttach -ne $true -or $network[0].allowCreate -ne $false -or $network[0].allowRebind -ne $false) {
         throw "Network profile cannot be used safely in $($manifestFile.FullName)"

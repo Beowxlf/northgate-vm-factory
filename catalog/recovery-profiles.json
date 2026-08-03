@@ -2,22 +2,22 @@
   "$schema": "../schemas/profile-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "RecoveryCatalog",
-  "catalogVersion": "2026.08.01.1",
+  "catalogVersion": "2026.08.03.1",
   "profiles": [
     {
       "id": "none-canary",
       "serverPolicyId": "ng-recovery-none-canary-v1",
-      "approvalStatus": "proposed"
+      "approvalStatus": "approved"
     },
     {
       "id": "bronze",
       "serverPolicyId": "ng-recovery-bronze-v1",
-      "approvalStatus": "proposed"
+      "approvalStatus": "approved"
     },
     {
       "id": "silver",
       "serverPolicyId": "ng-recovery-silver-v1",
-      "approvalStatus": "proposed"
+      "approvalStatus": "approved"
     },
     {
       "id": "gold",
@@ -27,7 +27,7 @@
     {
       "id": "aegis-app-protected",
       "serverPolicyId": "ng-recovery-aegis-app-protected-v1",
-      "approvalStatus": "proposed"
+      "approvalStatus": "approved"
     }
   ]
 }

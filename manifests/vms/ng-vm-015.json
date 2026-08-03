@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/vm-manifest.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "VirtualMachine",
+  "metadata": {
+    "assetId": "NG-VM-015",
+    "name": "NG-CYBER-01",
+    "ownerRef": "northgate-owner",
+    "purpose": "Blue-team analysis, security operations, and detection-engineering workstation",
+    "environment": "security",
+    "criticality": "high",
+    "dataClassification": "restricted",
+    "lifecycle": "approved",
+    "reviewOrRetirementDate": "2027-08-02",
+    "changeRef": "NG-CHG-20260803-008",
+    "dependencies": []
+  },
+  "spec": {
+    "intent": "create",
+    "generation": 2,
+    "imageRef": "windows-11-25h2-english-x64",
+    "firmwareProfileRef": "windows-gen2",
+    "compute": { "processors": 4, "memory": { "mode": "dynamic", "minimumMiB": 4096, "startupMiB": 8192, "maximumMiB": 12288 } },
+    "storage": { "profileRef": "persistent-workstations", "osDiskGiB": 120 },
+    "network": { "profileRef": "cyber-workstations" },
+    "bootstrapProfileRef": "windows11-cyber",
+    "recoveryProfileRef": "silver",
+    "desiredPowerState": "running",
+    "destroyProtection": true
+  }
+}
