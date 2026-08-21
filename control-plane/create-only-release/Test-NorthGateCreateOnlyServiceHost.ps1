@@ -70,6 +70,10 @@ try {
         $serviceScript -match "status = 'installed-disabled'" -and
         $serviceScript -match 'applyEnabled = \$false') `
         'A running diagnostic service exposes disabled status but rejects every non-status operation.'
+    Assert-NgchTest ($serviceScript -match `
+        '\$expectedStartMode = if \(\[bool\]\$policy\.applyEnabled\) \{ ''Auto'' \} else \{ ''Manual'' \}' -and
+        $serviceScript -match '\$service\.StartMode -cne \$expectedStartMode') `
+        'Disabled diagnostic execution requires an explicit temporary Manual service posture.'
 
     $null = [System.IO.Directory]::CreateDirectory($testRoot)
     $firstRoot = Join-Path $testRoot 'first'
