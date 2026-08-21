@@ -2,7 +2,7 @@
 
 Private, Git-backed desired-state and governance repository for the NorthGate Windows Server 2022 Hyper-V lab.
 
-> **Safety status: plan-only.** This repository does not authorize VM creation or modification. Apply stays disabled until control-plane hardening, a read-only planner, and canary acceptance are independently verified.
+> **Safety status: approved source, host activation blocked.** This repository contains an approved create-only source policy and exact fleet promotion, including source `applyEnabled: true`. Those values support release construction and review; they are not proof of installed host policy and do not authorize VM creation or modification. Apply remains blocked until the matching signed release, constrained identity, ledger/registry, host lock, exact plan approval, and live collision checks are installed and verified.
 
 ## Architecture map
 
@@ -43,7 +43,7 @@ flowchart LR
         HyperV["Native Hyper-V PowerShell"]
         VMs["Managed Generation 2 VMs"]
         Audit["Protected audit log"]
-        Legacy["Legacy MCP 1.8.0<br/>Administrator break-glass only"]
+        Legacy["Existing NorthGateMCP<br/>separate operational / transition plane"]
         Forced --> PlanRegistry --> Provisioner --> HyperV --> VMs
         ApprovalWriter --> PlanRegistry
         PlanRegistry --> Audit
@@ -71,6 +71,7 @@ The canonical explanation of trust boundaries, authorization, data flow, and fai
 ## Core rules
 
 - Git stores reviewed intent; Git never provisions Hyper-V by itself.
+- Source `applyEnabled` is not installed apply authority. Repository validation proves source consistency; only host readback can prove active policy and runtime state.
 - A deployment plan is produced after merge and binds the immutable repository identity, merged commit and tree, canonical manifest, normalized live state, policy, image, and installed executor versions.
 - The host independently validates the canonical plan, registers it, and returns an expiring plan ID with an authenticated hash. Apply submits that plan ID only.
 - Codex may author, validate, plan, and invoke an approved apply. It is not an independent approver.
@@ -87,7 +88,7 @@ catalog/                    Approved opaque references; host mapping remains aut
 control-plane/              Disabled interface, engine, adapter, promotion, and create-only operator candidates
 docs/                       Architecture, governance, acceptance tests, and decision records
 manifests/vms/              Managed VM desired state; intentionally empty initially
-policy/                     Proposed plan-only resource and canary-stage policy
+policy/                     Approved source policy/promotion plus non-operative canary-stage proposal
 proposals/                  Strict non-deployable workload design records; never host-issued plans
 schemas/                    Strict JSON Schema 2020-12 contracts
 scripts/                    Unprivileged repository validation only
@@ -106,16 +107,18 @@ PowerShell 7 also performs JSON Schema validation. Windows PowerShell 5.1 perfor
 
 ## Rollout state
 
-1. **Current:** private repository bootstrap and plan-only controls.
-2. **Next:** harden the management boundary, establish a dedicated forced-command application identity, reconcile releases, and build normalized read-only planning. The [disabled control-plane candidate](control-plane/candidate/README.md) freezes the four-operation routine interface, while the separate [simulation-only engine scaffold](control-plane/engine-candidate/README.md) exercises authentication, canonical plans, registry, approval, ledger, locking, audit, receipt, and quarantine behavior against a fixed inert mock. The [Phase 3 host-adapter and immutable-promotion design](control-plane/phase3-host-adapter/README.md) defines the smallest install-only successor, and the [fixed-fleet create-only operator candidate](control-plane/create-only-operator/README.md) freezes the exact 12-asset boundary and private-repository promotion compensating control. None is an installed release. The separately reviewed but non-operative [disposable canary execution-stage proposal](docs/canary-execution-stage.md) defines a path through the bootstrap deadlock without relaxing normal workload policy.
-3. **Then:** activate that canary-only path through a different reviewed control-plane change and prove one disposable canary with stale-plan, capacity, collision, concurrency, secret, path, identity, and rollback tests.
-4. **Later:** promote image construction, guest bootstrap, drift reporting, and narrowly scoped low-risk automation.
+1. **Current:** reviewed create-only source, exact fleet promotion, and strict manifests are present. This repository state is non-operative by itself. Operation-SeeSaw holds the current installed-state evidence; the create-only release must be treated as absent unless a matching active-release record, service/task, protected state root, ledger, constrained identity, and receipt chain are verified on the host.
+2. **Existing operational plane:** NorthGateMCP is a separate broad management component used during transition and break-glass operations. Its deployment does not activate this repository's create-only policy, and this repository does not silently replace or disable it.
+3. **Next:** build a new signed package from the exact corrected merged commit, install it disabled, establish the dedicated forced-command identity and protected ledger/registry, run isolation and negative tests, then activate only the disposable canary stage through a separate approved host record. The [disabled control-plane candidate](control-plane/candidate/README.md), [simulation-only engine scaffold](control-plane/engine-candidate/README.md), [Phase 3 host-adapter design](control-plane/phase3-host-adapter/README.md), and [fixed-fleet create-only operator](control-plane/create-only-operator/README.md) remain source/release units, not evidence of installation.
+4. **Later:** after canary acceptance, promote image construction, guest bootstrap, drift reporting, and narrowly scoped low-risk automation.
 
 See [the acceptance gates](docs/acceptance-tests.md), [the manifest contract](docs/manifest-contract.md), and [ADR-0001](docs/decision-records/ADR-0001-gitops-lite.md). Live assessment evidence and environment-specific mappings remain off Git in Operation-SeeSaw.
 
 [ADR-0005](docs/decision-records/ADR-0005-create-only-forced-command-release.md) selects the dedicated forced-command application identity for create-only release engineering. It also records the exact commit/tree plus signed-release allowlist that compensates for unavailable private-repository branch protection without making the repository public. The [activation runbook](docs/create-only-activation-runbook.md) separates source review, immutable packaging, disabled installation, isolation testing, canary policy, and exact plan approval. Neither document is itself a live activation or VM deployment approval.
 
 [ADR-0007](docs/decision-records/ADR-0007-canonical-live-vault-asset-identities.md) records the 2026-08-20 owner decision that Operation-SeeSaw and verified live identities remain authoritative for six conflicting asset mappings. The correction invalidates every earlier package or plan whose fleet map used the superseded pairings. Same-name live VMs remain hard collisions and are not adopted by this repository change.
+
+[ADR-0008](docs/decision-records/ADR-0008-source-policy-and-installed-runtime-authority.md) separates repository source approval, installed create-only authority, and the existing NorthGateMCP operational plane. It resolves the former plan-only versus `applyEnabled: true` wording conflict without treating Git as an executor.
 
 Proposed workload designs remain non-operative until their stated control-plane and VM Factory gates pass. The distinct internal and simulated-external SMTP services and Kali design are recorded in [ADR-0002](docs/decision-records/ADR-0002-segmented-mail-and-external-simulation.md), with an operator handoff in the [mail lab deployment plan](docs/mail-lab-deployment-plan.md). The five-role Windows fleet, target VLAN architecture, and phased implementation decision are in [ADR-0003](docs/decision-records/ADR-0003-segmented-windows-workstation-fleet.md), with an operator handoff in the [Windows workstation deployment plan](docs/windows-workstation-deployment-plan.md). The independent Debian Employee Hub and Sentinel Atlas service-hosting decision is in [ADR-0004](docs/decision-records/ADR-0004-aegis-debian-application-services.md), with its gate and canary handoff in the [Aegis application deployment plan](docs/aegis-application-deployment-plan.md). Their selected but non-deployable catalog bundle and workload envelopes are in the strict [Aegis provisioning proposal](proposals/aegis-debian-workloads.proposed.json); it is not a standard VM manifest or host-issued plan. Proposed fixed address intent is in the [IPAM plan](docs/ipam-plan.md). Retained and future endpoint, firewall, workstation, mail, and red-team visibility follows the plan-only [Wazuh sensor and detection-engineering standard](docs/wazuh-sensor-and-detection-standard.md).
 

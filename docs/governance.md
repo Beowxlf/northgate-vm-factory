@@ -16,6 +16,8 @@
 
 Repository merge approves intent, not deployment. The final plan is generated after merge from the exact approved repository identity, commit, and tree. A separate approval must name the host-issued plan ID and authenticated plan-hash prefix.
 
+Source policy approval and installed runtime authorization are different decisions. An approved source file may carry `applyEnabled: true` so an immutable release can be built and tested; it has no effect until that exact signed release and policy are installed, read back, activated through a separate host change, and bound to the constrained identity and plan chain. Existing NorthGateMCP deployment is governed separately and does not satisfy the create-only installation gate.
+
 The approver reviews:
 
 - repository identity, protected-branch reachability, exact merged commit/tree, and manifest hash;
