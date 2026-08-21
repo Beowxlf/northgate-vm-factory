@@ -57,7 +57,11 @@ function Read-NgciExclusiveBytes {
     )
     try {
         $memory = New-Object System.IO.MemoryStream
-        try { $stream.CopyTo($memory); $memory.ToArray() }
+        try {
+            $stream.CopyTo($memory)
+            $bytes = $memory.ToArray()
+            return ,$bytes
+        }
         finally { $memory.Dispose() }
     }
     finally { $stream.Dispose() }
