@@ -70,10 +70,15 @@ try {
         $serviceScript -match "status = 'installed-disabled'" -and
         $serviceScript -match 'applyEnabled = \$false') `
         'A running diagnostic service exposes disabled status but rejects every non-status operation.'
-    Assert-NgchTest ($serviceScript -match `
-        '\$expectedStartMode = if \(\[bool\]\$policy\.applyEnabled\) \{ ''Auto'' \} else \{ ''Manual'' \}' -and
-        $serviceScript -match '\$service\.StartMode -cne \$expectedStartMode') `
-        'Disabled diagnostic execution requires an explicit temporary Manual service posture.'
+    Assert-NgchTest ($serviceScript -notmatch 'Get-CimInstance -ClassName Win32_Service' -and
+        $serviceScript -match '\$expectedStartType = if \(\[bool\]\$policy\.applyEnabled\) \{ ''Automatic'' \} else \{ ''Manual'' \}' -and
+        $serviceScript -match '\[System\.Diagnostics\.Process\]::GetCurrentProcess\(\)\.MainModule\.FileName' -and
+        $serviceScript -match '\$service\.StartType -cne \$expectedStartType') `
+        'Least-privilege service startup verifies its current host path and explicit Manual diagnostic posture without WMI.'
+    Assert-NgchTest ($serviceScript -match '\$backendContext = \$null\s+if \(\[bool\]\$policy\.applyEnabled\)' -and
+        $serviceScript.IndexOf('if ([bool]$policy.applyEnabled)') -lt
+        $serviceScript.IndexOf('$backendContext = New-NorthGateCreateOnlyBackendContext')) `
+        'Disabled status startup does not initialize the mutation-capable backend.'
 
     $null = [System.IO.Directory]::CreateDirectory($testRoot)
     $firstRoot = Join-Path $testRoot 'first'
