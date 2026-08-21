@@ -187,7 +187,8 @@ $null = & $deployment {
 $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='NorthGateCreateOnly'" -ErrorAction Stop
 $expectedServicePath = '"' + $serviceHostPath + '" --script "' +
     (Join-Path $installedRoot 'Start-NorthGateCreateOnlyPipeService.ps1') + '"'
-if ($service.PathName -cne $expectedServicePath -or $service.StartMode -cne 'Auto' -or
+$expectedStartMode = if ([bool]$policy.applyEnabled) { 'Auto' } else { 'Manual' }
+if ($service.PathName -cne $expectedServicePath -or $service.StartMode -cne $expectedStartMode -or
     $service.StartName -cne 'NT SERVICE\NorthGateCreateOnly') {
     throw 'NGCOR-SERVICE-REGISTRATION-MISMATCH'
 }
@@ -307,8 +308,8 @@ while (-not $serviceStopEvent.WaitOne(0)) {
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBiNYhuu4KTybeG
-# 2SJ/7eojLCm6Zhf8Lq4vibS3zhIElqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCZz89e+YjbXgis
+# GCctPZ7qEvLNAqJXOfenmZYPs4ANLaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -336,14 +337,14 @@ while (-not $serviceStopEvent.WaitOne(0)) {
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIFyzmSdhYCFJ2YFCRZ8ooIglXqn42zjNvKqoFH3Yah+LMA0GCSqG
-# SIb3DQEBAQUABIIBgJva+r83cSLlb8pR3lYq+4hnCAuZIX4hAH/FoJIv0eLZwEFy
-# herB8YLwHoWXT4Ni5nss4ZlVbVrl5+P38qCgivuvkaJSdw5uftxzujVxdVbrrgAk
-# Kb/t1IjXrBs4oD4dfv+bTSDrG11Mx+v3QHeY/h6sgDpp7sX+KouEVVJr/u5qdNno
-# h682MzO/Jj++X68rEKVuCtqc35uFU/ywnldxY6BwlPmlecJaPIa85JW1ls04BQCe
-# bU5wyMLPTFf4rOjEIVoBMyx+1Dj8TKUu1WW3PU4+WflCrsYwkDoqwIL79fjulxo/
-# 2dhGfCzDiJAEZ+lyb2ZY5mDcplBqJboLs8sIuiph0IupmboVdgP8twxYPuqCV396
-# jEwQyQA+zXQVaLpyY8xfCUILfqjQAuLHifPaj55SRwWMzu55y0k3l4712XMj9AW4
-# A6TdYh4xSqEGulkfvc2SbcB8qYutB+lZcNsOr0T+zp3FhnK3r/2EBD2OpskVWwBW
-# nLQ5Cx3W+UM7hPTvTQ==
+# hvcNAQkEMSIEIC1x5lif10aQn6j/VibDT7hoW8w5a7Y3g/+6cyzyrVy3MA0GCSqG
+# SIb3DQEBAQUABIIBgEbBA03nzWLQVuxzg2SUNFS194Ym2S7C/rfxLMkvxRS7RoXN
+# EEqKBV3GNojOP62Zb/MJ0+xhhfxJoD6gKq8DDMEshepb+zYpa+FxJ8cw7UMTb4TM
+# rNsxW7VYZE0wh9lxdycwlPZUmo+dfBUjiALl8jdGNyq//UwM7Gl5SuVTjU8gwhuM
+# 4XmenfA0i7ydCEpCzzVTRkNdn0gD5qN2h9Wxjw3grWCqe/hKdPMXTTfwNckqVbcw
+# yPM4fzp1CHwYm+8hDNxdw+PrIGfTXGq05/K4rHO7sdxBPTTQFNxPiMe2Gr5qogxi
+# fXwtZ4vOwFKdupCBL5YxkGJVKvVHMx/+gZHF7k0XRCpVjufoH5gjhL4V0nCBQPdL
+# eJCisA90V3jU/18E3iMXj6DHps84ZwxuQp2pb0Mpfk4FcJ5MGSyhEb8SWQESViyp
+# m2KS+eiPWmNtfSNMnkVdGfcNKlmodDpp2BXvW+y6i0Z+aqLbRBZrtauAf38qYb49
+# bp81WPAIr8iiptxRFw==
 # SIG # End signature block
