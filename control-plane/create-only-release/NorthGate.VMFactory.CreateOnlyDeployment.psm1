@@ -1587,7 +1587,7 @@ function New-NgcdManagedSshConfiguration {
         'ssh\northgate-create-only-authorized_keys'
     $block = @(
         $script:ManagedSshBegin,
-        ('Match User ' + $SshUserName + ' Address ' + $script:FixedSshSourceCidr),
+        ('Match User ' + $SshUserName + ',.\' + $SshUserName + ' Address ' + $script:FixedSshSourceCidr),
         '    AuthenticationMethods publickey',
         '    PubkeyAuthentication yes',
         '    PasswordAuthentication no',

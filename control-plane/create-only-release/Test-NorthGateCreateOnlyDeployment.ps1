@@ -169,6 +169,8 @@ try {
         'Managed Match blocks omit the Windows OpenSSH-incompatible PermitUserEnvironment directive.'
     Assert-NgcdTest ($source -match 'user=\.\\\$SshUserName,host=') `
         'Windows OpenSSH effective-policy validation resolves the dedicated account as a local user.'
+    Assert-NgcdTest ($source.Contains("('Match User ' + `$SshUserName + ',.\' + `$SshUserName")) `
+        'Managed SSH policy matches both wire and local-account forms of the dedicated Windows user.'
     Assert-NgcdTest ($source -match 'Set-NgcdProtectedDirectoryAcl \$stateRoot[^\r\n]*\$serviceRead' -and
         $source -match 'Set-NgcdProtectedDirectoryAcl \(Join-Path \$stateRoot ''deployment-transactions''\)[\s\S]{0,160}\$serviceRead') `
         'Runtime service has read-only deployment-state access.'
