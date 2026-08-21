@@ -4,7 +4,7 @@
 
 `VirtualMachine` is a strict desired-state record for `create` or `manage` intent. It cannot claim a Hyper-V VM ID, a path, a switch, a VLAN, a filename, a URL, a command, a script, bootstrap material, or credentials. It contains only immutable asset identity, governance metadata, resource values, and opaque approved profile references.
 
-Generation 2 and `destroyProtection: true` are constants in v1. Changes that require replacement are reported as `ReplaceRequired` and are not executable during the plan-only phase.
+Generation 2 and `destroyProtection: true` are constants in v1. Changes that require replacement are reported as `ReplaceRequired` and are not executable by the initial create-only release.
 
 ## Separate record types
 

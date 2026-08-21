@@ -4,7 +4,7 @@
 
 Use a Git-backed, human-approved GitOps-lite model with native Hyper-V PowerShell behind a dedicated forced-command create-only boundary. Keep GitHub, Codex, planning, and deployment control off the hypervisor. Treat Git as reviewed input, not an authority to mutate the host. Legacy broad MCP mutation remains a separate Administrator break-glass path; it is not routine factory transport.
 
-The architecture map in the [repository README](../README.md#architecture-map) is canonical.
+The architecture map in the [repository README](../README.md#architecture-map) is canonical. Repository source approval, create-only runtime installation, and the existing NorthGateMCP operational plane are separate states; see [ADR-0008](decision-records/ADR-0008-source-policy-and-installed-runtime-authority.md).
 
 Source-restricted public-key authentication plus the server-enforced forced command is the create-only application authentication boundary. Network locality, loopback binding, and SSH reachability alone are never client authorization.
 
@@ -19,6 +19,16 @@ Source-restricted public-key authentication plus the server-enforced forced comm
 | Create-only host operator | Typed status, plan registration, plan-ID apply, receipts, host policy, audit, single-writer lock | Public/LAN listener, forwarding, generic routine shell, trusting client validation, mutating calls that bypass the plan registry |
 | NorthGate Hyper-V host | Installed provisioner and policy bundle; native Hyper-V state transition | GitHub runner, Git credential, arbitrary checkout, automatic fabric, firewall, feature, or storage-root mutation |
 | Operation-SeeSaw | Decisions, assets, risks, evidence hashes, signed receipt outcome | Credentials, private keys, unredacted secrets, executor write access, raw logs as executive narrative |
+
+## Runtime-authority states
+
+| State | Meaning | May mutate Hyper-V? |
+|---|---|---|
+| Reviewed repository source | Canonical manifests, approved source policy/promotion, tests, and release inputs at an exact commit/tree | No |
+| Staged signed package | Immutable candidate package retained for inspection or installation | No |
+| Installed disabled create-only release | Matching package and protected state exist; identity, policy, registry, and service are installed but activation gates remain closed | No |
+| Installed active create-only release | Exact installed policy permits the action and every identity, plan, approval, lock, collision, capacity, and receipt gate passes | Only the accepted plan operation |
+| Existing NorthGateMCP operational plane | Separately governed broad management/transition component | Only through its own authorization and audit controls; never proof that the create-only release is active |
 
 ## Authorization flow
 
@@ -41,6 +51,7 @@ Source-restricted public-key authentication plus the server-enforced forced comm
 - An unmanaged same-name VM, mismatched VM ID, reused disk, missing ledger binding, or name drift is a collision and hard stop. It is never implicit adoption.
 - Observed inventory is non-actionable. Adoption and decommission use separate typed records and approvals; neither is represented by a standard VM manifest.
 - The host-side installed policy is authoritative for storage roots, switch identity/fingerprint, image artifacts, firmware, capacity, and action allowlists. Git catalogs can narrow but never widen it.
+- A repository policy with `applyEnabled: true` is release input only. If the matching installed policy, active-release record, constrained identity, or registry is absent, create-only apply is disabled regardless of Git state.
 - A proposed image or profile is design inventory only. `promotedOnly: true` means a standard manifest may resolve only an active promoted image even when the image catalog also carries a pinned proposed candidate awaiting artifact and boot evidence.
 
 ## Failure behavior

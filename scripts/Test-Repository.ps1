@@ -1277,7 +1277,12 @@ if (Test-Path -LiteralPath (Join-Path $repositoryRoot '.gitmodules')) {
 
 $readme = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'README.md')
 $architecture = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'docs\architecture.md')
-if ($readme -notmatch '```mermaid' -or $readme -notmatch 'No GitHub Actions runner' -or $architecture -notmatch 'never infer deletion' -or $architecture -notmatch 'application.authenticat' -or $architecture -notmatch 'plan ID') {
+$agentGuidance = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'AGENTS.md')
+if ($readme -notmatch '```mermaid' -or $readme -notmatch 'No GitHub Actions runner' -or
+    $readme -notmatch 'Source `applyEnabled` is not installed apply authority' -or
+    $architecture -notmatch 'never infer deletion' -or $architecture -notmatch 'application.authenticat' -or
+    $architecture -notmatch 'plan ID' -or $architecture -notmatch 'Runtime-authority states' -or
+    $agentGuidance -notmatch 'non-operative source input' -or $agentGuidance -notmatch 'not installed apply authority') {
     throw 'Architecture safety statements are missing or were weakened.'
 }
 

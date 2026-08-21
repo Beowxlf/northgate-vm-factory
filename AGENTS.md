@@ -6,7 +6,7 @@ Maintain a safe, reviewable, Git-backed desired-state system for NorthGate Hyper
 
 ## Non-negotiable controls
 
-- Treat the repository as **plan-only** until an explicit reviewed change updates that status after Phase 0 hardening and canary acceptance.
+- Treat the repository as **non-operative source input**. Repository policy may be approved and may contain `applyEnabled: true` for immutable release packaging, but that value is not installed apply authority. Only a matching installed signed release, authoritative host policy, constrained application identity, protected ledger/registry, and host-issued approved plan can make an operation executable.
 - Never invoke a mutating NorthGate MCP tool merely because a manifest changed.
 - Never use unrestricted host or guest SSH for routine provisioning. Direct SSH is bootstrap, recovery, or MCP-maintenance fallback only.
 - Preserve loopback-only MCP, the encrypted tunnel, key-only SSH, pinned identities, source-restricted firewalls, auditing, and rollback gates.
@@ -17,6 +17,7 @@ Maintain a safe, reviewable, Git-backed desired-state system for NorthGate Hyper
 - Manifests use immutable `assetId` identity and catalog references. They may not contain raw host paths, switch names, URLs, commands, or credential-like fields.
 - Missing manifests do not imply deletion. Replace, decommission, quarantine, and purge require explicit typed lifecycle changes and separate approval.
 - A same-name unmanaged VM or missing identity mapping is a hard stop, never an adoption signal.
+- Keep the existing broad NorthGateMCP operational plane distinct from the create-only VM Factory release. Do not describe one component's deployed state as proof that the other is installed or authorized.
 - Routine VM provisioning cannot create, remove, or rebind virtual switches or change host firewall, features, services, or storage roots.
 
 ## Change workflow

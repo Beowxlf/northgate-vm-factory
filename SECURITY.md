@@ -18,6 +18,7 @@ Report suspected secret exposure, unauthorized repository access, unsafe workflo
 - The fixed executor and server-side MCP policy independently enforce allowlists; client-side validation is not sufficient.
 - The forwarding identity cannot open an Administrator shell. The break-glass key is inaccessible to the normal executor identity.
 - Repository content is untrusted data at the privileged boundary; hooks, filters, submodules, binaries, and checkout scripts are never executed there.
+- Repository `applyEnabled`, promotion status, merge state, or signature presence is never proof of installed host authority. Require matching installed-release and host-policy readback plus the protected identity/plan chain.
 - Destructive operations, network changes, storage-root changes, policy changes, executor releases, and image promotion remain human-gated.
 
 If a secret is committed, revoke or rotate it first, then remove it from repository history. Deleting the visible file alone is not remediation.
