@@ -1492,6 +1492,7 @@ function New-NgcdDetachedCmsSignature {
         $cms = New-Object System.Security.Cryptography.Pkcs.SignedCms($content, $true)
         $signer = New-Object System.Security.Cryptography.Pkcs.CmsSigner($certificate)
         $signer.IncludeOption = [System.Security.Cryptography.X509Certificates.X509IncludeOption]::EndCertOnly
+        $signer.DigestAlgorithm = New-Object System.Security.Cryptography.Oid('2.16.840.1.101.3.4.2.1')
         $cms.ComputeSignature($signer, $true)
         Write-NgcdAtomicBytes $SignaturePath $cms.Encode()
         $null = Test-NgcdDetachedCms $contentBytes $SignaturePath $ExpectedSignerSha256

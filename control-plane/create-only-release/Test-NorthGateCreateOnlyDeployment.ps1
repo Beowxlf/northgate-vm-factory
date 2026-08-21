@@ -173,6 +173,8 @@ try {
         'Managed SSH policy matches both wire and local-account forms of the dedicated Windows user.'
     Assert-NgcdTest (([regex]::Matches($source, 'return ,\$key')).Count -eq 2) `
         'Production DPAPI key reads preserve the byte-array type required by the deployment context.'
+    Assert-NgcdTest ($source -match [regex]::Escape("`$signer.DigestAlgorithm = New-Object System.Security.Cryptography.Oid('2.16.840.1.101.3.4.2.1')")) `
+        'Production deployment receipts explicitly use SHA-256 CMS signatures.'
     Assert-NgcdTest ($source -match 'Set-NgcdProtectedDirectoryAcl \$stateRoot[^\r\n]*\$serviceRead' -and
         $source -match 'Set-NgcdProtectedDirectoryAcl \(Join-Path \$stateRoot ''deployment-transactions''\)[\s\S]{0,160}\$serviceRead') `
         'Runtime service has read-only deployment-state access.'
