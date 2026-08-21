@@ -188,6 +188,27 @@ try {
         $source -match '\$expectedState = if \(\$InstallEnabled\) \{ ''Running'' \} else \{ ''Stopped'' \}' -and
         $source -match '\[bool\]\$Authorization\.initialPolicy\.applyEnabled') `
         'Installation preserves the authorized disabled service posture instead of starting the backend.'
+    $firstSsh = & $deployment {
+        New-NgcdManagedSshConfiguration 'Port 22' 'northgate-vmfactory' 'C:\Factory\Release-One'
+    }
+    $upgradedSsh = & $deployment {
+        param($Configuration)
+        New-NgcdManagedSshConfiguration $Configuration 'northgate-vmfactory' 'C:\Factory\Release-Two'
+    } $firstSsh
+    Assert-NgcdTest (([regex]::Matches(
+            $upgradedSsh, [regex]::Escape('# BEGIN NORTHGATE CREATE-ONLY MANAGED BLOCK')
+        )).Count -eq 1 -and
+        $upgradedSsh -match [regex]::Escape('C:\Factory\Release-Two') -and
+        $upgradedSsh -notmatch [regex]::Escape('C:\Factory\Release-One')) `
+        'An upgrade atomically replaces exactly one prior managed SSH block.'
+    Assert-NgcdTestThrows {
+        & $deployment {
+            New-NgcdManagedSshConfiguration `
+                "Port 22`r`n# BEGIN NORTHGATE CREATE-ONLY MANAGED BLOCK`r`n" `
+                'northgate-vmfactory' 'C:\Factory\Release-Two'
+        }
+    } '^NGCOR-DEPLOYMENT-SSH-CONFIGURATION-INVALID$' `
+        'A partial prior managed SSH block remains fail closed.'
     $disabledAuthorization = [pscustomobject]@{
         identity = [pscustomobject]@{
             sshIdentitySid = 'S-1-5-21-100-200-300-1001'

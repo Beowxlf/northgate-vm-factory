@@ -1598,10 +1598,35 @@ function New-NgcdInstalledPolicy {
 
 function New-NgcdManagedSshConfiguration {
     param([string]$ExistingConfiguration, [string]$SshUserName, [string]$ReleaseRoot)
-    if ($SshUserName -cnotmatch '^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$' -or
-        $ExistingConfiguration.Contains($script:ManagedSshBegin) -or
-        $ExistingConfiguration.Contains($script:ManagedSshEnd)) {
+    if ($SshUserName -cnotmatch '^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$') {
         Stop-Ngcd 'NGCOR-DEPLOYMENT-SSH-CONFIGURATION-INVALID'
+    }
+    $beginCount = ([regex]::Matches(
+        $ExistingConfiguration, [regex]::Escape($script:ManagedSshBegin)
+    )).Count
+    $endCount = ([regex]::Matches(
+        $ExistingConfiguration, [regex]::Escape($script:ManagedSshEnd)
+    )).Count
+    if ($beginCount -ne $endCount -or $beginCount -gt 1) {
+        Stop-Ngcd 'NGCOR-DEPLOYMENT-SSH-CONFIGURATION-INVALID'
+    }
+    $baseConfiguration = $ExistingConfiguration
+    if ($beginCount -eq 1) {
+        $beginIndex = $ExistingConfiguration.IndexOf(
+            $script:ManagedSshBegin, [StringComparison]::Ordinal
+        )
+        $endIndex = $ExistingConfiguration.IndexOf(
+            $script:ManagedSshEnd, [StringComparison]::Ordinal
+        )
+        if ($beginIndex -lt 0 -or $endIndex -le $beginIndex) {
+            Stop-Ngcd 'NGCOR-DEPLOYMENT-SSH-CONFIGURATION-INVALID'
+        }
+        $endExclusive = $endIndex + $script:ManagedSshEnd.Length
+        $prefix = $ExistingConfiguration.Substring(0, $beginIndex).TrimEnd("`r","`n")
+        $suffix = $ExistingConfiguration.Substring($endExclusive).TrimStart("`r","`n")
+        $baseConfiguration = if ([string]::IsNullOrEmpty($prefix)) { $suffix }
+        elseif ([string]::IsNullOrEmpty($suffix)) { $prefix }
+        else { $prefix + "`r`n" + $suffix }
     }
     $powerShell = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::System)) `
         'WindowsPowerShell\v1.0\powershell.exe'
@@ -1630,7 +1655,7 @@ function New-NgcdManagedSshConfiguration {
         '    MaxSessions 1',
         $script:ManagedSshEnd
     ) -join "`r`n"
-    $ExistingConfiguration.TrimEnd("`r","`n") + "`r`n`r`n" + $block + "`r`n"
+    $baseConfiguration.TrimEnd("`r","`n") + "`r`n`r`n" + $block + "`r`n"
 }
 
 function Test-NgcdSshConfiguration {
@@ -1728,8 +1753,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCijYy1hPPf1HhM
-# QVJ1QrkWuURNLg5U3IhPOhdGGoQF/KCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBQ1iCwepF9MSdu
+# qhvo/n9BXoglbaLjDF6hcU5ht53KN6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -1757,14 +1782,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIETugQYq1uyU5A84jmZXGHfdyZSogSWS0CXAR7DPSKt2MA0GCSqG
-# SIb3DQEBAQUABIIBgEa3giaaXaKCv5jFouarhUcNIXpot1Y2LhzbJ7WipYJZ+FAb
-# eKapERz7mlsdbGpqF2W3Inl8YEAPn6DCcCITgOQUSOEJ9U5o62AgYPMMQUf+hzn9
-# L7Wk/hXtEofGmds9o5VPpHHfPFR6c6X8pu7ODhaOSXhejigZWSUd5M5D3itoGjN8
-# QqXqBADaF5aOKbl0AszybZ+y9rAEt72Hai+GUDzg6+l3Uoibfr9DrEUm6Z1FFSlO
-# KVfSg6kuvhtJZCH2yosRM5RgEYlmgY7ctdVBd6jTIM8XsiAvonE3N6Yhesz3yCx8
-# zLMiZytnpxumnSEPGjd2nNgZAsq6ZMPbiQZmV5q4Y9VQZfDgZMZU2WDPs14BktVV
-# vqlJ4kd+3bMlLgHnGZt0LbRDNGZX5G+x5skJqwbOaIvZk6MuJa28BtZA8T0flmTp
-# 49VMQEzg4nE+MAwQhK999Wvu+utBAa/8uNT6yHTg2oEJf7KpSW9qQVw6LkMrRtyZ
-# 8+l3XuwsAug1/68uvQ==
+# hvcNAQkEMSIEIHUrXG1UttsJzFWBgCHQ4wI4t2jtxvfTWrrt9UJT/fCQMA0GCSqG
+# SIb3DQEBAQUABIIBgDWQ3QOG15T4GpA5QXJTqRPQ5GUiV9fbHQa5sxeIVwevhVbO
+# 7weJU7+YLSv/xua8MC8hKZoIlbtGrUh6oSnMKT1Vk9Mkq7Sg2Zr0ZH+GKQ5iENvZ
+# nTAWegpTJsJllK61TSlA8iaN9k51ropmGTmlRboCTbaNaEuwjhfpcD3+KibC/R+z
+# 3C3CHZ0hDd8/1Mq65u4awFBKuYdf5YW+XemUFhj+icvz9MfS6xNw2v1fsC/P/280
+# esOlR1jGW+E7gz433NqUmXqYP2q9MokMrN9MtUSw4XC5Orc5oL8JCcVXugJzup4g
+# TQYGyKNpN99Kr+IZii+67Z3qeAWGFsZeLMfJpOyzE95dV3qWkFY70BOLe3tq1gtR
+# 69eIzlRL2mHa4la3KmY66SAjiyBToGAh+TMaUQg961crr4QcuKCXOYFtxjmydwlH
+# wI1w5nTnVJhE0vcnNbnPKEV21GjyRTWk+mPc2hTFfRLFcVfe0ud95FAHtJ9Q2dUw
+# vxEpabBfUJpLAuElAw==
 # SIG # End signature block
