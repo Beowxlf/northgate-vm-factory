@@ -4,7 +4,9 @@ param()
 $ErrorActionPreference='Stop'
 $root=$PSScriptRoot
 $protocolPath=Join-Path (Split-Path -Parent (Split-Path -Parent $root)) 'NorthGate.VMFactory.CreateOnlyProtocol.psd1'
+$backendPath=Join-Path (Split-Path -Parent $root) 'NorthGate.VMFactory.CreateOnlyBackend.psd1'
 Import-Module $protocolPath -Force -ErrorAction Stop
+Import-Module $backendPath -Force -ErrorAction Stop
 $module=Import-Module (Join-Path $root 'NorthGate.VMFactory.CreateOnlyAuthoring.psd1') -Force -PassThru -ErrorAction Stop
 Import-Module $protocolPath -Force -Global -ErrorAction Stop
 $script:Assertions=0
@@ -206,6 +208,10 @@ $testRoot=Join-Path ([IO.Path]::GetTempPath()) ('ngca-tests-'+[guid]::NewGuid().
 [IO.Directory]::CreateDirectory($testRoot)|Out-Null
 $certificates=@()
 try{
+    $dependencyPaths=& $module {[ordered]@{protocol=$script:ProtocolModule.Path;backend=$script:BackendModule.Path}}
+    Assert-NgcaTest ($dependencyPaths.protocol-ceq(Resolve-Path ($protocolPath-replace '\.psd1$','.psm1')).Path-and
+        $dependencyPaths.backend-ceq(Resolve-Path ($backendPath-replace '\.psd1$','.psm1')).Path) `
+        'Authoring binds the exact protocol and backend modules selected by its wrapper.'
     foreach($schema in @(Get-ChildItem -LiteralPath (Join-Path $root 'schemas') -Filter '*.json' -File)){
         Assert-NgcaTest ($null-ne(Get-Content $schema.FullName -Raw|ConvertFrom-Json)) "Schema $($schema.Name) parses."
     }
