@@ -15,7 +15,7 @@ The two disposable canaries remain first and sequential. Each persistent asset r
 
 - Windows uses Generation 2, the `MicrosoftWindows` Secure Boot template, a host-local key protector, and vTPM.
 - Debian uses Generation 2, the `MicrosoftUEFICertificateAuthority` Secure Boot template, and no vTPM.
-- Kali uses Generation 2 UEFI with Secure Boot disabled only for `NG-VM-021`, through profile `kali-gen2-unsigned` and exception `NG-FW-20260802-KALI-UNSIGNED`.
+- Kali uses Generation 2 UEFI with Secure Boot disabled only for `NG-VM-015`, through profile `kali-gen2-unsigned` and exception `NG-FW-20260802-KALI-UNSIGNED`.
 
 The Kali exception is narrow because the official Kali installation guide states that its installer kernel is not signed for Secure Boot: <https://www.kali.org/docs/installation/hard-disk-install/>. The exception cannot be assigned to Windows, Debian, another asset, or another image.
 

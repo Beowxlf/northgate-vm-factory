@@ -12,8 +12,8 @@
     "dataClassification": "restricted",
     "lifecycle": "approved",
     "reviewOrRetirementDate": "2027-08-01",
-    "changeRef": "NG-CHG-20260803-008",
-    "dependencies": ["NG-VM-020"]
+    "changeRef": "NG-CHG-20260820-001",
+    "dependencies": ["NG-VM-013"]
   },
   "spec": {
     "intent": "create",

@@ -380,10 +380,10 @@ if (@($imagePaths | Sort-Object -Unique).Count -ne 3) {
 }
 
 $expectedFleetAssets = @(
-    'NG-VM-018','NG-VM-010','NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012',
-    'NG-VM-013','NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021'
+    'NG-VM-018','NG-VM-010','NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012',
+    'NG-VM-019','NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015'
 )
-$windowsAssets = @('NG-VM-010','NG-VM-011','NG-VM-012','NG-VM-013','NG-VM-014','NG-VM-015')
+$windowsAssets = @('NG-VM-010','NG-VM-011','NG-VM-012','NG-VM-019','NG-VM-020','NG-VM-021')
 if ($authorization.bootstrapMedia -isnot [System.Array] -or @($authorization.bootstrapMedia).Count -ne 12) {
     Stop-NgcorAuthorization 'NGCOR-AUTHORIZATION-BOOTSTRAP-MEDIA-INVALID'
 }
@@ -398,7 +398,7 @@ foreach($media in @($authorization.bootstrapMedia)) {
         'recipeSha256','unattendedPayloadSha256','sourceCommit','sourceTree'
     ) 'NGCOR-AUTHORIZATION-BOOTSTRAP-MEDIA-PROPERTIES-INVALID'
     $expectedSource = if($media.assetId -in $windowsAssets){'windows-11-25h2-english-x64'}
-        elseif($media.assetId -ceq 'NG-VM-021'){'kali-2026.2-installer-netinst-amd64'}else{'debian-12.12-amd64-netinst'}
+        elseif($media.assetId -ceq 'NG-VM-015'){'kali-2026.2-installer-netinst-amd64'}else{'debian-12.12-amd64-netinst'}
     $source=@($authorization.images|Where-Object{$_.imageId -ceq $expectedSource})
     $path=Get-NgcorCanonicalLocalPath $media.path 'NGCOR-AUTHORIZATION-BOOTSTRAP-MEDIA-INVALID'
     $provenancePath=Get-NgcorCanonicalLocalPath $media.provenancePath `

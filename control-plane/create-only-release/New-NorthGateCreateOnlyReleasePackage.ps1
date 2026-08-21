@@ -183,7 +183,7 @@ function Read-NgcorPackageBytes {
     if ($item.Length -le 0 -or $item.Length -gt $MaximumBytes) { throw $Code }
     $stream = New-Object System.IO.FileStream(
         $full, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read,
-        [System.IO.FileShare]::None, 65536, [System.IO.FileOptions]::SequentialScan
+        [System.IO.FileShare]::Read, 65536, [System.IO.FileOptions]::SequentialScan
     )
     try {
         $memory = New-Object System.IO.MemoryStream

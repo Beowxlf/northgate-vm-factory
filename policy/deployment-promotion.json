@@ -2,10 +2,10 @@
   "$schema": "../schemas/deployment-promotion.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "CreateOnlyDeploymentPromotion",
-  "promotionVersion": "2026.08.03.1",
+  "promotionVersion": "2026.08.20.1",
   "status": "approved",
-  "changeRef": "NG-CHG-20260803-008",
-  "approvalReference": "owner-thread-20260802-full-fleet",
+  "changeRef": "NG-CHG-20260820-001",
+  "approvalReference": "DEC-005-canonical-asset-identities",
   "scope": "exact-new-fleet-create-only",
   "controls": {
     "rawGitDataOnly": true,
@@ -33,35 +33,35 @@
     "NG-VM-010"
   ],
   "persistentAssetIds": [
-    "NG-VM-019",
-    "NG-VM-020",
+    "NG-VM-014",
+    "NG-VM-013",
     "NG-VM-011",
     "NG-VM-012",
-    "NG-VM-013",
-    "NG-VM-014",
-    "NG-VM-015",
+    "NG-VM-019",
+    "NG-VM-020",
+    "NG-VM-021",
     "NG-VM-016",
     "NG-VM-017",
-    "NG-VM-021"
+    "NG-VM-015"
   ],
   "orderedAssetIds": [
     "NG-VM-018",
     "NG-VM-010",
-    "NG-VM-019",
-    "NG-VM-020",
+    "NG-VM-014",
+    "NG-VM-013",
     "NG-VM-011",
     "NG-VM-012",
-    "NG-VM-013",
-    "NG-VM-014",
-    "NG-VM-015",
+    "NG-VM-019",
+    "NG-VM-020",
+    "NG-VM-021",
     "NG-VM-016",
     "NG-VM-017",
-    "NG-VM-021"
+    "NG-VM-015"
   ],
   "firmwareExceptions": [
     {
       "exceptionId": "NG-FW-20260802-KALI-UNSIGNED",
-      "assetId": "NG-VM-021",
+      "assetId": "NG-VM-015",
       "profileRef": "kali-gen2-unsigned",
       "secureBootEnabled": false,
       "reason": "official-kali-installer-kernel-is-not-secure-boot-signed"

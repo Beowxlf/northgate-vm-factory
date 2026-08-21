@@ -1,7 +1,7 @@
 {
   "apiVersion": "northgate/v1alpha1",
   "kind": "BootstrapMediaRequest",
-  "assetId": "NG-VM-021",
+  "assetId": "NG-VM-015",
   "name": "NG-KALI-EXT01",
   "hostname": "ng-kali-ext01",
   "family": "kali",

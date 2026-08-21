@@ -10,9 +10,9 @@ This is the execution handoff for ADR-0003. It is **plan-only** and creates no a
 | ---: | --- | --- | ---: | --- | --- | --- | --- |
 | 1 | `NG-VM-011` / `NG-WRK-01` | Worker and first production canary | 110 | `10.10.110.20` | `Windows Workstations` | `ng-win-worker` | Bronze; reconstructable endpoint |
 | 2 | `NG-VM-012` / `NG-WRK-02` | Worker | 110 | `10.10.110.21` | `Windows Workstations` | `ng-win-worker` | Bronze; reconstructable endpoint |
-| 3 | `NG-VM-013` / `NG-MGR-01` | Manager | 110 | `10.10.110.22` | `Windows Workstations` | `ng-win-manager` | Bronze; reconstructable endpoint |
-| 4 | `NG-VM-014` / `NG-IT-01` | Privileged IT administration | 130 | `10.10.130.20` | `Privileged Workstations` | `ng-win-it` | Silver; protect administrative configuration |
-| 5 | `NG-VM-015` / `NG-CYBER-01` | Blue-team analysis and detection engineering | 140 | `10.10.140.20` | `Security Lab` | `ng-win-cyber` | Silver; protect detection work and evidence |
+| 3 | `NG-VM-019` / `NG-MGR-01` | Manager | 110 | `10.10.110.22` | `Windows Workstations` | `ng-win-manager` | Bronze; reconstructable endpoint |
+| 4 | `NG-VM-020` / `NG-IT-01` | Privileged IT administration | 130 | `10.10.130.20` | `Privileged Workstations` | `ng-win-it` | Silver; protect administrative configuration |
+| 5 | `NG-VM-021` / `NG-CYBER-01` | Blue-team analysis and detection engineering | 140 | `10.10.140.20` | `Security Lab` | `ng-win-cyber` | Silver; protect detection work and evidence |
 
 `NG-VM-010` is the proposed disposable factory canary and is not one of the five requested workstations. None of these IDs is reserved until the protected identity ledger accepts it after a fresh collision check.
 

@@ -12,16 +12,16 @@ Standard `VirtualMachine` manifests are intentionally absent. The proposal remai
 | ---: | --- | --- | --- | --- | --- | --- |
 | 1 | `NG-VM-018` / `NG-DEB-CAN01` | Disposable Debian canary | `business-apps` | No durable address | One time-bounded, collision-checked bootstrap mapping; remove on canary retirement | No durable record |
 | 2 | `NG-VM-010` / `NG-CANARY-01` | Disposable Windows canary | `users-workstations` | No durable address | One time-bounded, collision-checked bootstrap mapping; remove on canary retirement | Temporary record only if domain testing requires it; remove on retirement |
-| 3 | `NG-VM-019` / `NG-MAIL-EXT01` | Persistent simulated-external mail | `external-mail` | `172.31.240.10` | Guest static after final NIC identity and collision readback | `mail.redteam.test`; matching PTR |
-| 4 | `NG-VM-020` / `NG-MAIL-INT01` | Persistent internal mail | `mail-internal` | `10.10.120.10` | Guest static after final NIC identity and collision readback | `mail.northgate.test`; `northgate.test` MX; matching PTR |
+| 3 | `NG-VM-014` / `NG-MAIL-EXT01` | Persistent simulated-external mail | `external-mail` | `172.31.240.10` | Guest static after final NIC identity and collision readback | `mail.redteam.test`; matching PTR |
+| 4 | `NG-VM-013` / `NG-MAIL-INT01` | Persistent internal mail | `mail-internal` | `10.10.120.10` | Guest static after final NIC identity and collision readback | `mail.northgate.test`; `northgate.test` MX; matching PTR |
 | 5 | `NG-VM-011` / `NG-WRK-01` | Persistent worker | `users-workstations` | `10.10.110.20` | OPNsense fixed mapping bound to the final host-approved static MAC | `ng-wrk-01.northgate.tooling`; matching PTR |
 | 6 | `NG-VM-012` / `NG-WRK-02` | Persistent worker | `users-workstations` | `10.10.110.21` | OPNsense fixed mapping bound to the final host-approved static MAC | `ng-wrk-02.northgate.tooling`; matching PTR |
-| 7 | `NG-VM-013` / `NG-MGR-01` | Persistent manager | `users-workstations` | `10.10.110.22` | OPNsense fixed mapping bound to the final host-approved static MAC | `ng-mgr-01.northgate.tooling`; matching PTR |
-| 8 | `NG-VM-014` / `NG-IT-01` | Persistent IT administration | `it-admin-workstations` | `10.10.130.20` | OPNsense fixed mapping bound to the final host-approved static MAC | `ng-it-01.northgate.tooling`; matching PTR |
-| 9 | `NG-VM-015` / `NG-CYBER-01` | Persistent cyber operations | `cyber-workstations` | `10.10.140.20` | OPNsense fixed mapping bound to the final host-approved static MAC | `ng-cyber-01.northgate.tooling`; matching PTR |
+| 7 | `NG-VM-019` / `NG-MGR-01` | Persistent manager | `users-workstations` | `10.10.110.22` | OPNsense fixed mapping bound to the final host-approved static MAC | `ng-mgr-01.northgate.tooling`; matching PTR |
+| 8 | `NG-VM-020` / `NG-IT-01` | Persistent IT administration | `it-admin-workstations` | `10.10.130.20` | OPNsense fixed mapping bound to the final host-approved static MAC | `ng-it-01.northgate.tooling`; matching PTR |
+| 9 | `NG-VM-021` / `NG-CYBER-01` | Persistent cyber operations | `cyber-workstations` | `10.10.140.20` | OPNsense fixed mapping bound to the final host-approved static MAC | `ng-cyber-01.northgate.tooling`; matching PTR |
 | 10 | `NG-VM-016` / `NG-HR-APP01` | Persistent Employee Hub | `business-apps` | `10.10.150.10` | Guest static after final NIC identity and collision readback | `employees.aegismeridian.test`; matching PTR |
 | 11 | `NG-VM-017` / `NG-PLAT-APP01` | Persistent Sentinel Atlas | `commercial-dmz` | `10.10.160.10` | Guest static after final NIC identity and collision readback | `app.sentinelatlas.test`; matching PTR |
-| 12 | `NG-VM-021` / `NG-KALI-EXT01` | Persistent simulated-external test host | `sim-wan` | `172.31.250.10` | OPNsense fixed mapping bound to the final host-approved static MAC | `kali-ext.redteam.test`; matching PTR |
+| 12 | `NG-VM-015` / `NG-KALI-EXT01` | Persistent simulated-external test host | `sim-wan` | `172.31.250.10` | OPNsense fixed mapping bound to the final host-approved static MAC | `kali-ext.redteam.test`; matching PTR |
 
 The exact address and DNS set remains proposed and unallocated until a fresh collision check passes across OPNsense, DHCP, DNS, routes, ARP/neighbor state, Hyper-V adapters, the protected identity ledger, Wazuh, TacticalRMM, and Operation-SeeSaw. A quiet ping is not reservation evidence. VM manifests carry only the opaque network profile; VLANs, addresses, DNS names, MACs, gateways, and switch identities remain outside that contract.
 
@@ -102,7 +102,7 @@ The original 104 GiB persistent maximum would have breached the 48 GiB host-rese
 
 ## Kali image promotion gate
 
-`NG-VM-021` now names the proposed, non-consumable image reference `kali-2026.2-installer-netinst-amd64`. The owner-authorized artifact is staged at `D:\HyperV\VM-ISO\kali-linux-2026.2-installer-netinst-amd64.iso`, with exact size `779091968` bytes and SHA-256 `d32f929dacc48134a31461a09f2160d13ad1d26b820cee920446813ca979b39b`. Its checksum was matched to Kali's officially signed checksum file using signing-key fingerprint `827C8569F2518CC677FECA1AED65462EC8D5E4C5`. This proves artifact identity, not VM suitability: the catalog entry remains proposed and cannot be consumed until Generation 2 and Secure Boot behavior, a clean baseline, bootstrap compatibility, recovery, and rollback are tested and the exact image is separately promoted. Kali remains last in the rollout.
+`NG-VM-015` now names the proposed, non-consumable image reference `kali-2026.2-installer-netinst-amd64`. The owner-authorized artifact is staged at `D:\HyperV\VM-ISO\kali-linux-2026.2-installer-netinst-amd64.iso`, with exact size `779091968` bytes and SHA-256 `d32f929dacc48134a31461a09f2160d13ad1d26b820cee920446813ca979b39b`. Its checksum was matched to Kali's officially signed checksum file using signing-key fingerprint `827C8569F2518CC677FECA1AED65462EC8D5E4C5`. This proves artifact identity, not VM suitability: the catalog entry remains proposed and cannot be consumed until Generation 2 and Secure Boot behavior, a clean baseline, bootstrap compatibility, recovery, and rollback are tested and the exact image is separately promoted. Kali remains last in the rollout.
 
 ## Promotion units
 

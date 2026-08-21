@@ -94,7 +94,7 @@ No general dynamic pool is enabled in steady state. OPNsense DHCP remains enable
 | Network | `10.10.120.0/24` | Isolated internal mail-services zone |
 | VLAN | `120` | Tagged MAIL-INT access zone |
 | Default gateway | `10.10.120.1` | OPNsense MAIL-INT interface |
-| `NG-VM-020` / `NG-MAIL-INT01` | `10.10.120.10` | Internal SMTP submission/delivery, IMAP, antispam, malware scanning, and Wazuh agent |
+| `NG-VM-013` / `NG-MAIL-INT01` | `10.10.120.10` | Internal SMTP submission/delivery, IMAP, antispam, malware scanning, and Wazuh agent |
 | Reserved infrastructure range | `10.10.120.2-9` | Future network infrastructure only |
 | Reserved service range | `10.10.120.11-49` | Future reviewed static services |
 | Unallocated range | `10.10.120.50-254` | No automatic assignment |
@@ -106,7 +106,7 @@ No general dynamic pool is enabled in steady state. OPNsense DHCP remains enable
 | Network | `172.31.240.0/24` | Isolated simulated-external mail-services zone |
 | VLAN | `240` | Tagged EXT-MAIL access zone |
 | Default gateway | `172.31.240.1` | OPNsense EXT-MAIL interface |
-| `NG-VM-019` / `NG-MAIL-EXT01` | `172.31.240.10` | External SMTP transfer/submission, test mailbox, and Wazuh agent |
+| `NG-VM-014` / `NG-MAIL-EXT01` | `172.31.240.10` | External SMTP transfer/submission, test mailbox, and Wazuh agent |
 | Internal-mail edge VIP | `172.31.240.25` | Source-restricted TCP 25 destination NAT to `10.10.120.10` |
 | Reserved infrastructure range | `172.31.240.2-9` | Future network infrastructure only |
 | Reserved service range | `172.31.240.11-24`, `172.31.240.26-49` | Future reviewed static services |
@@ -119,7 +119,7 @@ No general dynamic pool is enabled in steady state. OPNsense DHCP remains enable
 | Network | `172.31.250.0/24` | Isolated, untrusted external-simulation segment |
 | VLAN | `250` | Tagged hostile-simulation access zone |
 | Default gateway | `172.31.250.1` | OPNsense SIM-WAN interface |
-| `NG-VM-021` / `NG-KALI-EXT01` | `172.31.250.10` | Primary simulated external host |
+| `NG-VM-015` / `NG-KALI-EXT01` | `172.31.250.10` | Primary simulated external host |
 | Reserved infrastructure range | `172.31.250.2-9` | Future network infrastructure only |
 | Reserved adversary range | `172.31.250.11-49` | Future reviewed static simulation hosts |
 | Unallocated range | `172.31.250.50-254` | No automatic assignment |

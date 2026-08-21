@@ -71,16 +71,16 @@ quarantined.
 |---|---|---:|---:|---:|---:|---|---|
 | NG-VM-018 | NG-DEB-CAN01 | canary | 2 | 2048/2048/4096 | 40 | volume-d | business-apps / 150 |
 | NG-VM-010 | NG-CANARY-01 | canary | 2 | 4096/4096/8192 | 80 | volume-f | users-workstations / 110 |
-| NG-VM-019 | NG-MAIL-EXT01 | persistent | 2 | 2048/2048/4096 | 40 | volume-d | external-mail / 240 |
-| NG-VM-020 | NG-MAIL-INT01 | persistent | 2 | 2048/4096/8192 | 80 | volume-d | mail-internal / 120 |
+| NG-VM-014 | NG-MAIL-EXT01 | persistent | 2 | 2048/2048/4096 | 40 | volume-d | external-mail / 240 |
+| NG-VM-013 | NG-MAIL-INT01 | persistent | 2 | 2048/4096/8192 | 80 | volume-d | mail-internal / 120 |
 | NG-VM-011 | NG-WRK-01 | persistent | 2 | 4096/4096/6144 | 80 | volume-f | users-workstations / 110 |
 | NG-VM-012 | NG-WRK-02 | persistent | 2 | 4096/4096/6144 | 80 | volume-f | users-workstations / 110 |
-| NG-VM-013 | NG-MGR-01 | persistent | 2 | 4096/4096/6144 | 80 | volume-f | users-workstations / 110 |
-| NG-VM-014 | NG-IT-01 | persistent | 4 | 4096/8192/12288 | 100 | volume-f | it-admin-workstations / 130 |
-| NG-VM-015 | NG-CYBER-01 | persistent | 4 | 4096/8192/12288 | 120 | volume-f | cyber-workstations / 140 |
+| NG-VM-019 | NG-MGR-01 | persistent | 2 | 4096/4096/6144 | 80 | volume-f | users-workstations / 110 |
+| NG-VM-020 | NG-IT-01 | persistent | 4 | 4096/8192/12288 | 100 | volume-f | it-admin-workstations / 130 |
+| NG-VM-021 | NG-CYBER-01 | persistent | 4 | 4096/8192/12288 | 120 | volume-f | cyber-workstations / 140 |
 | NG-VM-016 | NG-HR-APP01 | persistent | 2 | 2048/4096/8192 | 100 | volume-d | business-apps / 150 |
 | NG-VM-017 | NG-PLAT-APP01 | persistent | 4 | 4096/8192/16384 | 120 | volume-d | commercial-dmz / 160 |
-| NG-VM-021 | NG-KALI-EXT01 | persistent | 4 | 4096/4096/12288 | 100 | volume-d | sim-wan / 250 |
+| NG-VM-015 | NG-KALI-EXT01 | persistent | 4 | 4096/4096/12288 | 100 | volume-d | sim-wan / 250 |
 
 Persistent disk ceilings are 440 GiB on `volume-d` and 460 GiB on `volume-f`.
 The Debian and Windows canaries use an additional 40 and 80 GiB respectively, and

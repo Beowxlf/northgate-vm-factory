@@ -133,16 +133,16 @@
     "orderedAssetIds": [
       "NG-VM-018",
       "NG-VM-010",
-      "NG-VM-019",
-      "NG-VM-020",
+      "NG-VM-014",
+      "NG-VM-013",
       "NG-VM-011",
       "NG-VM-012",
-      "NG-VM-013",
-      "NG-VM-014",
-      "NG-VM-015",
+      "NG-VM-019",
+      "NG-VM-020",
+      "NG-VM-021",
       "NG-VM-016",
       "NG-VM-017",
-      "NG-VM-021"
+      "NG-VM-015"
     ]
   },
   "workloads": [
@@ -225,7 +225,7 @@
       ]
     },
     {
-      "assetId": "NG-VM-019",
+      "assetId": "NG-VM-014",
       "name": "NG-MAIL-EXT01",
       "deploymentClass": "persistent",
       "ownerRef": "northgate-owner",
@@ -265,7 +265,7 @@
       ]
     },
     {
-      "assetId": "NG-VM-020",
+      "assetId": "NG-VM-013",
       "name": "NG-MAIL-INT01",
       "deploymentClass": "persistent",
       "ownerRef": "northgate-owner",
@@ -276,7 +276,7 @@
       "lifecycle": "proposed",
       "reviewOrRetirementDate": "2027-08-02",
       "dependencies": [
-        "NG-VM-019"
+        "NG-VM-014"
       ],
       "imageRef": "debian-12.12-amd64-netinst",
       "imageState": "candidate-unpromoted",
@@ -387,7 +387,7 @@
       ]
     },
     {
-      "assetId": "NG-VM-013",
+      "assetId": "NG-VM-019",
       "name": "NG-MGR-01",
       "deploymentClass": "persistent",
       "ownerRef": "northgate-owner",
@@ -427,7 +427,7 @@
       ]
     },
     {
-      "assetId": "NG-VM-014",
+      "assetId": "NG-VM-020",
       "name": "NG-IT-01",
       "deploymentClass": "persistent",
       "ownerRef": "northgate-owner",
@@ -467,7 +467,7 @@
       ]
     },
     {
-      "assetId": "NG-VM-015",
+      "assetId": "NG-VM-021",
       "name": "NG-CYBER-01",
       "deploymentClass": "persistent",
       "ownerRef": "northgate-owner",
@@ -518,7 +518,7 @@
       "lifecycle": "proposed",
       "reviewOrRetirementDate": "2027-08-01",
       "dependencies": [
-        "NG-VM-020"
+        "NG-VM-013"
       ],
       "imageRef": "debian-12.12-amd64-netinst",
       "imageState": "candidate-unpromoted",
@@ -560,7 +560,7 @@
       "lifecycle": "proposed",
       "reviewOrRetirementDate": "2027-08-01",
       "dependencies": [
-        "NG-VM-020"
+        "NG-VM-013"
       ],
       "imageRef": "debian-12.12-amd64-netinst",
       "imageState": "candidate-unpromoted",
@@ -591,7 +591,7 @@
       ]
     },
     {
-      "assetId": "NG-VM-021",
+      "assetId": "NG-VM-015",
       "name": "NG-KALI-EXT01",
       "deploymentClass": "persistent",
       "ownerRef": "northgate-owner",
@@ -602,7 +602,7 @@
       "lifecycle": "proposed",
       "reviewOrRetirementDate": "2027-08-02",
       "dependencies": [
-        "NG-VM-019",
+        "NG-VM-014",
         "NG-VM-017"
       ],
       "imageRef": "kali-2026.2-installer-netinst-amd64",
