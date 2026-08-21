@@ -175,6 +175,10 @@ try {
         'Production DPAPI key reads preserve the byte-array type required by the deployment context.'
     Assert-NgcdTest ($source -match [regex]::Escape("`$signer.DigestAlgorithm = New-Object System.Security.Cryptography.Oid('2.16.840.1.101.3.4.2.1')")) `
         'Production deployment receipts explicitly use SHA-256 CMS signatures.'
+    Assert-NgcdTest ($source -match 'Invoke-CimMethod -ClassName Win32_Service -MethodName Create' -and
+        $source -match 'Invoke-CimMethod -InputObject \$existing -MethodName Change' -and
+        $source -cnotmatch "Invoke-NgcdSc @\('create'" -and $source -cnotmatch "Invoke-NgcdSc @\('config'") `
+        'Service registration uses the native Windows API for quoted Program Files command lines.'
     Assert-NgcdTest ($source -match 'Set-NgcdProtectedDirectoryAcl \$stateRoot[^\r\n]*\$serviceRead' -and
         $source -match 'Set-NgcdProtectedDirectoryAcl \(Join-Path \$stateRoot ''deployment-transactions''\)[\s\S]{0,160}\$serviceRead') `
         'Runtime service has read-only deployment-state access.'

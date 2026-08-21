@@ -1532,11 +1532,24 @@ function Set-NgcdWindowsService {
     $binaryPath = '"' + $hostPath + '" --script "' + $serviceScript + '"'
     $existing = Get-CimInstance -ClassName Win32_Service -Filter ("Name='" + $script:ServiceName + "'") -ErrorAction SilentlyContinue
     if ($null -eq $existing) {
-        $null = Invoke-NgcdSc @('create',$script:ServiceName,'binPath=',$binaryPath,'start=','auto','obj=',$script:ServiceAccount)
+        try {
+            $created = Invoke-CimMethod -ClassName Win32_Service -MethodName Create -Arguments @{
+                Name = $script:ServiceName; DisplayName = $script:ServiceName; PathName = $binaryPath
+                StartMode = 'Automatic'; StartName = $script:ServiceAccount
+            } -ErrorAction Stop
+        }
+        catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-CONFIGURATION-FAILED' }
+        if ([int]$created.ReturnValue -ne 0) { Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-CONFIGURATION-FAILED' }
     }
     else {
         if ($existing.State -ne 'Stopped') { $null = Invoke-NgcdSc @('stop',$script:ServiceName) }
-        $null = Invoke-NgcdSc @('config',$script:ServiceName,'binPath=',$binaryPath,'start=','auto','obj=',$script:ServiceAccount)
+        try {
+            $changed = Invoke-CimMethod -InputObject $existing -MethodName Change -Arguments @{
+                PathName = $binaryPath; StartMode = 'Automatic'; StartName = $script:ServiceAccount
+            } -ErrorAction Stop
+        }
+        catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-CONFIGURATION-FAILED' }
+        if ([int]$changed.ReturnValue -ne 0) { Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-CONFIGURATION-FAILED' }
     }
     $null = Invoke-NgcdSc @('description',$script:ServiceName,'NorthGate create-only VM Factory control service')
     $null = Invoke-NgcdSc @('failure',$script:ServiceName,'reset=','86400','actions=','restart/5000/restart/15000/restart/60000')
