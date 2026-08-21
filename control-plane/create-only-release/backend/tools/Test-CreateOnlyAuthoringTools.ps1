@@ -250,8 +250,13 @@ try{
     [IO.File]::WriteAllText((Join-Path $fixture.root 'untracked.tmp'),'dirty')
     Assert-NgcaThrows { New-NorthGateCreateOnlyDataBundle -RepositoryRoot $fixture.root -Commit $fixture.commit -Tree $fixture.tree -SourcePaths $fixture.sourcePaths -OutputRoot (Join-Path $testRoot 'bundle-dirty') -SignerCertificateSha256 $releasePin -CertificateStoreLocation CurrentUser -ConfirmAuthoring } '^NGCA-REPOSITORY-DIRTY$' 'Dirty worktree is rejected before raw object authoring.'
     Remove-Item -LiteralPath (Join-Path $fixture.root 'untracked.tmp') -Force
+    $pretty=New-NgcaGitFixture $testRoot Noncanonical
+    $prettyBundle=New-NorthGateCreateOnlyDataBundle -RepositoryRoot $pretty.root -Commit $pretty.commit -Tree $pretty.tree -SourcePaths $pretty.sourcePaths -OutputRoot (Join-Path $testRoot 'bundle-pretty-json') -SignerCertificateSha256 $releasePin -CertificateStoreLocation CurrentUser -ConfirmAuthoring
+    $prettyObject=ConvertFrom-Json ([IO.File]::ReadAllText($prettyBundle.bundlePath))
+    $prettyNetwork=@($prettyObject.files|Where-Object sourcePath -ceq 'catalog/networks.json')[0]
+    Assert-NgcaTest ($prettyNetwork.sourceSha256-cne$prettyNetwork.canonicalSha256 -and
+        (Get-NgcaTestSha ([IO.File]::ReadAllBytes((Join-Path $prettyBundle.outputRoot 'files\catalog\networks.json'))))-ceq$prettyNetwork.canonicalSha256) 'Human-readable Git JSON is strictly parsed and emitted as separately hashed canonical bundle data.'
     foreach($negative in @(
-        [pscustomobject]@{mode='Noncanonical';pattern='^NGCA-DATA-SOURCE-NONCANONICAL$';message='Noncanonical source JSON is rejected.'},
         [pscustomobject]@{mode='Filter';pattern='^NGCA-GIT-FILTER-FORBIDDEN$';message='Git content filters are rejected.'},
         [pscustomobject]@{mode='Executable';pattern='^NGCA-DATA-EXECUTABLE-FORBIDDEN$';message='Executable data-root blobs are rejected.'},
         [pscustomobject]@{mode='Secret';pattern='^NGCA-SECRET-MATERIAL-FORBIDDEN$';message='Secret material in repository data is rejected.'},
