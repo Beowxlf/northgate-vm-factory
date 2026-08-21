@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 
-Import-Module (Join-Path $PSScriptRoot 'NorthGate.VMFactory.CreateOnlyProtocol.psd1') -Force -ErrorAction Stop
+Import-Module (Join-Path $PSScriptRoot 'NorthGate.VMFactory.CreateOnlyProtocol.psd1') -ErrorAction Stop
 
 $script:ReleaseVersion = '0.1.0'
 $script:ReleaseStatus = 'production-release-candidate-hard-disabled'

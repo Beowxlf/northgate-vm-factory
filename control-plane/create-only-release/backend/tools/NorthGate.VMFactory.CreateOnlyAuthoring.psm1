@@ -3,8 +3,8 @@ Set-StrictMode -Version Latest
 $releaseRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $protocolManifest = Join-Path $releaseRoot 'NorthGate.VMFactory.CreateOnlyProtocol.psd1'
 $backendManifest = Join-Path (Split-Path -Parent $PSScriptRoot) 'NorthGate.VMFactory.CreateOnlyBackend.psd1'
-$script:ProtocolModule = Import-Module $protocolManifest -Force -PassThru -ErrorAction Stop
-$script:BackendModule = Import-Module $backendManifest -Force -PassThru -ErrorAction Stop
+$script:ProtocolModule = Import-Module $protocolManifest -PassThru -ErrorAction Stop
+$script:BackendModule = Import-Module $backendManifest -PassThru -ErrorAction Stop
 
 $script:RepositoryIdentity = 'Beowxlf/northgate-vm-factory'
 $script:MaximumArtifactBytes = 1048576

@@ -1,7 +1,7 @@
 Set-StrictMode -Version Latest
 
 $protocolManifest = Join-Path (Split-Path -Parent $PSScriptRoot) 'NorthGate.VMFactory.CreateOnlyProtocol.psd1'
-Import-Module $protocolManifest -Force -ErrorAction Stop
+Import-Module $protocolManifest -ErrorAction Stop
 
 $script:BackendVersion = '1.0.0'
 $script:RepositoryIdentity = 'Beowxlf/northgate-vm-factory'
