@@ -379,6 +379,11 @@ function Set-NgcdProtectedDirectoryAcl {
 
 function Get-NgcdProductionMacKey {
     param([string]$StateRoot)
+    try { Add-Type -AssemblyName System.Security -ErrorAction Stop }
+    catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-DPAPI-UNAVAILABLE' }
+    if ($null -eq ('System.Security.Cryptography.ProtectedData' -as [type])) {
+        Stop-Ngcd 'NGCOR-DEPLOYMENT-DPAPI-UNAVAILABLE'
+    }
     $keyPath = Join-Path $StateRoot 'deployment-state-key.dpapi'
     $entropy = [System.Text.Encoding]::UTF8.GetBytes('NorthGate.CreateOnly.Deployment.State.v1')
     if (Test-Path -LiteralPath $keyPath) {
@@ -1753,8 +1758,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBQ1iCwepF9MSdu
-# qhvo/n9BXoglbaLjDF6hcU5ht53KN6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDQCLVfbiTmTyyy
+# AfxCnjGSyhxoLzDWA6nzO3aMAcOw/qCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -1782,14 +1787,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIHUrXG1UttsJzFWBgCHQ4wI4t2jtxvfTWrrt9UJT/fCQMA0GCSqG
-# SIb3DQEBAQUABIIBgDWQ3QOG15T4GpA5QXJTqRPQ5GUiV9fbHQa5sxeIVwevhVbO
-# 7weJU7+YLSv/xua8MC8hKZoIlbtGrUh6oSnMKT1Vk9Mkq7Sg2Zr0ZH+GKQ5iENvZ
-# nTAWegpTJsJllK61TSlA8iaN9k51ropmGTmlRboCTbaNaEuwjhfpcD3+KibC/R+z
-# 3C3CHZ0hDd8/1Mq65u4awFBKuYdf5YW+XemUFhj+icvz9MfS6xNw2v1fsC/P/280
-# esOlR1jGW+E7gz433NqUmXqYP2q9MokMrN9MtUSw4XC5Orc5oL8JCcVXugJzup4g
-# TQYGyKNpN99Kr+IZii+67Z3qeAWGFsZeLMfJpOyzE95dV3qWkFY70BOLe3tq1gtR
-# 69eIzlRL2mHa4la3KmY66SAjiyBToGAh+TMaUQg961crr4QcuKCXOYFtxjmydwlH
-# wI1w5nTnVJhE0vcnNbnPKEV21GjyRTWk+mPc2hTFfRLFcVfe0ud95FAHtJ9Q2dUw
-# vxEpabBfUJpLAuElAw==
+# hvcNAQkEMSIEIDyoSFLN7QyNaVgUo88nhfe8s2WFjlLQ6eZqqj9Rysq2MA0GCSqG
+# SIb3DQEBAQUABIIBgE855qKImDZgpjYa/fEAjaGqCTpeXVRrIci7WaG9vvWMoEUV
+# 2bmgEVuj7ui+KgBophSx+jO3kup6n57fKWtx3Kj2MXlTtY5cvl+DT6s/s3tHDnyb
+# 9MIKuPZVzDFqlIp4jZRvD4DqUCPWiyraEnQmcyGOJ0ZnccWz8dkpbZleDoWBS0gx
+# RpJC/zh9UIfbq6MC+Vv5nHoo/WMwv/m6jDU+dTE7x/OoMSlQGkTHfXMsB+pUkChb
+# d/1YiQJ4RYDteFfSIXeVeXfmELumVJ6F6eChdfwBkITvuj0wadnsR7sRznfAG6gZ
+# OIRR3Jr//ehSXc/71Gs28JGoW/ZQUH8kN/jszXoJ2BW5mbWp0PJ0ysvxntTGasSR
+# 20YOdwFpfiJHMVowDqZVoAJjaC34kUSsOenYnFV6RgsDfrV2x0pABu4xSOVvouvO
+# 86/MAtqZtshdoFRZMQST2llKIew/Ys8y8aOW2fdGeJXOMrG00/4WcSYykfwnkWzr
+# M7iOGN1mkJmvPz2nGA==
 # SIG # End signature block
