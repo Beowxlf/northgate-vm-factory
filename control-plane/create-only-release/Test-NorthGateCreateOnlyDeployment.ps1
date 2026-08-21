@@ -165,6 +165,10 @@ try {
         $source -match 'addr=10\.10\.100\.20' -and
         $source -cnotmatch "FixedSshSourceCidr = '10\.10\.100\.11/32'") `
         'Forced-command SSH is source-restricted to the authorized management workstation.'
+    Assert-NgcdTest ($source -cnotmatch "'    PermitUserEnvironment no'") `
+        'Managed Match blocks omit the Windows OpenSSH-incompatible PermitUserEnvironment directive.'
+    Assert-NgcdTest ($source -match 'user=\.\\\$SshUserName,host=') `
+        'Windows OpenSSH effective-policy validation resolves the dedicated account as a local user.'
     Assert-NgcdTest ($source -match 'Set-NgcdProtectedDirectoryAcl \$stateRoot[^\r\n]*\$serviceRead' -and
         $source -match 'Set-NgcdProtectedDirectoryAcl \(Join-Path \$stateRoot ''deployment-transactions''\)[\s\S]{0,160}\$serviceRead') `
         'Runtime service has read-only deployment-state access.'
