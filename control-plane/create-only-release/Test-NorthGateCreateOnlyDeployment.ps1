@@ -36,6 +36,20 @@ $modulePath = Join-Path $root 'NorthGate.VMFactory.CreateOnlyDeployment.psd1'
 $deployment = Import-Module $modulePath -Force -PassThru
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) ('ngcor-deployment-test-' + [guid]::NewGuid().ToString('N'))
 
+$dpapiRoot = Join-Path $testRoot 'dpapi-state'
+$null = [IO.Directory]::CreateDirectory($dpapiRoot)
+$firstProductionKey = & $deployment {
+    param($StateRoot) Get-NgcdProductionMacKey $StateRoot
+} $dpapiRoot
+$secondProductionKey = & $deployment {
+    param($StateRoot) Get-NgcdProductionMacKey $StateRoot
+} $dpapiRoot
+Assert-NgcdTest ($firstProductionKey -is [byte[]] -and $firstProductionKey.Length -eq 32) `
+    'A clean process can initialize the LocalMachine DPAPI deployment-state key.'
+Assert-NgcdTest ($secondProductionKey -is [byte[]] -and $secondProductionKey.Length -eq 32 -and
+    (Get-NgcdTestSha256 $firstProductionKey) -ceq (Get-NgcdTestSha256 $secondProductionKey)) `
+    'A clean process can reopen the same LocalMachine DPAPI deployment-state key.'
+
 function ConvertTo-NgcdTestCanonical {
     param([object]$Value)
     & $deployment {
