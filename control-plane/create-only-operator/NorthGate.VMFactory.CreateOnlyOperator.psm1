@@ -356,8 +356,8 @@ function Get-NgcoFixedFleetPolicy {
     $windowsHash = 'd141f6030fed50f75e2b03e1eb2e53646c4b21e5386047cb860af5223f102a32'
     $kaliHash = 'd32f929dacc48134a31461a09f2160d13ad1d26b820cee920446813ca979b39b'
     $entries = @(
-        New-NgcoFleetEntry 'NG-VM-018' 'NG-DEB-CAN01' 'disposable-canary' 2 2048 2048 4096 40 'debian-12.12-amd64-netinst' $debianHash 'linux-gen2' 'lab-ephemeral' 'business-apps' 'debian12-disposable-canary' 'none-canary' 'disposable-canary-keyonly-admin'
-        New-NgcoFleetEntry 'NG-VM-010' 'NG-CANARY-01' 'disposable-canary' 2 4096 4096 8192 80 'windows-11-25h2-english-x64' $windowsHash 'windows-gen2' 'lab-ephemeral' 'users-workstations' 'windows11-disposable-canary' 'none-canary' 'windows-disposable-canary'
+        New-NgcoFleetEntry 'NG-VM-018' 'NG-DEB-CAN01' 'disposable-canary' 2 2048 2048 4096 40 'debian-12.12-amd64-netinst' $debianHash 'linux-gen2' 'lab-ephemeral-d' 'business-apps' 'debian12-disposable-canary' 'none-canary' 'disposable-canary-keyonly-admin'
+        New-NgcoFleetEntry 'NG-VM-010' 'NG-CANARY-01' 'disposable-canary' 2 4096 4096 8192 80 'windows-11-25h2-english-x64' $windowsHash 'windows-gen2' 'lab-ephemeral-f' 'users-workstations' 'windows11-disposable-canary' 'none-canary' 'windows-disposable-canary'
         New-NgcoFleetEntry 'NG-VM-014' 'NG-MAIL-EXT01' 'persistent' 2 2048 2048 4096 40 'debian-12.12-amd64-netinst' $debianHash 'linux-gen2' 'persistent-mail-protected' 'external-mail' 'debian12-mail-external' 'bronze' 'linux-server-keyonly-admin'
         New-NgcoFleetEntry 'NG-VM-013' 'NG-MAIL-INT01' 'persistent' 2 2048 4096 8192 80 'debian-12.12-amd64-netinst' $debianHash 'linux-gen2' 'persistent-mail-protected' 'mail-internal' 'debian12-mail-internal' 'silver' 'linux-server-keyonly-admin'
         New-NgcoFleetEntry 'NG-VM-011' 'NG-WRK-01' 'persistent' 2 4096 4096 6144 80 'windows-11-25h2-english-x64' $windowsHash 'windows-gen2' 'persistent-workstations' 'users-workstations' 'windows11-worker' 'bronze' 'windows-domain-managed'
