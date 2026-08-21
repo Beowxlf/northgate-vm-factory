@@ -3,7 +3,7 @@ Set-StrictMode -Version Latest
 $releaseRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $protocolManifest = Join-Path $releaseRoot 'NorthGate.VMFactory.CreateOnlyProtocol.psd1'
 $backendManifest = Join-Path (Split-Path -Parent $PSScriptRoot) 'NorthGate.VMFactory.CreateOnlyBackend.psd1'
-Import-Module $protocolManifest -Force -ErrorAction Stop
+$script:ProtocolModule = Import-Module $protocolManifest -Force -PassThru -ErrorAction Stop
 $script:BackendModule = Import-Module $backendManifest -Force -PassThru -ErrorAction Stop
 
 $script:RepositoryIdentity = 'Beowxlf/northgate-vm-factory'
@@ -468,6 +468,36 @@ function Get-NgcaDataRole {
     Throw-NgcaError 'NGCA-DATA-SOURCE-NOT-ALLOWLISTED'
 }
 
+function ConvertFrom-NgcaGitJsonBytes {
+    param([byte[]]$Bytes)
+    try {
+        & $script:ProtocolModule {
+            param([byte[]]$SourceBytes,[int]$MaximumBytes)
+            if ($SourceBytes.Length -eq 0 -or $SourceBytes.Length -gt $MaximumBytes) {
+                Throw-NgcorProtocolError 'NGCOR-CANONICAL-JSON-SIZE-INVALID'
+            }
+            if ($SourceBytes.Length -ge 3 -and $SourceBytes[0] -eq 0xef -and
+                $SourceBytes[1] -eq 0xbb -and $SourceBytes[2] -eq 0xbf) {
+                Throw-NgcorProtocolError 'NGCOR-CANONICAL-JSON-BOM-FORBIDDEN'
+            }
+            try {
+                $utf8 = New-Object System.Text.UTF8Encoding($false,$true)
+                $json = $utf8.GetString($SourceBytes)
+            }
+            catch { Throw-NgcorProtocolError 'NGCOR-CANONICAL-JSON-UTF8-INVALID' }
+            Assert-NgcorStrictJson $json $MaximumBytes 'NGCOR-CANONICAL-JSON-SIZE-INVALID'
+            try { $value = ConvertFrom-NgcorJsonText $json }
+            catch { Throw-NgcorProtocolError 'NGCOR-JSON-INVALID' }
+            if ($value -isnot [System.Management.Automation.PSCustomObject]) {
+                Throw-NgcorProtocolError 'NGCOR-CANONICAL-JSON-NONCANONICAL'
+            }
+            $canonicalJson = ConvertTo-NorthGateCreateOnlyCanonicalJson $value
+            [pscustomobject][ordered]@{Value=$value;CanonicalJson=$canonicalJson}
+        } $Bytes $script:MaximumArtifactBytes
+    }
+    catch { Throw-NgcaError 'NGCA-DATA-SOURCE-JSON-INVALID' }
+}
+
 function Assert-NgcaDebianIdentity {
     param([object]$ImageCatalog)
     $matches = @($ImageCatalog.images | Where-Object { $_.id -ceq 'debian-12.12-amd64-netinst' })
@@ -519,8 +549,8 @@ function New-NorthGateCreateOnlyDataBundle {
         }
         $bytes = Get-NgcaGitBlob $boundary.root $treeEntry.oid
         if ($bytes.Length -lt 2 -or $bytes.Length -gt $script:MaximumArtifactBytes) { Throw-NgcaError 'NGCA-DATA-SOURCE-SIZE-INVALID' }
-        try { $parsed = ConvertFrom-NorthGateCreateOnlyCanonicalJsonBytes -Bytes $bytes -MaximumBytes $script:MaximumArtifactBytes }
-        catch { Throw-NgcaError 'NGCA-DATA-SOURCE-NONCANONICAL' }
+        $parsed = ConvertFrom-NgcaGitJsonBytes $bytes
+        $canonicalBytes = [Text.Encoding]::UTF8.GetBytes([string]$parsed.CanonicalJson)
         Assert-NgcaNoSecrets $parsed.Value
         $role = Get-NgcaDataRole $sourcePath $parsed.Value
         if ($role -in @($script:CoreCatalogRoles.Values) -and -not $roles.Add($role)) {
@@ -541,10 +571,10 @@ function New-NorthGateCreateOnlyDataBundle {
         $record.gitMode = '100644'
         $record.sourceSha256 = $sourceSha
         $record.canonicalRelativePath = $relativePath
-        $record.canonicalSha256 = $sourceSha
-        $record.sizeBytes = [int64]$bytes.Length
+        $record.canonicalSha256 = Get-NgcaSha256Hex $canonicalBytes
+        $record.sizeBytes = [int64]$canonicalBytes.Length
         $records += [pscustomobject]$record
-        $filePayloads[$relativePath] = $bytes
+        $filePayloads[$relativePath] = $canonicalBytes
     }
     foreach ($role in @($script:CoreCatalogRoles.Values)) {
         if (-not $roles.Contains([string]$role)) { Throw-NgcaError 'NGCA-DATA-CORE-CATALOG-MISSING' }
@@ -604,7 +634,7 @@ function Read-NgcaRawGitCanonicalDocument {
     $entry = $Boundary.treeIndex[$key]
     if ($entry.path -cne $path -or $entry.mode -cne '100644' -or $entry.type -cne 'blob') { Throw-NgcaError $Code }
     $bytes = Get-NgcaGitBlob $Boundary.root $entry.oid
-    try { $parsed = ConvertFrom-NorthGateCreateOnlyCanonicalJsonBytes $bytes $script:MaximumArtifactBytes }
+    try { $parsed = ConvertFrom-NgcaGitJsonBytes $bytes }
     catch { Throw-NgcaError $Code }
     Assert-NgcaNoSecrets $parsed.Value
     [pscustomobject][ordered]@{path=$path;oid=$entry.oid;bytes=$bytes;sha256=(Get-NgcaSha256Hex $bytes);value=$parsed.Value}
