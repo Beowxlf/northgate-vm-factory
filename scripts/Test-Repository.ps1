@@ -1275,6 +1275,12 @@ if (Test-Path -LiteralPath (Join-Path $repositoryRoot '.gitmodules')) {
     throw 'Git submodules are not permitted.'
 }
 
+$authenticodeResult = & (Join-Path $PSScriptRoot 'Test-CreateOnlyRuntimeAuthenticode.ps1') `
+    -RepositoryRoot $repositoryRoot
+if ($authenticodeResult.status -cne 'authenticode-verified' -or $authenticodeResult.fileCount -ne 16) {
+    throw 'Create-only runtime Authenticode validation did not reach its exact expected result.'
+}
+
 $gitAttributes = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot '.gitattributes')
 if ($gitAttributes -notmatch '(?m)^\*\.cs text eol=lf$') {
     throw 'C# release sources must use repository-pinned LF line endings for raw-Git build provenance.'

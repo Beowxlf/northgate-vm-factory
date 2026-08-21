@@ -160,8 +160,9 @@ if ((ConvertTo-NorthGateCreateOnlyCanonicalJson $policy) -cne $policyRaw -or
     $policy.serviceHostSignerCertificateSha256 -cne $installed.releaseSignerCertificateSha256 -or
     $policy.backendPolicySha256 -cne $installed.backendPolicySha256 -or
     $policy.dataBundleSha256 -cne $installed.dataBundleSha256 -or
-    $policy.applyEnabled -ne $true -or (@($policy.executableActions) -join '|') -cne 'Create' -or
-    $policy.canaryStage -cne 'signed-policy') {
+    $policy.applyEnabled -ne [bool]$authorization.initialPolicy.applyEnabled -or
+    (@($policy.executableActions) -join '|') -cne (@($authorization.initialPolicy.executableActions) -join '|') -or
+    $policy.canaryStage -cne [string]$authorization.initialPolicy.canaryStage) {
     throw 'NGCOR-INSTALLED-POLICY-INVALID'
 }
 
@@ -265,12 +266,24 @@ while (-not $serviceStopEvent.WaitOne(0)) {
         $requestBytes = Read-NgcorExact $pipe $length 5000
         $envelope = ConvertFrom-NorthGateCreateOnlyServiceEnvelopeBytes $requestBytes
         try {
-            $result = Invoke-NorthGateCreateOnlyBackendServiceRequest `
-                -Context $backendContext -Operation $envelope.Operation -PlanId $envelope.PlanId `
-                -BodyBytes $envelope.BodyBytes -ActorSid ([string]$identityBox[0].Sid) `
-                -ActorIsAdministrator ([bool]$identityBox[0].IsAdministrator) `
-                -SshIdentitySid ([string]$policy.sshIdentitySid) `
-                -ServiceIdentitySid ([string]$policy.serviceIdentitySid)
+            if (-not [bool]$policy.applyEnabled) {
+                if ($envelope.Operation -cne 'status') { throw 'NGCOR-INSTALLED-POLICY-DISABLED' }
+                $result = [pscustomobject][ordered]@{
+                    status = 'installed-disabled'
+                    releaseId = [string]$policy.releaseId
+                    applyEnabled = $false
+                    executableActions = [object[]]@()
+                    canaryStage = 'disabled'
+                }
+            }
+            else {
+                $result = Invoke-NorthGateCreateOnlyBackendServiceRequest `
+                    -Context $backendContext -Operation $envelope.Operation -PlanId $envelope.PlanId `
+                    -BodyBytes $envelope.BodyBytes -ActorSid ([string]$identityBox[0].Sid) `
+                    -ActorIsAdministrator ([bool]$identityBox[0].IsAdministrator) `
+                    -SshIdentitySid ([string]$policy.sshIdentitySid) `
+                    -ServiceIdentitySid ([string]$policy.serviceIdentitySid)
+            }
             Write-NgcorResponse $pipe ([pscustomobject][ordered]@{ status = 'ok'; result = $result })
         }
         catch {
@@ -290,3 +303,47 @@ while (-not $serviceStopEvent.WaitOne(0)) {
     }
     finally { $pipe.Dispose() }
 }
+
+# SIG # Begin signature block
+# MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
+# BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBiNYhuu4KTybeG
+# 2SJ/7eojLCm6Zhf8Lq4vibS3zhIElqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
+# TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
+# MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
+# RmFjdG9yeSBSZWxlYXNlIFNpZ25lciAyMDI2LTA4LTIxIHYyMIIBojANBgkqhkiG
+# 9w0BAQEFAAOCAY8AMIIBigKCAYEAuK2RPh+kwyLvYhpQmiHvsROwEKzmIdyEc6WV
+# b1N80dzFqV4o16F7MTsoC1Xbo3VdbDurlCWifItnM+UTZ7B6xP8TLmPGRys7sGa/
+# QQOm77wKKQ7OdjJlqSSXz4+efiUwoMEkhyP3YkL8G7VvS7EcKCVaspPX8ghvtCYe
+# rOQQYWVFOV9EuvajfvnFPna0Y4Y4qMJAxZZEtfMVKtLejdftGHra9pZm/Vi3OiIx
+# At/lfqeqK1vYu96Uyh4LhSoxSaev2EOpsznHtTIwY3KNC9dpwlogX2FYa0l1zH1k
+# Kk0n/AjTYgR0mxQXMP89640xScVCb+rmY8SNG5w/YZB9uQnkTY5Zkh8z5dfHH8HM
+# Fvibww5+B8nEBiMe/1RrUzpf1qOyuwyCphrAMRl2NbWR/yzdjCvUBaLbbmkVW20f
+# U3X2CTd144vt2iLfCco+WEIuXaRy6g1vQxu1bYtOHuO5GwobWUCN4CVvhILf+VVt
+# hPvyDnvdRZEyaJ2wmI3xWE0+QJY9AgMBAAGjVzBVMA4GA1UdDwEB/wQEAwIHgDAM
+# BgNVHRMBAf8EAjAAMBYGA1UdJQEB/wQMMAoGCCsGAQUFBwMDMB0GA1UdDgQWBBRb
+# WaTBPZZW7QhHiKCc/W2Z3DB9oTANBgkqhkiG9w0BAQsFAAOCAYEAaNP8lBhUC94L
+# AUcORggLbH+yuwZ92dK4vhUVrqukaQKL0CpTouv88GOJtrocGo09vyZ1Y7T+ieZ2
+# SKKMwmM+efwt+cDQ0b4HDIWYfswSQdfd/HATQX5PNSmC6uEYi6cf/yd31aHkySrN
+# W2gfy82zjixp/SP/k9KmpbE+I5f8wppCZ4+ePk5/g+f7gb7a9+g66Ywua2apF76N
+# gQB0LPaz0SXwWZ4QS4w/X4TUSDnluz9uHzX2NZ4oNAzT1tR7tBF7Ntu+8mEw2mot
+# BcI7pQEu6CDLNGl1rSwPswnZDUWOcnImdqW3IDab4XUmN5my5pB3iLmojG2UOVXr
+# SWVYZkiHWI5RGHNDBmdnbDXxK2Xy4uJMLiVEqws8QosKSTUTSAL5B3KM1/HWwQzv
+# X2fiwRK2cIfTIJ34Dtlp0lewhzvauoSuVZkYxQ/43QfYxed20zWo44UnRTrScDdC
+# 9UmREbQDcZjjpb04T4zAXLHmS9e0k1IwA7vXMRcs4x7Uiq5diaQdMYICgjCCAn4C
+# AQEwUDA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0gRmFjdG9yeSBSZWxlYXNlIFNp
+# Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
+# AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
+# CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
+# hvcNAQkEMSIEIFyzmSdhYCFJ2YFCRZ8ooIglXqn42zjNvKqoFH3Yah+LMA0GCSqG
+# SIb3DQEBAQUABIIBgJva+r83cSLlb8pR3lYq+4hnCAuZIX4hAH/FoJIv0eLZwEFy
+# herB8YLwHoWXT4Ni5nss4ZlVbVrl5+P38qCgivuvkaJSdw5uftxzujVxdVbrrgAk
+# Kb/t1IjXrBs4oD4dfv+bTSDrG11Mx+v3QHeY/h6sgDpp7sX+KouEVVJr/u5qdNno
+# h682MzO/Jj++X68rEKVuCtqc35uFU/ywnldxY6BwlPmlecJaPIa85JW1ls04BQCe
+# bU5wyMLPTFf4rOjEIVoBMyx+1Dj8TKUu1WW3PU4+WflCrsYwkDoqwIL79fjulxo/
+# 2dhGfCzDiJAEZ+lyb2ZY5mDcplBqJboLs8sIuiph0IupmboVdgP8twxYPuqCV396
+# jEwQyQA+zXQVaLpyY8xfCUILfqjQAuLHifPaj55SRwWMzu55y0k3l4712XMj9AW4
+# A6TdYh4xSqEGulkfvc2SbcB8qYutB+lZcNsOr0T+zp3FhnK3r/2EBD2OpskVWwBW
+# nLQ5Cx3W+UM7hPTvTQ==
+# SIG # End signature block

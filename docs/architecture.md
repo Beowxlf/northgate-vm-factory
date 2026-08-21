@@ -26,7 +26,7 @@ Source-restricted public-key authentication plus the server-enforced forced comm
 |---|---|---|
 | Reviewed repository source | Canonical manifests, approved source policy/promotion, tests, and release inputs at an exact commit/tree | No |
 | Staged signed package | Immutable candidate package retained for inspection or installation | No |
-| Installed disabled create-only release | Matching package and protected state exist; identity, policy, registry, and service are installed but activation gates remain closed | No |
+| Installed disabled create-only release | Matching package and protected state exist; identity, policy, and registry are installed; `applyEnabled=false`, executable actions are empty, and the service is stopped with startup disabled | No |
 | Installed active create-only release | Exact installed policy permits the action and every identity, plan, approval, lock, collision, capacity, and receipt gate passes | Only the accepted plan operation |
 | Existing NorthGateMCP operational plane | Separately governed broad management/transition component | Only through its own authorization and audit controls; never proof that the create-only release is active |
 
@@ -53,6 +53,8 @@ Source-restricted public-key authentication plus the server-enforced forced comm
 - Observed inventory is non-actionable. Adoption and decommission use separate typed records and approvals; neither is represented by a standard VM manifest.
 - The host-side installed policy is authoritative for storage roots, switch identity/fingerprint, image artifacts, firmware, capacity, and action allowlists. Git catalogs can narrow but never widen it.
 - A repository policy with `applyEnabled: true` is release input only. If the matching installed policy, active-release record, constrained identity, or registry is absent, create-only apply is disabled regardless of Git state.
+- Host-executed PowerShell is Authenticode-signed with SHA-256 by the pinned release signer and must validate under the host execution policy. Detached CMS signatures bind the package and executable provenance but do not replace Authenticode enforcement.
+- Initial installed authority is copied from the signed host authorization. Backend-policy presence cannot change `initialPolicy.applyEnabled=false`, add an action, or start the disabled service.
 - A proposed image or profile is design inventory only. `promotedOnly: true` means a standard manifest may resolve only an active promoted image even when the image catalog also carries a pinned proposed candidate awaiting artifact and boot evidence.
 
 ## Failure behavior

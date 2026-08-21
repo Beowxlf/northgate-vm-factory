@@ -133,6 +133,11 @@ function New-NgcdTestFixture {
             serviceIdentitySid = 'S-1-5-21-100-200-300-1002'
             sshIdentitySid = 'S-1-5-21-100-200-300-1001'
         }
+        initialPolicy = [pscustomobject][ordered]@{
+            applyEnabled = $false
+            executableActions = [object[]]@()
+            canaryStage = 'disabled'
+        }
     }
     $authorizationHash = Get-NgcdTestSha256 ([Text.Encoding]::UTF8.GetBytes(
         (ConvertTo-NgcdTestCanonical $authorization)
@@ -179,6 +184,31 @@ try {
         $source -match 'Invoke-CimMethod -InputObject \$existing -MethodName Change' -and
         $source -cnotmatch "Invoke-NgcdSc @\('create'" -and $source -cnotmatch "Invoke-NgcdSc @\('config'") `
         'Service registration uses the native Windows API for quoted Program Files command lines.'
+    Assert-NgcdTest ($source -match '\$startMode = if \(\$InstallEnabled\) \{ ''Automatic'' \} else \{ ''Disabled'' \}' -and
+        $source -match '\$expectedState = if \(\$InstallEnabled\) \{ ''Running'' \} else \{ ''Stopped'' \}' -and
+        $source -match '\[bool\]\$Authorization\.initialPolicy\.applyEnabled') `
+        'Installation preserves the authorized disabled service posture instead of starting the backend.'
+    $disabledAuthorization = [pscustomobject]@{
+        identity = [pscustomobject]@{
+            sshIdentitySid = 'S-1-5-21-100-200-300-1001'
+            serviceIdentitySid = 'S-1-5-21-100-200-300-1002'
+            releaseSignerCertificateSha256 = '8' * 64
+        }
+        initialPolicy = [pscustomobject]@{
+            applyEnabled = $false
+            executableActions = [object[]]@()
+            canaryStage = 'disabled'
+        }
+    }
+    $disabledInstalledPolicy = & $deployment {
+        param($Authorization)
+        New-NgcdInstalledPolicy $Authorization 'ngcor-disabled-policy-test' ('a' * 64) ('b' * 64) ('c' * 64)
+    } $disabledAuthorization
+    Assert-NgcdTest (-not $disabledInstalledPolicy.applyEnabled -and
+        @($disabledInstalledPolicy.executableActions).Count -eq 0 -and
+        $disabledInstalledPolicy.canaryStage -ceq 'disabled' -and
+        $disabledInstalledPolicy.backendPolicySha256 -ceq ('b' * 64)) `
+        'An active signed backend bundle cannot override the host authorization initialPolicy=false gate.'
     Assert-NgcdTest ($source -match 'Set-NgcdProtectedDirectoryAcl \$stateRoot[^\r\n]*\$serviceRead' -and
         $source -match 'Set-NgcdProtectedDirectoryAcl \(Join-Path \$stateRoot ''deployment-transactions''\)[\s\S]{0,160}\$serviceRead') `
         'Runtime service has read-only deployment-state access.'

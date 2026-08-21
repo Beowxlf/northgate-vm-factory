@@ -396,6 +396,29 @@ try {
         [IO.File]::WriteAllBytes($destinationPath,[IO.File]::ReadAllBytes($sourceFile.FullName))
     }
 
+    $testSigner = New-NgcorTestCodeSigningCertificate
+    $authenticodePaths = @(
+        'NorthGate.VMFactory.CreateOnlyProtocol.psd1','NorthGate.VMFactory.CreateOnlyProtocol.psm1',
+        'NorthGate.VMFactory.CreateOnlyDeployment.psd1','NorthGate.VMFactory.CreateOnlyDeployment.psm1',
+        'Build-NorthGateCreateOnlyServiceHost.ps1','NorthGate.VMFactory.CreateOnlyService.psd1',
+        'NorthGate.VMFactory.CreateOnlyService.psm1','backend\NorthGate.VMFactory.CreateOnlyBackend.psd1',
+        'backend\NorthGate.VMFactory.CreateOnlyBackend.psm1','Invoke-NorthGateCreateOnlyForcedCommand.ps1',
+        'Start-NorthGateCreateOnlyPipeService.ps1','Install-NorthGateCreateOnlyRelease.ps1',
+        'New-NorthGateCreateOnlyApproval.ps1','New-NorthGateCreateOnlyRolloutPromotion.ps1',
+        'Rollback-NorthGateCreateOnlyRelease.ps1','Test-NorthGateCreateOnlyHostAuthorization.ps1'
+    )
+    foreach ($relative in $authenticodePaths) {
+        $signed = Set-AuthenticodeSignature -LiteralPath (Join-Path $fixtureSourceRoot $relative) `
+            -Certificate $testSigner.Certificate -HashAlgorithm SHA256 -ErrorAction Stop
+        Assert-NgcorTest ($signed.Status -notin @(
+                [Management.Automation.SignatureStatus]::NotSigned,
+                [Management.Automation.SignatureStatus]::HashMismatch,
+                [Management.Automation.SignatureStatus]::NotSupportedFileFormat,
+                [Management.Automation.SignatureStatus]::Incompatible
+            )) `
+            "Fixture Authenticode signing succeeds for $relative."
+    }
+
     $null = Invoke-NgcorTestGit $fixtureRoot @('init')
     $null = Invoke-NgcorTestGit $fixtureRoot @('config','user.name','NorthGate fixture')
     $null = Invoke-NgcorTestGit $fixtureRoot @('config','user.email','northgate-fixture@example.invalid')
@@ -456,7 +479,6 @@ try {
         -ExpectedAutomationAssemblySha256 $automationHash `
         -ExpectedServiceProcessAssemblySha256 $serviceProcessHash
     [IO.File]::Copy($unsignedServiceHost,$finalServiceHost,$false)
-    $testSigner = New-NgcorTestCodeSigningCertificate
     $releaseSignerPin = Get-NgcorTestCertificateSha256 $testSigner.Certificate
     [IO.File]::WriteAllBytes(
         $serviceHostCms,
