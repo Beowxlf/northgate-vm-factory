@@ -39,6 +39,7 @@ $root = $PSScriptRoot
 $sourcePath = Join-Path $root 'NorthGate.CreateOnly.ServiceHost.cs'
 $builderPath = Join-Path $root 'Build-NorthGateCreateOnlyServiceHost.ps1'
 $serviceScriptPath = Join-Path $root 'Start-NorthGateCreateOnlyPipeService.ps1'
+$forcedScriptPath = Join-Path $root 'Invoke-NorthGateCreateOnlyForcedCommand.ps1'
 $testRoot = Join-Path ([System.IO.Path]::GetTempPath()) `
     ('ngcor-service-host-test-' + [guid]::NewGuid().ToString('N'))
 
@@ -46,6 +47,7 @@ try {
     $source = [System.IO.File]::ReadAllText($sourcePath)
     $builder = [System.IO.File]::ReadAllText($builderPath)
     $serviceScript = [System.IO.File]::ReadAllText($serviceScriptPath)
+    $forcedScript = [System.IO.File]::ReadAllText($forcedScriptPath)
     Assert-NgchTest ($source -match 'ServiceBase\.Run' -and $source -match 'RunspaceFactory\.CreateRunspace') `
         'Native host runs as a Windows service and hosts Windows PowerShell in-process.'
     Assert-NgchTest ($source -match 'Start-NorthGateCreateOnlyPipeService\.ps1' -and
@@ -63,6 +65,9 @@ try {
         $serviceScript.IndexOf('Read-NgcorExact $pipe $length 5000') -lt
         $serviceScript.IndexOf('PipeClientIdentityCapture]::Capture($pipe)')) `
         'Client identity and administrator membership are captured inside the fixed native host.'
+    Assert-NgchTest ($forcedScript -match 'TokenImpersonationLevel\]::Impersonation' -and
+        $forcedScript -notmatch 'TokenImpersonationLevel\]::Identification') `
+        'Authenticated pipe clients permit the fixed signed service host to capture their effective Windows identity.'
     Assert-NgchTest ($source -match 'GetSafeFailureCode' -and
         $source -match 'NGCOR-\[A-Z0-9-\]' -and $source -match 'exception\.GetType\(\)\.FullName') `
         'Native host reports only bounded NorthGate codes or exception types when the engine fails.'
@@ -160,7 +165,8 @@ try {
     )
     $client = New-Object System.IO.Pipes.NamedPipeClientStream(
         '.', $pipeName, [System.IO.Pipes.PipeDirection]::InOut,
-        [System.IO.Pipes.PipeOptions]::None
+        [System.IO.Pipes.PipeOptions]::None,
+        [System.Security.Principal.TokenImpersonationLevel]::Impersonation
     )
     try {
         $client.Connect(2000)
