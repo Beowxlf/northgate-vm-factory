@@ -63,7 +63,8 @@
       "windows-gen2"
     ],
     "storageProfileRefs": [
-      "lab-ephemeral",
+      "lab-ephemeral-d",
+      "lab-ephemeral-f",
       "persistent-workstations",
       "persistent-mail-protected",
       "persistent-app-protected",
@@ -168,7 +169,7 @@
         "startupMiB": 2048,
         "maximumMiB": 4096
       },
-      "storageProfileRef": "lab-ephemeral",
+      "storageProfileRef": "lab-ephemeral-d",
       "osDiskGiB": 40,
       "networkProfileRef": "business-apps",
       "bootstrapProfileRef": "debian12-disposable-canary",
@@ -207,7 +208,7 @@
         "startupMiB": 4096,
         "maximumMiB": 8192
       },
-      "storageProfileRef": "lab-ephemeral",
+      "storageProfileRef": "lab-ephemeral-f",
       "osDiskGiB": 80,
       "networkProfileRef": "users-workstations",
       "bootstrapProfileRef": "windows11-disposable-canary",

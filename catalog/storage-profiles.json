@@ -2,11 +2,18 @@
   "$schema": "../schemas/storage-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "StorageCatalog",
-  "catalogVersion": "2026.08.03.1",
+  "catalogVersion": "2026.08.21.1",
   "profiles": [
     {
-      "id": "lab-ephemeral",
-      "serverPolicyId": "ng-storage-lab-ephemeral-v1",
+      "id": "lab-ephemeral-d",
+      "serverPolicyId": "ng-storage-lab-ephemeral-d-v1",
+      "approvalStatus": "approved",
+      "allowProvision": true,
+      "criticalWorkloadsAllowed": false
+    },
+    {
+      "id": "lab-ephemeral-f",
+      "serverPolicyId": "ng-storage-lab-ephemeral-f-v1",
       "approvalStatus": "approved",
       "allowProvision": true,
       "criticalWorkloadsAllowed": false

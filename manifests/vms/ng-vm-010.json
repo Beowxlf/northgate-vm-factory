@@ -21,7 +21,7 @@
     "imageRef": "windows-11-25h2-english-x64",
     "firmwareProfileRef": "windows-gen2",
     "compute": { "processors": 2, "memory": { "mode": "dynamic", "minimumMiB": 4096, "startupMiB": 4096, "maximumMiB": 8192 } },
-    "storage": { "profileRef": "lab-ephemeral", "osDiskGiB": 80 },
+    "storage": { "profileRef": "lab-ephemeral-f", "osDiskGiB": 80 },
     "network": { "profileRef": "users-workstations" },
     "bootstrapProfileRef": "windows11-disposable-canary",
     "recoveryProfileRef": "none-canary",
