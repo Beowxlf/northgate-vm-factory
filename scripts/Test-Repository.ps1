@@ -1275,6 +1275,11 @@ if (Test-Path -LiteralPath (Join-Path $repositoryRoot '.gitmodules')) {
     throw 'Git submodules are not permitted.'
 }
 
+$gitAttributes = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot '.gitattributes')
+if ($gitAttributes -notmatch '(?m)^\*\.cs text eol=lf$') {
+    throw 'C# release sources must use repository-pinned LF line endings for raw-Git build provenance.'
+}
+
 $readme = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'README.md')
 $architecture = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'docs\architecture.md')
 $agentGuidance = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'AGENTS.md')
