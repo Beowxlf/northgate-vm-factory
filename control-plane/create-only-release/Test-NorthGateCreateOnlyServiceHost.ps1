@@ -56,6 +56,9 @@ try {
         'Native host has bounded cooperative stop handling.'
     Assert-NgchTest ($source -cnotmatch 'Process\.Start|powershell\.exe|cmd\.exe|CreateProcess|ShellExecute') `
         'Native host does not launch a shell or child process.'
+    Assert-NgchTest ($source -match 'GetSafeFailureCode' -and
+        $source -match 'NGCOR-\[A-Z0-9-\]' -and $source -match 'exception\.GetType\(\)\.FullName') `
+        'Native host reports only bounded NorthGate codes or exception types when the engine fails.'
     Assert-NgchTest ($builder -cnotmatch 'Invoke-Expression|DownloadString|WebClient|Start-Process') `
         'Build helper has no dynamic evaluation or network primitive.'
     Assert-NgchTest ($builder -match '/deterministic\+' -and $builder -match '/warnaserror\+' -and
@@ -63,6 +66,10 @@ try {
         'Build helper requests deterministic warnings-as-errors output from an exact-hash-pinned compiler.'
     Assert-NgchTest ($serviceScript -match 'NorthGateServiceStopEvent') `
         'Service loop is bound to the native host stop event.'
+    Assert-NgchTest ($serviceScript -match 'NGCOR-INSTALLED-POLICY-DISABLED' -and
+        $serviceScript -match "status = 'installed-disabled'" -and
+        $serviceScript -match 'applyEnabled = \$false') `
+        'A running diagnostic service exposes disabled status but rejects every non-status operation.'
 
     $null = [System.IO.Directory]::CreateDirectory($testRoot)
     $firstRoot = Join-Path $testRoot 'first'

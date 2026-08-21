@@ -13,6 +13,8 @@ installed. These tests define the minimum exit criteria for that promotion.
 - The installed executor, provisioner, and immutable Debian-first base policy are signed/versioned promotion units separate from repository data; later rollout stages require short-lived same-release signed promotion records.
 - When private-repository branch protection is unavailable, promotion pins the exact merged commit, tree, signed release SHA-256, signer, and host allowlist without making the repository public.
 - Hosted CI has read-only repository permission and no route or credential to NorthGate.
+- Every packaged PowerShell script and module has a non-mismatched SHA-256 Authenticode signature from the exact release-signer certificate; host preflight requires a trusted `Valid` result before importing package code.
+- Disabled installation readback proves `applyEnabled=false`, no executable actions, canary stage `disabled`, service state `Stopped`, and startup mode `Disabled` even when the signed backend data bundle contains active source policy.
 
 ## Must-pass negative tests
 
@@ -36,6 +38,8 @@ installed. These tests define the minimum exit criteria for that promotion.
 18. Reject any full-fleet proposal that admits fewer or more than the twelve reviewed candidate identities, changes their serialized canary-first order, claims an identity/address/DNS reservation, omits fresh capacity revalidation or the Kali promotion gate, marks a workload ready, catalogs a fabricated Kali artifact, misstates computed persistent-fleet totals, or introduces raw VLAN/IP/DNS fields into its machine-readable manifest envelopes.
 19. Prove the fixed storage split, 15-percent/100-GiB per-volume reserve, serialized Debian-canary/Windows-canary/persistent-fleet order, one-canary concurrency rule, exact switch fingerprint/VLAN, one asset-bound derivative ISO and provenance chain, Generation 2, bounded transaction-owned start with no standalone power action, Secure Boot, Windows vTPM, collision denial, crash journal, off/disconnected outcome-unknown quarantine, and non-deletion of retained VMs.
 20. Reject an advanced initial base-policy stage, routine-SSH/SYSTEM/service rollout promotion, wrong native Administrator SID, wrong signer, stale or noncanonical context, missing/mismatched signed canary receipt, missing evidence hashes, still-running or connected canary, skipped/replayed/conflicting sequence, changed immutable base policy, and any third rollout promotion.
+21. Reject missing, hash-mismatched, untrusted, or wrong-signer Authenticode on every packaged `.ps1`, `.psm1`, and `.psd1` before module import; prove detached CMS alone is insufficient.
+22. Prove a disabled host authorization remains disabled after installation even when an active signed backend policy and data bundle are present, and prove every non-status service operation rejects with `NGCOR-INSTALLED-POLICY-DISABLED`.
 
 ## Canary exit
 

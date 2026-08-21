@@ -81,6 +81,20 @@ function Get-NgcorFileSha256Hex {
     (($hash | ForEach-Object { $_.ToString('x2') }) -join '')
 }
 
+function Test-NgcorAuthenticodeFile {
+    param([string]$Path, [string]$ExpectedPin)
+    $signature = Get-AuthenticodeSignature -LiteralPath $Path -ErrorAction Stop
+    if ($signature.Status -in @(
+            [System.Management.Automation.SignatureStatus]::NotSigned,
+            [System.Management.Automation.SignatureStatus]::HashMismatch,
+            [System.Management.Automation.SignatureStatus]::NotSupportedFileFormat,
+            [System.Management.Automation.SignatureStatus]::Incompatible
+        ) -or $null -eq $signature.SignerCertificate -or
+        (Get-NgcorSha256Hex $signature.SignerCertificate.RawData) -cne $ExpectedPin) {
+        throw 'NGCOR-PACKAGE-AUTHENTICODE-INVALID'
+    }
+}
+
 function Get-NgcorGitBlobRecordFromOpenStream {
     param([Parameter(Mandatory)][System.IO.FileStream]$Stream)
     if ($Stream.Length -le 0 -or $Stream.Length -gt 1048576) {
@@ -435,6 +449,9 @@ try {
         $destinationItem = Get-Item -LiteralPath $destinationPath -Force
         if ($destinationItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
             throw 'NGCOR-PACKAGE-DESTINATION-REPARSE-FORBIDDEN'
+        }
+        if ([IO.Path]::GetExtension($relative) -cin @('.ps1','.psm1','.psd1')) {
+            Test-NgcorAuthenticodeFile $destinationPath $ExpectedReleaseSignerCertificateSha256
         }
         $lockedStream = New-Object System.IO.FileStream(
             $destinationPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read,

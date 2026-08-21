@@ -1316,7 +1316,8 @@ function Invoke-NgcdFileInstallTransaction {
         if ($Context.Mode -eq 'Production') {
             $serviceHostPath = Join-Path $destinationRoot ([string]$Context.ServiceHostFileName)
             $null = Set-NgcdWindowsService $serviceHostPath $destinationRoot `
-                ([string]$Authorization.identity.serviceIdentitySid)
+                ([string]$Authorization.identity.serviceIdentitySid) `
+                ([bool]$Authorization.initialPolicy.applyEnabled)
             try {
                 $sshAccount = (New-Object System.Security.Principal.SecurityIdentifier(
                     [string]$Authorization.identity.sshIdentitySid
@@ -1524,18 +1525,23 @@ function Invoke-NgcdSc {
 }
 
 function Set-NgcdWindowsService {
-    param([string]$ServiceHostPath, [string]$ReleaseRoot, [string]$ExpectedServiceSid)
+    param(
+        [string]$ServiceHostPath, [string]$ReleaseRoot, [string]$ExpectedServiceSid,
+        [bool]$InstallEnabled
+    )
     if ((Get-NgcdServiceSid) -cne $ExpectedServiceSid) { Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-SID-MISMATCH' }
     $hostPath = Assert-NgcdPathWithin $ServiceHostPath $ReleaseRoot 'NGCOR-DEPLOYMENT-SERVICE-HOST-PATH-INVALID'
     $serviceScript = Assert-NgcdPathWithin (Join-Path $ReleaseRoot 'Start-NorthGateCreateOnlyPipeService.ps1') `
         $ReleaseRoot 'NGCOR-DEPLOYMENT-SERVICE-SCRIPT-PATH-INVALID'
     $binaryPath = '"' + $hostPath + '" --script "' + $serviceScript + '"'
+    $startMode = if ($InstallEnabled) { 'Automatic' } else { 'Disabled' }
+    $expectedStartMode = if ($InstallEnabled) { 'Auto' } else { 'Disabled' }
     $existing = Get-CimInstance -ClassName Win32_Service -Filter ("Name='" + $script:ServiceName + "'") -ErrorAction SilentlyContinue
     if ($null -eq $existing) {
         try {
             $created = Invoke-CimMethod -ClassName Win32_Service -MethodName Create -Arguments @{
                 Name = $script:ServiceName; DisplayName = $script:ServiceName; PathName = $binaryPath
-                StartMode = 'Automatic'; StartName = $script:ServiceAccount
+                StartMode = $startMode; StartName = $script:ServiceAccount
             } -ErrorAction Stop
         }
         catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-CONFIGURATION-FAILED' }
@@ -1545,7 +1551,7 @@ function Set-NgcdWindowsService {
         if ($existing.State -ne 'Stopped') { $null = Invoke-NgcdSc @('stop',$script:ServiceName) }
         try {
             $changed = Invoke-CimMethod -InputObject $existing -MethodName Change -Arguments @{
-                PathName = $binaryPath; StartMode = 'Automatic'; StartName = $script:ServiceAccount
+                PathName = $binaryPath; StartMode = $startMode; StartName = $script:ServiceAccount
             } -ErrorAction Stop
         }
         catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-CONFIGURATION-FAILED' }
@@ -1555,11 +1561,14 @@ function Set-NgcdWindowsService {
     $null = Invoke-NgcdSc @('failure',$script:ServiceName,'reset=','86400','actions=','restart/5000/restart/15000/restart/60000')
     $null = Invoke-NgcdSc @('failureflag',$script:ServiceName,'1')
     $null = Invoke-NgcdSc @('sidtype',$script:ServiceName,'restricted')
-    $null = Invoke-NgcdSc @('start',$script:ServiceName)
-    Start-Sleep -Milliseconds 500
+    if ($InstallEnabled) {
+        $null = Invoke-NgcdSc @('start',$script:ServiceName)
+        Start-Sleep -Milliseconds 500
+    }
     $readback = Get-CimInstance -ClassName Win32_Service -Filter ("Name='" + $script:ServiceName + "'") -ErrorAction Stop
-    if ($readback.PathName -cne $binaryPath -or $readback.StartMode -cne 'Auto' -or
-        $readback.StartName -cne $script:ServiceAccount -or $readback.State -cne 'Running') {
+    $expectedState = if ($InstallEnabled) { 'Running' } else { 'Stopped' }
+    if ($readback.PathName -cne $binaryPath -or $readback.StartMode -cne $expectedStartMode -or
+        $readback.StartName -cne $script:ServiceAccount -or $readback.State -cne $expectedState) {
         Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-READBACK-FAILED'
     }
     $true
@@ -1581,9 +1590,9 @@ function New-NgcdInstalledPolicy {
         serviceHostSignerCertificateSha256 = [string]$Authorization.identity.releaseSignerCertificateSha256
         backendPolicySha256 = $BackendPolicySha256
         dataBundleSha256 = $DataBundleSha256
-        applyEnabled = -not [string]::IsNullOrEmpty($BackendPolicySha256)
-        executableActions = if([string]::IsNullOrEmpty($BackendPolicySha256)){[object[]]@()}else{[object[]]@('Create')}
-        canaryStage = if([string]::IsNullOrEmpty($BackendPolicySha256)){'disabled'}else{'signed-policy'}
+        applyEnabled = [bool]$Authorization.initialPolicy.applyEnabled
+        executableActions = [object[]]@($Authorization.initialPolicy.executableActions)
+        canaryStage = [string]$Authorization.initialPolicy.canaryStage
     }
 }
 
@@ -1715,3 +1724,47 @@ Export-ModuleMember -Function @(
     'Invoke-NorthGateCreateOnlyRollbackTransaction',
     'Test-NorthGateCreateOnlyInstalledRelease'
 )
+
+# SIG # Begin signature block
+# MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
+# BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCijYy1hPPf1HhM
+# QVJ1QrkWuURNLg5U3IhPOhdGGoQF/KCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
+# TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
+# MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
+# RmFjdG9yeSBSZWxlYXNlIFNpZ25lciAyMDI2LTA4LTIxIHYyMIIBojANBgkqhkiG
+# 9w0BAQEFAAOCAY8AMIIBigKCAYEAuK2RPh+kwyLvYhpQmiHvsROwEKzmIdyEc6WV
+# b1N80dzFqV4o16F7MTsoC1Xbo3VdbDurlCWifItnM+UTZ7B6xP8TLmPGRys7sGa/
+# QQOm77wKKQ7OdjJlqSSXz4+efiUwoMEkhyP3YkL8G7VvS7EcKCVaspPX8ghvtCYe
+# rOQQYWVFOV9EuvajfvnFPna0Y4Y4qMJAxZZEtfMVKtLejdftGHra9pZm/Vi3OiIx
+# At/lfqeqK1vYu96Uyh4LhSoxSaev2EOpsznHtTIwY3KNC9dpwlogX2FYa0l1zH1k
+# Kk0n/AjTYgR0mxQXMP89640xScVCb+rmY8SNG5w/YZB9uQnkTY5Zkh8z5dfHH8HM
+# Fvibww5+B8nEBiMe/1RrUzpf1qOyuwyCphrAMRl2NbWR/yzdjCvUBaLbbmkVW20f
+# U3X2CTd144vt2iLfCco+WEIuXaRy6g1vQxu1bYtOHuO5GwobWUCN4CVvhILf+VVt
+# hPvyDnvdRZEyaJ2wmI3xWE0+QJY9AgMBAAGjVzBVMA4GA1UdDwEB/wQEAwIHgDAM
+# BgNVHRMBAf8EAjAAMBYGA1UdJQEB/wQMMAoGCCsGAQUFBwMDMB0GA1UdDgQWBBRb
+# WaTBPZZW7QhHiKCc/W2Z3DB9oTANBgkqhkiG9w0BAQsFAAOCAYEAaNP8lBhUC94L
+# AUcORggLbH+yuwZ92dK4vhUVrqukaQKL0CpTouv88GOJtrocGo09vyZ1Y7T+ieZ2
+# SKKMwmM+efwt+cDQ0b4HDIWYfswSQdfd/HATQX5PNSmC6uEYi6cf/yd31aHkySrN
+# W2gfy82zjixp/SP/k9KmpbE+I5f8wppCZ4+ePk5/g+f7gb7a9+g66Ywua2apF76N
+# gQB0LPaz0SXwWZ4QS4w/X4TUSDnluz9uHzX2NZ4oNAzT1tR7tBF7Ntu+8mEw2mot
+# BcI7pQEu6CDLNGl1rSwPswnZDUWOcnImdqW3IDab4XUmN5my5pB3iLmojG2UOVXr
+# SWVYZkiHWI5RGHNDBmdnbDXxK2Xy4uJMLiVEqws8QosKSTUTSAL5B3KM1/HWwQzv
+# X2fiwRK2cIfTIJ34Dtlp0lewhzvauoSuVZkYxQ/43QfYxed20zWo44UnRTrScDdC
+# 9UmREbQDcZjjpb04T4zAXLHmS9e0k1IwA7vXMRcs4x7Uiq5diaQdMYICgjCCAn4C
+# AQEwUDA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0gRmFjdG9yeSBSZWxlYXNlIFNp
+# Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
+# AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
+# CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
+# hvcNAQkEMSIEIETugQYq1uyU5A84jmZXGHfdyZSogSWS0CXAR7DPSKt2MA0GCSqG
+# SIb3DQEBAQUABIIBgEa3giaaXaKCv5jFouarhUcNIXpot1Y2LhzbJ7WipYJZ+FAb
+# eKapERz7mlsdbGpqF2W3Inl8YEAPn6DCcCITgOQUSOEJ9U5o62AgYPMMQUf+hzn9
+# L7Wk/hXtEofGmds9o5VPpHHfPFR6c6X8pu7ODhaOSXhejigZWSUd5M5D3itoGjN8
+# QqXqBADaF5aOKbl0AszybZ+y9rAEt72Hai+GUDzg6+l3Uoibfr9DrEUm6Z1FFSlO
+# KVfSg6kuvhtJZCH2yosRM5RgEYlmgY7ctdVBd6jTIM8XsiAvonE3N6Yhesz3yCx8
+# zLMiZytnpxumnSEPGjd2nNgZAsq6ZMPbiQZmV5q4Y9VQZfDgZMZU2WDPs14BktVV
+# vqlJ4kd+3bMlLgHnGZt0LbRDNGZX5G+x5skJqwbOaIvZk6MuJa28BtZA8T0flmTp
+# 49VMQEzg4nE+MAwQhK999Wvu+utBAa/8uNT6yHTg2oEJf7KpSW9qQVw6LkMrRtyZ
+# 8+l3XuwsAug1/68uvQ==
+# SIG # End signature block

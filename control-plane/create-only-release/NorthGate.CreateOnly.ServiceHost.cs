@@ -5,6 +5,7 @@ using System.Management.Automation.Runspaces;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.ServiceProcess;
+using System.Text.RegularExpressions;
 using System.Threading;
 
 [assembly: AssemblyTitle("NorthGate Create-Only Service Host")]
@@ -194,7 +195,11 @@ namespace NorthGate.VMFactory.CreateOnly
                         localEngine.Invoke();
                         if (!this.stopping && localEngine.HadErrors)
                         {
-                            Environment.FailFast("NorthGate create-only service engine failed.");
+                            Exception failure = localEngine.Streams.Error.Count == 0
+                                ? null
+                                : localEngine.Streams.Error[0].Exception;
+                            Environment.FailFast(
+                                "NorthGate create-only service engine failed. Code=" + GetSafeFailureCode(failure));
                         }
                     }
                 }
@@ -203,11 +208,13 @@ namespace NorthGate.VMFactory.CreateOnly
                     Environment.FailFast("NorthGate create-only service engine exited unexpectedly.");
                 }
             }
-            catch
+            catch (Exception exception)
             {
                 if (!this.stopping)
                 {
-                    Environment.FailFast("NorthGate create-only service engine failed unexpectedly.");
+                    Environment.FailFast(
+                        "NorthGate create-only service engine failed unexpectedly. Code=" +
+                        GetSafeFailureCode(exception));
                 }
             }
             finally
@@ -217,6 +224,19 @@ namespace NorthGate.VMFactory.CreateOnly
                     this.engine = null;
                 }
             }
+        }
+
+        private static string GetSafeFailureCode(Exception exception)
+        {
+            if (exception == null)
+            {
+                return "unknown";
+            }
+            Match match = Regex.Match(
+                exception.Message ?? String.Empty,
+                @"\bNGCOR-[A-Z0-9-]{1,96}\b",
+                RegexOptions.CultureInvariant);
+            return match.Success ? match.Value : exception.GetType().FullName;
         }
 
         protected override void Dispose(bool disposing)

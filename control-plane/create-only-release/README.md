@@ -134,8 +134,18 @@ schema requires an adapter GUID.
 semantic validation against the pinned package tuple. Its result explicitly says that
 the detached signature has **not** been verified and remains `installable=false`. The
 reviewed bootstrap generator bakes only the exact public signer pins into one-time
-installer and rollback copies; that installer independently verifies every required
-detached CMS signature before importing package code or writing host state.
+installer and rollback copies. Before installation, the pinned release-signer public
+certificate is placed in the host trust stores through the privileged bootstrap change;
+private key material never enters the host. The installer independently verifies every
+required detached CMS signature and requires every packaged `.ps1`, `.psm1`, and `.psd1`
+to have a trusted SHA-256 Authenticode signature from that same pinned release signer
+before importing package code or writing host state.
+
+`authorization.initialPolicy` is the sole initial activation authority. With
+`applyEnabled=false`, the installed policy remains disabled with no executable actions,
+and the service is registered stopped with startup disabled. An active signed backend
+bundle is retained for a later separately approved promotion but cannot enable the
+installation.
 
 The release-signing key, approval key, receipt key, SSH private key, state-protection
 keys, and credentials must never be stored in Git, package files, command parameters,

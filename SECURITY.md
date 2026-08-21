@@ -20,5 +20,7 @@ Report suspected secret exposure, unauthorized repository access, unsafe workflo
 - Repository content is untrusted data at the privileged boundary; hooks, filters, submodules, binaries, and checkout scripts are never executed there.
 - Repository `applyEnabled`, promotion status, merge state, or signature presence is never proof of installed host authority. Require matching installed-release and host-policy readback plus the protected identity/plan chain.
 - Destructive operations, network changes, storage-root changes, policy changes, executor releases, and image promotion remain human-gated.
+- Every packaged `.ps1`, `.psm1`, and `.psd1` executed on HC-HV01 must carry a valid SHA-256 Authenticode signature from the exact pinned release signer. Detached package signatures do not substitute for the host execution-policy check.
+- A disabled installation must derive `applyEnabled`, executable actions, canary stage, service start mode, and service state from the signed host authorization. The presence of an active backend bundle cannot enable or start the installed service.
 
 If a secret is committed, revoke or rotate it first, then remove it from repository history. Deleting the visible file alone is not remediation.
