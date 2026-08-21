@@ -390,7 +390,7 @@ function Get-NgcdProductionMacKey {
         }
         catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-STATE-KEY-INVALID' }
         if ($key.Length -ne 32) { Stop-Ngcd 'NGCOR-DEPLOYMENT-STATE-KEY-INVALID' }
-        return $key
+        return ,$key
     }
     $key = New-Object byte[] 32
     $generator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
@@ -410,7 +410,7 @@ function Get-NgcdProductionMacKey {
     if (-not (Test-NgcdFixedHexEquals (Get-NgcdSha256Bytes $key) (Get-NgcdSha256Bytes $readback))) {
         Stop-Ngcd 'NGCOR-DEPLOYMENT-STATE-KEY-READBACK-FAILED'
     }
-    $key
+    return ,$key
 }
 
 function New-NgcdProductionContext {
