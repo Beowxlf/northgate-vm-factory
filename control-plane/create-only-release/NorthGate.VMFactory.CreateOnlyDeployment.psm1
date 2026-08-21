@@ -1600,7 +1600,6 @@ function New-NgcdManagedSshConfiguration {
         '    X11Forwarding no',
         '    PermitTunnel no',
         '    PermitTTY no',
-        '    PermitUserEnvironment no',
         '    PermitUserRC no',
         '    PermitListen none',
         '    PermitOpen none',
@@ -1620,7 +1619,7 @@ function Test-NgcdSshConfiguration {
     if (-not (Test-Path -LiteralPath $sshd -PathType Leaf)) { Stop-Ngcd 'NGCOR-DEPLOYMENT-SSHD-UNAVAILABLE' }
     $null = @(& $sshd -t -f $ConfigurationPath 2>&1)
     if ($LASTEXITCODE -ne 0) { Stop-Ngcd 'NGCOR-DEPLOYMENT-SSH-SYNTAX-INVALID' }
-    $effective = @(& $sshd -T -f $ConfigurationPath -C ("user=$SshUserName,host=$env:COMPUTERNAME,addr=10.10.100.20") 2>&1)
+    $effective = @(& $sshd -T -f $ConfigurationPath -C ("user=.\$SshUserName,host=$env:COMPUTERNAME,addr=10.10.100.20") 2>&1)
     if ($LASTEXITCODE -ne 0) { Stop-Ngcd 'NGCOR-DEPLOYMENT-SSH-EFFECTIVE-CONFIG-INVALID' }
     $text = (@($effective | ForEach-Object { [string]$_ }) -join "`n").ToLowerInvariant()
     foreach ($required in @(
