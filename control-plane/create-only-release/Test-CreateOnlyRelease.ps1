@@ -117,6 +117,11 @@ Assert-NgcorTest ($parseErrors.Count -eq 0) ('All PowerShell files parse: ' + ($
 
 $release = Import-Module (Join-Path $root 'NorthGate.VMFactory.CreateOnlyRelease.psd1') -Force -PassThru
 $protocol = Import-Module (Join-Path $root 'NorthGate.VMFactory.CreateOnlyProtocol.psd1') -Force -PassThru
+$deployment = Import-Module (Join-Path $root 'NorthGate.VMFactory.CreateOnlyDeployment.psd1') -Force -PassThru
+$canonicalProbe = [Text.Encoding]::UTF8.GetBytes('{"probe":"module-scope"}')
+$canonicalParsed = ConvertFrom-NorthGateCreateOnlyCanonicalJsonBytes -Bytes $canonicalProbe -MaximumBytes 1024
+Assert-NgcorTest ($canonicalParsed.Value.probe -ceq 'module-scope') `
+    'Nested dependency imports preserve the caller-visible protocol commands under Windows PowerShell.'
 
 foreach ($command in @('status','plan','rollout-context','promote-rollout',
         ('approval-context ngp-' + ('a' * 64)),('approve ngp-' + ('b' * 64)),

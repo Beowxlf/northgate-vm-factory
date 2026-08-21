@@ -17,5 +17,8 @@ param(
     [Parameter(Mandatory)][switch]$ConfirmApproval
 )
 $ErrorActionPreference='Stop'
+$releaseRoot=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module (Join-Path $releaseRoot 'NorthGate.VMFactory.CreateOnlyProtocol.psd1') -Force -ErrorAction Stop
+Import-Module (Join-Path (Split-Path -Parent $PSScriptRoot) 'NorthGate.VMFactory.CreateOnlyBackend.psd1') -Force -ErrorAction Stop
 Import-Module (Join-Path $PSScriptRoot 'NorthGate.VMFactory.CreateOnlyAuthoring.psd1') -Force -ErrorAction Stop
 New-NorthGateCreateOnlyPlanApprovalArtifact @PSBoundParameters

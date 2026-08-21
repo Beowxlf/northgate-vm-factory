@@ -1,7 +1,7 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-Import-Module (Join-Path $PSScriptRoot 'NorthGate.VMFactory.CreateOnlyProtocol.psd1') -Force -ErrorAction Stop
+Import-Module (Join-Path $PSScriptRoot 'NorthGate.VMFactory.CreateOnlyProtocol.psd1') -ErrorAction Stop
 
 $script:DeploymentSchema = 'northgate/create-only-deployment-transaction/v1'
 $script:ProtectedRecordSchema = 'northgate/create-only-protected-record/v1'
