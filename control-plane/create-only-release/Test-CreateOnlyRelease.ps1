@@ -301,6 +301,11 @@ Assert-NgcorTest ($forcedSource.IndexOf('ConvertFrom-NorthGateCreateOnlyCommand 
     'Command is parsed before pipe construction.'
 Assert-NgcorTest ($forcedSource -match 'Read-NgcorStandardInput 1 2000' -and $forcedSource -match 'NGCOR-STDIN-NOT-EMPTY') 'Non-plan stdin is bounded and required empty.'
 Assert-NgcorTest ($forcedSource -match '\$maximumPlanBytes \+ 1' -and $forcedSource -match 'ConvertFrom-NorthGateCreateOnlyPlanRequestBytes') 'Plan stdin is bounded and strictly parsed before forwarding.'
+Assert-NgcorTest ($forcedSource -match 'function Get-NgcorForcedSafeErrorCode' -and
+    $forcedSource -match '\\bNGCOR-\[A-Z0-9-\]\{1,96\}\\b' -and
+    $forcedSource -match 'RegexOptions\]::CultureInvariant' -and
+    $forcedSource -match 'Get-NgcorForcedSafeErrorCode \$_\.Exception') `
+    'Wrapped failures preserve only a bounded NorthGate code and otherwise fail closed generically.'
 Assert-NgcorTest ($serviceSource -cnotmatch 'S-1-5-2|CreateNewInstance') 'Pipe ACL does not deny NETWORK or grant instance creation.'
 Assert-NgcorTest ($serviceSource -match 'ReadAsync' -and $serviceSource -match 'PIPE-READ-TIMEOUT') 'Service frame reads are bounded and asynchronous.'
 
