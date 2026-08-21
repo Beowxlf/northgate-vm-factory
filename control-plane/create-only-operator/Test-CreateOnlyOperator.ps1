@@ -83,8 +83,8 @@ try {
 
     $policy = & $module { Get-NgcoFixedFleetPolicy }
     $expectedOrder = @(
-        'NG-VM-018', 'NG-VM-010', 'NG-VM-019', 'NG-VM-020', 'NG-VM-011', 'NG-VM-012',
-        'NG-VM-013', 'NG-VM-014', 'NG-VM-015', 'NG-VM-016', 'NG-VM-017', 'NG-VM-021'
+        'NG-VM-018', 'NG-VM-010', 'NG-VM-014', 'NG-VM-013', 'NG-VM-011', 'NG-VM-012',
+        'NG-VM-019', 'NG-VM-020', 'NG-VM-021', 'NG-VM-016', 'NG-VM-017', 'NG-VM-015'
     )
     $expectedNames = @(
         'NG-DEB-CAN01', 'NG-CANARY-01', 'NG-MAIL-EXT01', 'NG-MAIL-INT01', 'NG-WRK-01',

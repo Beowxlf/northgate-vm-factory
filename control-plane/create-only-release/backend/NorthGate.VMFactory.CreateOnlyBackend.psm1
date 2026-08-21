@@ -12,10 +12,10 @@ $script:MaximumApprovalTtlSeconds = 600
 $script:MaximumAuthorizationLifetimeHours = 24
 $script:MaximumClockSkewSeconds = 300
 $script:ExactFleetAssetIds = @(
-    'NG-VM-018','NG-VM-010','NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012',
-    'NG-VM-013','NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021'
+    'NG-VM-018','NG-VM-010','NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012',
+    'NG-VM-019','NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015'
 )
-$script:WindowsFleetAssetIds = @('NG-VM-010','NG-VM-011','NG-VM-012','NG-VM-013','NG-VM-014','NG-VM-015')
+$script:WindowsFleetAssetIds = @('NG-VM-010','NG-VM-011','NG-VM-012','NG-VM-019','NG-VM-020','NG-VM-021')
 $script:ProcessContextKey = New-Object byte[] 32
 [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($script:ProcessContextKey)
 
@@ -583,7 +583,7 @@ function Assert-NgcbHostAuthorization {
         ) 'NGCB-AUTHORIZATION-BOOTSTRAP-MEDIA-INVALID'
         $expectedSourceImageId = if ($media.assetId -in $script:WindowsFleetAssetIds) {
             'windows-11-25h2-english-x64'
-        } elseif ($media.assetId -ceq 'NG-VM-021') {
+        } elseif ($media.assetId -ceq 'NG-VM-015') {
             'kali-2026.2-installer-netinst-amd64'
         } else { 'debian-12.12-amd64-netinst' }
         $sourceImage = @($Authorization.images | Where-Object { $_.imageId -ceq $expectedSourceImageId })

@@ -73,15 +73,15 @@
     "persistentAssetIds": {
       "type": "array",
       "const": [
-        "NG-VM-019", "NG-VM-020", "NG-VM-011", "NG-VM-012", "NG-VM-013",
-        "NG-VM-014", "NG-VM-015", "NG-VM-016", "NG-VM-017", "NG-VM-021"
+        "NG-VM-014", "NG-VM-013", "NG-VM-011", "NG-VM-012", "NG-VM-019",
+        "NG-VM-020", "NG-VM-021", "NG-VM-016", "NG-VM-017", "NG-VM-015"
       ]
     },
     "orderedAssetIds": {
       "type": "array",
       "const": [
-        "NG-VM-018", "NG-VM-010", "NG-VM-019", "NG-VM-020", "NG-VM-011", "NG-VM-012",
-        "NG-VM-013", "NG-VM-014", "NG-VM-015", "NG-VM-016", "NG-VM-017", "NG-VM-021"
+        "NG-VM-018", "NG-VM-010", "NG-VM-014", "NG-VM-013", "NG-VM-011", "NG-VM-012",
+        "NG-VM-019", "NG-VM-020", "NG-VM-021", "NG-VM-016", "NG-VM-017", "NG-VM-015"
       ]
     },
     "firmwareExceptions": {
@@ -93,7 +93,7 @@
         "required": ["exceptionId", "assetId", "profileRef", "secureBootEnabled", "reason"],
         "properties": {
           "exceptionId": { "const": "NG-FW-20260802-KALI-UNSIGNED" },
-          "assetId": { "const": "NG-VM-021" },
+          "assetId": { "const": "NG-VM-015" },
           "profileRef": { "const": "kali-gen2-unsigned" },
           "secureBootEnabled": { "const": false },
           "reason": { "const": "official-kali-installer-kernel-is-not-secure-boot-signed" }

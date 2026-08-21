@@ -14,15 +14,15 @@ The VM Factory remains intentionally plan-only. Apply is disabled, no Windows im
 
 ## Decision
 
-Propose `NG-VM-010` for the mandatory disposable factory canary and `NG-VM-011` through `NG-VM-015` for the workstation fleet. These are planning candidates, not protected-ledger reservations; final allocation requires a fresh ledger and live-state collision check.
+Propose `NG-VM-010` for the mandatory disposable factory canary and `NG-VM-011` through `NG-VM-021` for the workstation fleet. These are planning candidates, not protected-ledger reservations; final allocation requires a fresh ledger and live-state collision check.
 
 | Candidate asset ID | Proposed VM and Windows name | Role baseline | Planning resources | Proposed fixed address |
 | --- | --- | --- | --- | --- |
 | `NG-VM-011` | `NG-WRK-01` | Worker canary, then ordinary user endpoint | 2 vCPU; dynamic 4/4/8 GiB; 80 GiB OS disk | `10.10.110.20` |
 | `NG-VM-012` | `NG-WRK-02` | Ordinary user endpoint | 2 vCPU; dynamic 4/4/8 GiB; 80 GiB OS disk | `10.10.110.21` |
-| `NG-VM-013` | `NG-MGR-01` | Manager endpoint | 2 vCPU; dynamic 4/4/8 GiB; 80 GiB OS disk | `10.10.110.22` |
-| `NG-VM-014` | `NG-IT-01` | Privileged IT administration workstation | 4 vCPU; dynamic 4/8/16 GiB; 100 GiB OS disk | `10.10.130.20` |
-| `NG-VM-015` | `NG-CYBER-01` | Blue-team analysis and detection-engineering workstation | 4 vCPU; dynamic 4/8/16 GiB; 120 GiB OS disk | `10.10.140.20` |
+| `NG-VM-019` | `NG-MGR-01` | Manager endpoint | 2 vCPU; dynamic 4/4/8 GiB; 80 GiB OS disk | `10.10.110.22` |
+| `NG-VM-020` | `NG-IT-01` | Privileged IT administration workstation | 4 vCPU; dynamic 4/8/16 GiB; 100 GiB OS disk | `10.10.130.20` |
+| `NG-VM-021` | `NG-CYBER-01` | Blue-team analysis and detection-engineering workstation | 4 vCPU; dynamic 4/8/16 GiB; 120 GiB OS disk | `10.10.140.20` |
 
 The target names, resources, addresses, owner, storage, recovery, firmware, network, and bootstrap choices remain proposed until their separate approvals. Manifests are authored only after the protected ledger and every opaque catalog reference are approved.
 

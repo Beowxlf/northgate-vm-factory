@@ -59,7 +59,7 @@ try {
 
     $fleet = Get-NorthGateBootstrapFleetMap
     Assert-True (@($fleet.assets).Count -eq 12) 'twelve exact fleet mappings'
-    $known = @($fleet.assets | Where-Object assetId -eq 'NG-VM-021')[0]
+    $known = @($fleet.assets | Where-Object assetId -eq 'NG-VM-015')[0]
     Assert-True ($known.name -ceq 'NG-KALI-EXT01' -and $known.staticMacAddress -ceq '024E47000015' -and [int]$known.vlanId -eq 250 -and $known.address -ceq '172.31.250.10') 'Kali exact identity mapping'
 
     $keyPath = Join-Path $testRoot 'bootstrap.pub'

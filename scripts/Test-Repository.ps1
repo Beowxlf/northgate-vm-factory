@@ -198,8 +198,8 @@ function Assert-DeploymentPromotion {
     $expectedRetained = @('JS-BlueBench','JS-Server-01','OPNsense-Tooling','TRMM-Tooling','Wazuh-Machine')
     $expectedCanaries = @('NG-VM-018','NG-VM-010')
     $expectedPersistent = @(
-        'NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012','NG-VM-013',
-        'NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021'
+        'NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012','NG-VM-019',
+        'NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015'
     )
     $expectedOrder = @($expectedCanaries + $expectedPersistent)
     if ((@($Promotion.retainedAssetNames) -join '|') -cne ($expectedRetained -join '|') -or
@@ -216,7 +216,7 @@ function Assert-DeploymentPromotion {
         'exceptionId','assetId','profileRef','secureBootEnabled','reason'
     ) -Location 'Kali firmware exception'
     if ($exception.exceptionId -cne 'NG-FW-20260802-KALI-UNSIGNED' -or
-        $exception.assetId -cne 'NG-VM-021' -or
+        $exception.assetId -cne 'NG-VM-015' -or
         $exception.profileRef -cne 'kali-gen2-unsigned' -or
         $exception.secureBootEnabled -ne $false -or
         $exception.reason -cne 'official-kali-installer-kernel-is-not-secure-boot-signed') {
@@ -574,16 +574,16 @@ function Assert-FullFleetProvisioningProposal {
     $expectedOrder = @(
         'NG-VM-018',
         'NG-VM-010',
-        'NG-VM-019',
-        'NG-VM-020',
+        'NG-VM-014',
+        'NG-VM-013',
         'NG-VM-011',
         'NG-VM-012',
-        'NG-VM-013',
-        'NG-VM-014',
-        'NG-VM-015',
+        'NG-VM-019',
+        'NG-VM-020',
+        'NG-VM-021',
         'NG-VM-016',
         'NG-VM-017',
-        'NG-VM-021'
+        'NG-VM-015'
     )
     if ($Proposal.rollout.maximumConcurrentCanaries -ne 1 -or
         $Proposal.rollout.canariesRetiredBeforePersistentCompletion -ne $true -or
@@ -702,7 +702,7 @@ function Assert-FullFleetProvisioningProposal {
         throw 'The full-fleet reduced maximum-memory envelope must retain a positive reserve margin and require fresh live revalidation.'
     }
 
-    $kali = @($Proposal.workloads | Where-Object { $_.assetId -ceq 'NG-VM-021' })
+    $kali = @($Proposal.workloads | Where-Object { $_.assetId -ceq 'NG-VM-015' })
     if ($kali.Count -ne 1 -or
         $kali[0].imageRef -cne 'kali-2026.2-installer-netinst-amd64' -or
         $kali[0].imageState -cne 'candidate-unpromoted') {
@@ -867,16 +867,16 @@ if ($null -eq $deploymentPromotion) {
         retainedAssetNames = @('JS-BlueBench','JS-Server-01','OPNsense-Tooling','TRMM-Tooling','Wazuh-Machine')
         canaryAssetIds = @('NG-VM-018','NG-VM-010')
         persistentAssetIds = @(
-            'NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012','NG-VM-013',
-            'NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021'
+            'NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012','NG-VM-019',
+            'NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015'
         )
         orderedAssetIds = @(
-            'NG-VM-018','NG-VM-010','NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012',
-            'NG-VM-013','NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021'
+            'NG-VM-018','NG-VM-010','NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012',
+            'NG-VM-019','NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015'
         )
         firmwareExceptions = @([pscustomobject][ordered]@{
             exceptionId = 'NG-FW-20260802-KALI-UNSIGNED'
-            assetId = 'NG-VM-021'
+            assetId = 'NG-VM-015'
             profileRef = 'kali-gen2-unsigned'
             secureBootEnabled = $false
             reason = 'official-kali-installer-kernel-is-not-secure-boot-signed'
@@ -1218,6 +1218,22 @@ $duplicateAssetIds = Get-DuplicateValues -Values $assetIds
 $duplicateVmNames = Get-DuplicateValues -Values $vmNames
 if ($duplicateAssetIds.Count -or $duplicateVmNames.Count) {
     throw "Manifest identities must be case-insensitively unique. AssetIds=[$($duplicateAssetIds -join ',')], Names=[$($duplicateVmNames -join ',')]"
+}
+
+$canonicalIdentityMap = [ordered]@{
+    'NG-VM-013' = 'NG-MAIL-INT01'
+    'NG-VM-014' = 'NG-MAIL-EXT01'
+    'NG-VM-015' = 'NG-KALI-EXT01'
+    'NG-VM-019' = 'NG-MGR-01'
+    'NG-VM-020' = 'NG-IT-01'
+    'NG-VM-021' = 'NG-CYBER-01'
+}
+foreach ($entry in $canonicalIdentityMap.GetEnumerator()) {
+    $manifestPath = Join-Path $manifestDirectory ($entry.Key.ToLowerInvariant() + '.json')
+    $canonicalManifest = Read-JsonFile -Path $manifestPath -MaximumBytes 262144
+    if ($canonicalManifest.metadata.name -cne $entry.Value) {
+        throw "Canonical Operation-SeeSaw identity mismatch: $($entry.Key) must remain bound to $($entry.Value)."
+    }
 }
 
 $proposedWorkloadAssetIds = @($workloadProposal.workloads.assetId) + @($fullFleetProposal.workloads.assetId)

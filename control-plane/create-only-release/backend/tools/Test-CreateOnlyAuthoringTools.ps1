@@ -64,9 +64,9 @@ function New-NgcaPromotion {
         }
         retainedAssetNames=[object[]]@('JS-BlueBench','JS-Server-01','OPNsense-Tooling','TRMM-Tooling','Wazuh-Machine')
         canaryAssetIds=[object[]]@('NG-VM-018','NG-VM-010')
-        persistentAssetIds=[object[]]@('NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012','NG-VM-013','NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021')
-        orderedAssetIds=[object[]]@('NG-VM-018','NG-VM-010','NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012','NG-VM-013','NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021')
-        firmwareExceptions=[object[]]@([pscustomobject][ordered]@{exceptionId='NG-FW-20260802-KALI-UNSIGNED';assetId='NG-VM-021';profileRef='kali-gen2-unsigned';secureBootEnabled=$false;reason='official-kali-installer-kernel-is-not-secure-boot-signed'})
+        persistentAssetIds=[object[]]@('NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012','NG-VM-019','NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015')
+        orderedAssetIds=[object[]]@('NG-VM-018','NG-VM-010','NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012','NG-VM-019','NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015')
+        firmwareExceptions=[object[]]@([pscustomobject][ordered]@{exceptionId='NG-FW-20260802-KALI-UNSIGNED';assetId='NG-VM-015';profileRef='kali-gen2-unsigned';secureBootEnabled=$false;reason='official-kali-installer-kernel-is-not-secure-boot-signed'})
         requiredGates=[object[]]@('control-plane-negative-tests-passed','immutable-signed-release-installed','signed-host-authorization-verified','immutable-images-promoted','opaque-profiles-approved','retained-system-backups-verified','debian-canary-before-windows-canary','canaries-accepted-before-persistent-fleet','one-asset-per-fresh-plan','exact-plan-human-approval','quarantine-route-proven','signed-receipt-ready')
     }
 }
@@ -137,11 +137,11 @@ function New-NgcaAuthorization {
         [pscustomobject][ordered]@{imageId='kali-2026.2-installer-netinst-amd64';path=(Join-Path $imageRoot 'kali-linux-2026.2-installer-netinst-amd64.iso');sha256=('7'*64);sizeBytes=[int64]779091968},
         [pscustomobject][ordered]@{imageId='windows-11-25h2-english-x64';path=(Join-Path $imageRoot 'Win11_25H2_English_x64.iso');sha256=('8'*64);sizeBytes=[int64]7736125440}
     )
-    $ids=@('NG-VM-018','NG-VM-010','NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012','NG-VM-013','NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021')
-    $windowsIds=@('NG-VM-010','NG-VM-011','NG-VM-012','NG-VM-013','NG-VM-014','NG-VM-015')
+    $ids=@('NG-VM-018','NG-VM-010','NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012','NG-VM-019','NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015')
+    $windowsIds=@('NG-VM-010','NG-VM-011','NG-VM-012','NG-VM-019','NG-VM-020','NG-VM-021')
     $bootstrapMedia=@()
     for($i=0;$i-lt$ids.Count;$i++){
-        $sourceImageId=if($ids[$i]-in$windowsIds){'windows-11-25h2-english-x64'}elseif($ids[$i]-ceq'NG-VM-021'){'kali-2026.2-installer-netinst-amd64'}else{'debian-12.12-amd64-netinst'}
+        $sourceImageId=if($ids[$i]-in$windowsIds){'windows-11-25h2-english-x64'}elseif($ids[$i]-ceq'NG-VM-015'){'kali-2026.2-installer-netinst-amd64'}else{'debian-12.12-amd64-netinst'}
         $sourceImage=@($authorizedImages|Where-Object imageId -ceq $sourceImageId)[0]
         $bootstrapMedia += [pscustomobject][ordered]@{
             assetId=$ids[$i];mediaId=('ngmedia-'+$ids[$i].ToLowerInvariant())
@@ -176,18 +176,18 @@ function New-NgcaAuthorization {
 
 function New-NgcaMapping {
     param($Authorization)
-    $assets=@();$ids=@('NG-VM-018','NG-VM-010','NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012','NG-VM-013','NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021')
+    $assets=@();$ids=@('NG-VM-018','NG-VM-010','NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012','NG-VM-019','NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015')
     $names=@('NG-DEB-CAN01','NG-CANARY-01','NG-MAIL-EXT01','NG-MAIL-INT01','NG-WRK-01','NG-WRK-02','NG-MGR-01','NG-IT-01','NG-CYBER-01','NG-HR-APP01','NG-PLAT-APP01','NG-KALI-EXT01')
     for($i=0;$i-lt $ids.Count;$i++){
         $image='debian-12.12-amd64-netinst';$firmware='linux-gen2'
         if($ids[$i]-ceq'NG-VM-010'){$image='windows-11-25h2-english-x64';$firmware='windows-gen2'}
-        if($ids[$i]-ceq'NG-VM-021'){$image='kali-2026.2-installer-netinst-amd64';$firmware='kali-gen2-unsigned'}
+        if($ids[$i]-ceq'NG-VM-015'){$image='kali-2026.2-installer-netinst-amd64';$firmware='kali-gen2-unsigned'}
         $assets+=[pscustomobject][ordered]@{assetId=$ids[$i];name=$names[$i];allowedImageRefs=[object[]]@($image);allowedStorageProfileRefs=[object[]]@('lab-storage');allowedNetworkProfileRefs=[object[]]@('business-apps');allowedFirmwareProfileRefs=[object[]]@($firmware);allowedBootstrapProfileRefs=[object[]]@('bootstrap-standard');allowedRecoveryProfileRefs=[object[]]@('recovery-standard');maximumProcessors=4;maximumMemoryMiB=16384;maximumOsDiskGiB=120;adapterPolicyId=('ngnic-'+$names[$i].ToLowerInvariant());staticMacAddress=('02AABBCCDD{0:X2}'-f($i+1));bootstrapMediaId=('ngmedia-'+$ids[$i].ToLowerInvariant())}
     }
     [pscustomobject][ordered]@{
         schema='northgate/create-only-backend-policy-mapping/v1';policyId='northgate-authoring-test';policyVersion='2026.08.02.9';stateKeyId='ngkey-authoring-test-01';planTtlSeconds=900;approvalTtlSeconds=300
         limits=[pscustomobject][ordered]@{hostReserveMemoryMiB=49152;hostProcessorReserveCount=2;maximumVcpuToLogicalRatio=2;minimumVolumeFreeBytes=[int64](100GB);minimumVolumeFreePercent=15;maximumProcessorCount=8;maximumStartupMemoryMiB=32768;maximumDynamicMemoryMiB=65536;maximumOsDiskGiB=256}
-        rollout=[pscustomobject][ordered]@{stage='debian-canary';exactAssetOrder=[object[]]@('NG-VM-018','NG-VM-010','NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012','NG-VM-013','NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021');maximumConcurrentTransactions=1;debianCanary=[pscustomobject][ordered]@{assetId='NG-VM-018';status='pending';receiptSha256='';acceptanceEvidenceSha256='';retirementEvidenceSha256=''};windowsCanary=[pscustomobject][ordered]@{assetId='NG-VM-010';status='pending';receiptSha256='';acceptanceEvidenceSha256='';retirementEvidenceSha256=''}}
+        rollout=[pscustomobject][ordered]@{stage='debian-canary';exactAssetOrder=[object[]]@('NG-VM-018','NG-VM-010','NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012','NG-VM-019','NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015');maximumConcurrentTransactions=1;debianCanary=[pscustomobject][ordered]@{assetId='NG-VM-018';status='pending';receiptSha256='';acceptanceEvidenceSha256='';retirementEvidenceSha256=''};windowsCanary=[pscustomobject][ordered]@{assetId='NG-VM-010';status='pending';receiptSha256='';acceptanceEvidenceSha256='';retirementEvidenceSha256=''}}
        storageProfiles=[object[]]@([pscustomobject][ordered]@{profileRef='lab-storage';catalogServerPolicyId='ng-storage-lab-v1';volumeId='volume-d';root='D:\HyperV';reserveBytes=[int64](100GB);maximumOsDiskGiB=256;workloadClass='persistent'})
         networkProfiles=[object[]]@([pscustomobject][ordered]@{profileRef='business-apps';catalogServerPolicyId='ng-network-business-apps-v1';switchPolicyId='northgate-app-trunk';vlanId=150})
         images=[object[]]@(

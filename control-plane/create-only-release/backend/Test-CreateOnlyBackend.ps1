@@ -143,12 +143,12 @@ try {
         [pscustomobject][ordered]@{imageId='kali-2026.2-installer-netinst-amd64';path=(Join-Path $testRoot 'kali.iso');sha256=('7'*64);sizeBytes=[int64]4},
         [pscustomobject][ordered]@{imageId='windows-11-25h2-english-x64';path=(Join-Path $testRoot 'win.iso');sha256=('8'*64);sizeBytes=[int64]4}
     )
-    $fleetAssetIds=@('NG-VM-018','NG-VM-010','NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012','NG-VM-013','NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021')
-    $windowsAssetIds=@('NG-VM-010','NG-VM-011','NG-VM-012','NG-VM-013','NG-VM-014','NG-VM-015')
+    $fleetAssetIds=@('NG-VM-018','NG-VM-010','NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012','NG-VM-019','NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015')
+    $windowsAssetIds=@('NG-VM-010','NG-VM-011','NG-VM-012','NG-VM-019','NG-VM-020','NG-VM-021')
     $bootstrapMedia=@()
     for($mediaIndex=0;$mediaIndex-lt $fleetAssetIds.Count;$mediaIndex++){
         $mediaAssetId=$fleetAssetIds[$mediaIndex]
-        $sourceImageId=if($mediaAssetId-in$windowsAssetIds){'windows-11-25h2-english-x64'}elseif($mediaAssetId-ceq'NG-VM-021'){'kali-2026.2-installer-netinst-amd64'}else{'debian-12.12-amd64-netinst'}
+        $sourceImageId=if($mediaAssetId-in$windowsAssetIds){'windows-11-25h2-english-x64'}elseif($mediaAssetId-ceq'NG-VM-015'){'kali-2026.2-installer-netinst-amd64'}else{'debian-12.12-amd64-netinst'}
         $sourceImage=@($authorizedImages|Where-Object imageId -ceq $sourceImageId)[0]
         $bootstrapMedia += [pscustomobject][ordered]@{
             assetId=$mediaAssetId;mediaId=('ngmedia-'+$mediaAssetId.ToLowerInvariant())
@@ -213,7 +213,7 @@ try {
         issuedAtUtc=(Format-NgcbTestUtc $artifactIssued);expiresAtUtc=(Format-NgcbTestUtc $artifactExpires);applyEnabled=$true
         executableActions=[object[]]@('Create');planTtlSeconds=900;approvalTtlSeconds=600;stateKeyId='ngkey-backend-test-01'
         limits=[pscustomobject][ordered]@{hostReserveMemoryMiB=49152;hostProcessorReserveCount=2;maximumVcpuToLogicalRatio=2;minimumVolumeFreeBytes=[int64](100GB);minimumVolumeFreePercent=15;maximumProcessorCount=8;maximumStartupMemoryMiB=32768;maximumDynamicMemoryMiB=65536;maximumOsDiskGiB=256}
-        rollout=[pscustomobject][ordered]@{stage='debian-canary';exactAssetOrder=[object[]]@('NG-VM-018','NG-VM-010','NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012','NG-VM-013','NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021');maximumConcurrentTransactions=1;debianCanary=[pscustomobject][ordered]@{assetId='NG-VM-018';status='pending';receiptSha256='';acceptanceEvidenceSha256='';retirementEvidenceSha256=''};windowsCanary=[pscustomobject][ordered]@{assetId='NG-VM-010';status='pending';receiptSha256='';acceptanceEvidenceSha256='';retirementEvidenceSha256=''}}
+        rollout=[pscustomobject][ordered]@{stage='debian-canary';exactAssetOrder=[object[]]@('NG-VM-018','NG-VM-010','NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012','NG-VM-019','NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015');maximumConcurrentTransactions=1;debianCanary=[pscustomobject][ordered]@{assetId='NG-VM-018';status='pending';receiptSha256='';acceptanceEvidenceSha256='';retirementEvidenceSha256=''};windowsCanary=[pscustomobject][ordered]@{assetId='NG-VM-010';status='pending';receiptSha256='';acceptanceEvidenceSha256='';retirementEvidenceSha256=''}}
        storageProfiles=[object[]]@([pscustomobject][ordered]@{profileRef='lab-ephemeral';catalogServerPolicyId='ng-storage-lab-ephemeral-v1';volumeId='volume-d';root=$storageRoot;reserveBytes=[int64](100GB);maximumOsDiskGiB=80;workloadClass='canary'})
         networkProfiles=[object[]]@([pscustomobject][ordered]@{profileRef='business-apps';catalogServerPolicyId='ng-network-business-apps-v1';switchPolicyId='northgate-app-trunk';vlanId=150})
         images=[object[]]@(
@@ -528,7 +528,7 @@ try {
         $secondPromotionResult.stage -ceq 'persistent-fleet') 'Second signed promotion atomically unlocks the persistent fleet in the same release state root.'
     Assert-NgcbThrows { Get-NorthGateCreateOnlyRolloutPromotionContext -Context $harness.Context } '^NGCB-ROLLOUT-PROMOTION-COMPLETE$' 'No third rollout promotion exists after the persistent-fleet stage.'
     $persistentIdentity=[pscustomobject][ordered]@{vms=$harness.State.vms;adapters=$harness.State.adapters}
-    $null=& $module {param($c,$a,$i)Assert-NgcbRolloutState $c $a $i} $harness.Context 'NG-VM-019' $persistentIdentity
+    $null=& $module {param($c,$a,$i)Assert-NgcbRolloutState $c $a $i} $harness.Context 'NG-VM-014' $persistentIdentity
     $persistentState=Get-NorthGateCreateOnlyBackendState -Context $harness.Context
     Assert-NgcbTest ($persistentState.rolloutSequence -eq 2 -and
         $persistentState.rolloutStage -ceq 'persistent-fleet' -and

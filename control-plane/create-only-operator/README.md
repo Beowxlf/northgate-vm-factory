@@ -101,7 +101,7 @@ The existing files are intentionally inert and need separate reviewed stages:
 2. Image/profile catalogs: promote only records with live installed-policy mappings and immutable evidence. Image entries become `promoted/active`; referenced owner, firmware, storage, network, bootstrap, recovery, and access profiles become `approved`. Keep network `allowCreate=false` and `allowRebind=false`; VM `Create` means attach to an existing exact switch only.
 3. `proposals/full-fleet.proposed.json` and its validator: preserve it as accepted design evidence without allowing it to remain a permanent proposed-catalog blocker. A proposal still never becomes a plan.
 4. Add two separately governed `DisposableCanaryRequest` records for `NG-VM-018` and `NG-VM-010`. The create-only operator cannot delete them; retirement uses the separate decommission workflow after canary evidence.
-5. Add ten `manifests/vms/ng-vm-*.json` standard manifests for `NG-VM-019`, `020`, `011` through `017`, and `021`, each with one approved `NG-CHG-*` reference and `desiredPowerState: off`. Access policy remains a companion workflow because the current VM manifest schema has no access field.
+5. Add ten `manifests/vms/ng-vm-*.json` standard manifests for `NG-VM-014`, `020`, `011` through `017`, and `021`, each with one approved `NG-CHG-*` reference and `desiredPowerState: off`. Access policy remains a companion workflow because the current VM manifest schema has no access field.
 6. Update `scripts/Test-Repository.ps1` so active policy/catalog/manifests are validated without weakening the existing proposal and negative-test suites. Add a history/separation test proving catalog/policy promotion was merged before its first consuming request.
 
 ## Required test gates

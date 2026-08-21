@@ -20,8 +20,8 @@ $script:CoreCatalogRoles = [ordered]@{
     'catalog/recovery-profiles.json' = 'recoveryCatalog'
 }
 $script:ExactAssetOrder = @(
-    'NG-VM-018','NG-VM-010','NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012',
-    'NG-VM-013','NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021'
+    'NG-VM-018','NG-VM-010','NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012',
+    'NG-VM-019','NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015'
 )
 
 function Throw-NgcaError {
@@ -635,7 +635,7 @@ function Assert-NgcaExactPromotion {
     foreach ($name in $requiredFalse) { if ($Promotion.controls.$name -ne $false) { Throw-NgcaError 'NGCA-PROMOTION-CONTROL-WIDENED' } }
     if (-not (Test-NgcaEqualList @($Promotion.retainedAssetNames) @('JS-BlueBench','JS-Server-01','OPNsense-Tooling','TRMM-Tooling','Wazuh-Machine')) -or
         -not (Test-NgcaEqualList @($Promotion.canaryAssetIds) @('NG-VM-018','NG-VM-010')) -or
-        -not (Test-NgcaEqualList @($Promotion.persistentAssetIds) @('NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012','NG-VM-013','NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021')) -or
+        -not (Test-NgcaEqualList @($Promotion.persistentAssetIds) @('NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012','NG-VM-019','NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015')) -or
         -not (Test-NgcaEqualList @($Promotion.orderedAssetIds) $script:ExactAssetOrder)) {
         Throw-NgcaError 'NGCA-PROMOTION-ASSET-SCOPE-INVALID'
     }
@@ -643,7 +643,7 @@ function Assert-NgcaExactPromotion {
     $exception = @($Promotion.firmwareExceptions)[0]
     Assert-NgcaExactProperties $exception @('exceptionId','assetId','profileRef','secureBootEnabled','reason') `
         'NGCA-PROMOTION-FIRMWARE-EXCEPTION-INVALID'
-    if ($exception.exceptionId -cne 'NG-FW-20260802-KALI-UNSIGNED' -or $exception.assetId -cne 'NG-VM-021' -or
+    if ($exception.exceptionId -cne 'NG-FW-20260802-KALI-UNSIGNED' -or $exception.assetId -cne 'NG-VM-015' -or
         $exception.profileRef -cne 'kali-gen2-unsigned' -or $exception.secureBootEnabled -ne $false -or
         $exception.reason -cne 'official-kali-installer-kernel-is-not-secure-boot-signed') {
         Throw-NgcaError 'NGCA-PROMOTION-FIRMWARE-EXCEPTION-INVALID'

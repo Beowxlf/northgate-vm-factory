@@ -44,7 +44,7 @@ The BlueBench builder must then pass against the real source. Its successful ter
 - Secure Boot, vTPM, Defender, update, time, domain/OU/GPO, LAPS, TacticalRMM, and Wazuh gates pass in the sequence documented by the Windows workstation plan.
 - The exact cleanup command succeeds only after domain, TacticalRMM, and Wazuh verification; the local bootstrap account, key, firewall rule, and SSH listener are no longer usable afterward.
 
-## Kali canary/promotion test (`NG-VM-021`)
+## Kali canary/promotion test (`NG-VM-015`)
 
 - Generation 2 UEFI, exact MAC `024E47000015`, VLAN 250, address `172.31.250.10/24`, gateway/DNS `172.31.250.1`.
 - Secure Boot is disabled and bound to `kali-gen2-unsigned` plus exception `NG-FW-20260802-KALI-UNSIGNED`; vTPM is not required.

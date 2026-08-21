@@ -51,7 +51,7 @@
       "roleHook": "windows11-worker"
     },
     {
-      "assetId": "NG-VM-013",
+      "assetId": "NG-VM-019",
       "name": "NG-MGR-01",
       "hostname": "NG-MGR-01",
       "family": "windows",
@@ -66,7 +66,7 @@
       "roleHook": "windows11-manager"
     },
     {
-      "assetId": "NG-VM-014",
+      "assetId": "NG-VM-020",
       "name": "NG-IT-01",
       "hostname": "NG-IT-01",
       "family": "windows",
@@ -81,7 +81,7 @@
       "roleHook": "windows11-it-admin"
     },
     {
-      "assetId": "NG-VM-015",
+      "assetId": "NG-VM-021",
       "name": "NG-CYBER-01",
       "hostname": "NG-CYBER-01",
       "family": "windows",
@@ -141,7 +141,7 @@
       "roleHook": "debian12-disposable-canary"
     },
     {
-      "assetId": "NG-VM-019",
+      "assetId": "NG-VM-014",
       "name": "NG-MAIL-EXT01",
       "hostname": "ng-mail-ext01",
       "family": "debian",
@@ -156,7 +156,7 @@
       "roleHook": "debian12-mail-external"
     },
     {
-      "assetId": "NG-VM-020",
+      "assetId": "NG-VM-013",
       "name": "NG-MAIL-INT01",
       "hostname": "ng-mail-int01",
       "family": "debian",
@@ -171,7 +171,7 @@
       "roleHook": "debian12-mail-internal"
     },
     {
-      "assetId": "NG-VM-021",
+      "assetId": "NG-VM-015",
       "name": "NG-KALI-EXT01",
       "hostname": "ng-kali-ext01",
       "family": "kali",

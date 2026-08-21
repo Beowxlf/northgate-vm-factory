@@ -13,8 +13,8 @@ $ErrorActionPreference = 'Stop'
 $pipeName = 'NorthGate.VMFactory.CreateOnly.v1'
 $maximumFrameBytes = 65536
 $exactFleetAssetIds = @(
-    'NG-VM-018','NG-VM-010','NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012',
-    'NG-VM-013','NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021'
+    'NG-VM-018','NG-VM-010','NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012',
+    'NG-VM-019','NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015'
 )
 
 function Stop-Ngcr {

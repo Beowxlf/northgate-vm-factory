@@ -38,7 +38,7 @@
       "required": ["stage", "exactAssetOrder", "maximumConcurrentTransactions", "debianCanary", "windowsCanary"],
       "properties": {
         "stage": { "enum": ["debian-canary", "windows-canary", "persistent-fleet"] },
-        "exactAssetOrder": { "const": ["NG-VM-018", "NG-VM-010", "NG-VM-019", "NG-VM-020", "NG-VM-011", "NG-VM-012", "NG-VM-013", "NG-VM-014", "NG-VM-015", "NG-VM-016", "NG-VM-017", "NG-VM-021"] },
+        "exactAssetOrder": { "const": ["NG-VM-018", "NG-VM-010", "NG-VM-014", "NG-VM-013", "NG-VM-011", "NG-VM-012", "NG-VM-019", "NG-VM-020", "NG-VM-021", "NG-VM-016", "NG-VM-017", "NG-VM-015"] },
         "maximumConcurrentTransactions": { "const": 1 },
         "debianCanary": { "$ref": "#/$defs/canaryGate" }, "windowsCanary": { "$ref": "#/$defs/canaryGate" }
       }

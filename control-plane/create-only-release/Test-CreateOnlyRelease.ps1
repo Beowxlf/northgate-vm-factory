@@ -256,7 +256,7 @@ try {
     finally { & $release { param($Lock) Exit-NgcorWriterLock $Lock } $held }
 
     $rawLedger = [IO.File]::ReadAllText($context.LedgerPath)
-    [IO.File]::WriteAllText($context.LedgerPath, $rawLedger.Replace('NG-VM-018','NG-VM-019'), (New-Object Text.UTF8Encoding($false)))
+    [IO.File]::WriteAllText($context.LedgerPath, $rawLedger.Replace('NG-VM-018','NG-VM-014'), (New-Object Text.UTF8Encoding($false)))
     Assert-NgcorThrows { & $release { param($Context) Read-NgcorLedger $Context } $context } '^NGCOR-LEDGER-AUTHENTICATION-FAILED$' 'Detected ledger tamper.'
 }
 finally {
@@ -628,17 +628,17 @@ try {
         "yyyy-MM-dd'T'HH:mm:ss'Z'", [Globalization.CultureInfo]::InvariantCulture
     )
     $bootstrapFleet = @(
-        'NG-VM-018','NG-VM-010','NG-VM-019','NG-VM-020','NG-VM-011','NG-VM-012',
-        'NG-VM-013','NG-VM-014','NG-VM-015','NG-VM-016','NG-VM-017','NG-VM-021'
+        'NG-VM-018','NG-VM-010','NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012',
+        'NG-VM-019','NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015'
     )
-    $windowsBootstrapAssets = @('NG-VM-010','NG-VM-011','NG-VM-012','NG-VM-013','NG-VM-014','NG-VM-015')
+    $windowsBootstrapAssets = @('NG-VM-010','NG-VM-011','NG-VM-012','NG-VM-019','NG-VM-020','NG-VM-021')
     $bootstrapMedia = [object[]]@(
         for ($index = 0; $index -lt $bootstrapFleet.Count; $index++) {
             $assetId = $bootstrapFleet[$index]
             $sourceImageId = if ($assetId -in $windowsBootstrapAssets) {
                 'windows-11-25h2-english-x64'
             }
-            elseif ($assetId -ceq 'NG-VM-021') {
+            elseif ($assetId -ceq 'NG-VM-015') {
                 'kali-2026.2-installer-netinst-amd64'
             }
             else {
