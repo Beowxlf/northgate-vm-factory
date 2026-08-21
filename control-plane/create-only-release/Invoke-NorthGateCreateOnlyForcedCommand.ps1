@@ -15,6 +15,17 @@ function Stop-NgcorForcedCommand {
     exit $ExitCode
 }
 
+function Get-NgcorForcedSafeErrorCode {
+    param([System.Exception]$Exception)
+    if ($null -eq $Exception) { return 'NGCOR-REQUEST-REJECTED' }
+    $match = [regex]::Match(
+        ([string]$Exception.Message), '\bNGCOR-[A-Z0-9-]{1,96}\b',
+        [Text.RegularExpressions.RegexOptions]::CultureInvariant
+    )
+    if ($match.Success) { return [string]$match.Value }
+    'NGCOR-REQUEST-REJECTED'
+}
+
 function Assert-NgcorInstalledLocation {
     $programFiles = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)
     $requiredPrefix = Join-Path $programFiles 'NorthGate\VMFactory\CreateOnly\releases'
@@ -300,16 +311,15 @@ try {
     finally { $pipe.Dispose() }
 }
 catch {
-    $code = [string]$_.Exception.Message
-    if ($code -cnotmatch '^NGCOR-[A-Z0-9-]{1,96}$') { $code = 'NGCOR-REQUEST-REJECTED' }
+    $code = Get-NgcorForcedSafeErrorCode $_.Exception
     Stop-NgcorForcedCommand $code 1
 }
 
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBuRaPZ1HYcEzB/
-# 06H1WFBAh3xLaxyDHbxS3RAejsQWgqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBW6vG8rFGUIoDS
+# ytdKSSfFNY8KvrAgru+jJd37qBxYnaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -337,14 +347,14 @@ catch {
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIAd6+s3vYznvAyZEP0hp6zHOJmh/vrb3YBZcdRLT274/MA0GCSqG
-# SIb3DQEBAQUABIIBgEkl/EFDwb435rdbzJesF7omkOrq9RHN0IPXl0vqhsFJivur
-# UpSopGINs3le4HNeF8VOlNsK+9Jyh6M9BQGsgL1o/Bm7PqUVcPScEPvt3iBGM1di
-# 48iMpMAKLmg5IJV7Snwcp11PGxtmWBDT/aXW+87vqa0R2G9RPyr05UA5m4VG/isB
-# cmmNwihjbKvO3TWntd4aAU0FFiAhqHe9/Ay9NsYGpx+c7hcBexkK2wk2SvTphGEz
-# vvFBTUMidVgCRVnnbG7ja607zSLqXGrvaakjFbk1oIXBX16z+ikAJPH4YpWbKrSK
-# fhYWEWlBP5jK6b0wN+wiVpcvHwtaSsuj95aX6xjk9ycP6J1AnFqZZiMUJNlkzwxI
-# MFAWMG37HQrSZc1jdhv3SmgVLDPmlgYl6JuJ0rXHm8IBj46C5OGinkKnB9C4W+9K
-# kl+aRgt0XHEqdqXK8M028GKSc3TJuziG21sVknVDebY2TZqtmE2kTaxmyzMQyOGx
-# LmKJvZPNfIcYn59xDA==
+# hvcNAQkEMSIEILfP6NH6KhuMMa/jX0D3R0m6e+cK8wRXV4OxB7KYZ++sMA0GCSqG
+# SIb3DQEBAQUABIIBgBdmj33Px8yHpPAOOuTP4za/3aL+iWaNDJ7Mcdby0046F9wT
+# E7dX6WnDYIuaOYRguHxTMPDriysm6XRATiM7y0siO/yVDuWbeWFN0wF/qBH6uuL/
+# 5+ABFtgfk5iRs2eWKE+nXfyQCElC3E+gCggMpQpZQGmsI1NfJ0kXStywbk4jnnpG
+# 58qu7rZdOxnGZBmnHrBBmGz0jBwptCQJknPiatjAHKBSYgBH0I/lsKtnS3fpP4I1
+# ZqpL3shFYCJ+igHMct/MRrAFtOVfwBeLRxkwDB24BeyxGmgm+iKnFldfTrHWsV8c
+# 8hhWm5xJTELk7YdxiYPW20dlwUXcNgUsKt65L92k77QsnkaW+UhkNavJx9yqw/IC
+# aPkWZ0TyXs6+jWPHdBjENrUYVTMVJddyOt4UMvmIXXRBw8VzxJzGmqa0ZeuaURnV
+# e8JCsgoNxpPIVbRc3GOHqL9EfUuiBfYOboCkyxWxmTGRJCd+SkHKHnBihyjtVA10
+# 8q4DQRCw9o9ymkssuQ==
 # SIG # End signature block
