@@ -401,6 +401,9 @@ function New-NgcaDetachedCmsSignature {
         $cms = New-Object Security.Cryptography.Pkcs.SignedCms -ArgumentList $content,$true
         $signer = New-Object Security.Cryptography.Pkcs.CmsSigner $Certificate
         $signer.IncludeOption = [Security.Cryptography.X509Certificates.X509IncludeOption]::EndCertOnly
+        $signer.DigestAlgorithm = New-Object Security.Cryptography.Oid(
+            '2.16.840.1.101.3.4.2.1','SHA256'
+        )
         $cms.ComputeSignature($signer,$true)
         $cms.Encode()
     }
@@ -415,7 +418,10 @@ function Assert-NgcaDetachedCmsSignature {
         $content = New-Object Security.Cryptography.Pkcs.ContentInfo (,$ContentBytes)
         $cms = New-Object Security.Cryptography.Pkcs.SignedCms -ArgumentList $content,$true
         $cms.Decode($SignatureBytes)
-        if ($cms.SignerInfos.Count -ne 1) { Throw-NgcaError $Code }
+        if ($cms.SignerInfos.Count -ne 1 -or
+            $cms.SignerInfos[0].DigestAlgorithm.Value -cne '2.16.840.1.101.3.4.2.1') {
+            Throw-NgcaError $Code
+        }
         $cms.CheckSignature($true)
         $certificate = $cms.SignerInfos[0].Certificate
         if ($null -eq $certificate -or (Get-NgcaCertificateSha256 $certificate) -cne $ExpectedCertificateSha256) {

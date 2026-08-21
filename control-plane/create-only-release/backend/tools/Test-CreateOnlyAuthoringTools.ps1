@@ -18,6 +18,14 @@ function Assert-NgcaThrows {
     try{& $Action;throw "ASSERTION FAILED: $Message (no exception)"}
     catch{if($_.Exception.Message -notmatch $Pattern){throw "ASSERTION FAILED: $Message (got '$($_.Exception.Message)')"}}
 }
+function Get-NgcaTestCmsDigestOid {
+    param([Parameter(Mandatory)][string]$Path)
+    Add-Type -AssemblyName System.Security
+    $cms=New-Object Security.Cryptography.Pkcs.SignedCms
+    $cms.Decode([IO.File]::ReadAllBytes($Path))
+    if($cms.SignerInfos.Count-ne1){return ''}
+    [string]$cms.SignerInfos[0].DigestAlgorithm.Value
+}
 function Get-NgcaTestSha { param([byte[]]$Bytes);$a=[Security.Cryptography.SHA256]::Create();try{$h=$a.ComputeHash($Bytes)}finally{$a.Dispose()};(($h|%{$_.ToString('x2')})-join '') }
 function Get-NgcaTestCertSha { param($Certificate);Get-NgcaTestSha $Certificate.RawData }
 function Format-NgcaTestUtc { param([DateTimeOffset]$Value);$Value.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'",[Globalization.CultureInfo]::InvariantCulture) }
@@ -246,6 +254,7 @@ try{
         -CertificateStoreLocation CurrentUser -LifetimeSeconds 3600 -ConfirmAuthoring
     Assert-NgcaTest ($bundleResult.status-ceq'signed-data-bundle-authored' -and $bundleResult.fileCount-eq10 -and
         (Test-Path -LiteralPath $bundleResult.bundlePath) -and (Test-Path -LiteralPath $bundleResult.signaturePath)) 'Raw-Git data bundle is atomically authored and signed.'
+    Assert-NgcaTest ((Get-NgcaTestCmsDigestOid $bundleResult.signaturePath)-ceq'2.16.840.1.101.3.4.2.1') 'Data-bundle CMS uses SHA-256 under Windows PowerShell.'
     $bundleObject=ConvertFrom-Json ([IO.File]::ReadAllText($bundleResult.bundlePath))
     Assert-NgcaTest ($bundleObject.repository.commit-ceq$fixture.commit -and $bundleObject.repository.tree-ceq$fixture.tree -and
         @($bundleObject.files|? role -eq schema).Count-eq1 -and @($bundleObject.files|? role -eq policy).Count-eq2) 'Bundle records exact commit/tree and only approved data roles.'
@@ -292,6 +301,7 @@ try{
         -PromotionRecordPath 'policy/deployment-promotion.json' -ExpectedPromotionRecordSha256 $fixture.promotionSha256 -ConfirmAuthoring
     $enabledPolicyObject=ConvertFrom-Json ([IO.File]::ReadAllText($enabledPolicy.policyPath))
     Assert-NgcaTest ($enabledPolicy.applyEnabled -and $enabledPolicyObject.applyEnabled -and $enabledPolicyObject.limits.maximumVcpuToLogicalRatio-eq2 -and @($enabledPolicyObject.allowedAssets).Count-eq12) 'Exact promotion enables only the signed 12-asset create policy with bounded vCPU ratio.'
+    Assert-NgcaTest ((Get-NgcaTestCmsDigestOid $enabledPolicy.signaturePath)-ceq'2.16.840.1.101.3.4.2.1') 'Backend-policy CMS uses SHA-256 under Windows PowerShell.'
     Assert-NgcaThrows { New-NorthGateCreateOnlyBackendPolicyArtifact -RepositoryRoot $fixture.root -HostAuthorizationPath $authorizationArtifact.path -HostAuthorizationSignaturePath (Join-Path $testRoot 'authorization.p7s') -ExpectedHostAuthorizationSha256 $authorizationArtifact.sha256 -ExpectedHostAuthorizationSignerCertificateSha256 $authorizationPin -MappingPath $mappingArtifact.path -OutputRoot (Join-Path $testRoot 'policy-incomplete') -SignerCertificateSha256 $releasePin -CertificateStoreLocation CurrentUser -PromotionRecordPath 'policy/deployment-promotion.json' -ConfirmAuthoring } '^NGCA-PROMOTION-PARAMETERS-INCOMPLETE$' 'Promotion path without exact hash is rejected.'
     $badMapping=ConvertFrom-Json (ConvertTo-Json $mapping -Depth 30);$badMapping.images[0].imageRef='debian-12.12.0-amd64-netinst';$badMapping.images[0].authorizationImageId='debian-12.12.0-amd64-netinst'
     $badMappingArtifact=Write-NgcaTestCanonical (Join-Path $testRoot 'mapping-bad-debian.json') $badMapping
