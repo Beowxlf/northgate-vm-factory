@@ -2,8 +2,10 @@ using System;
 using System.IO;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
+using System.IO.Pipes;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
 using System.ServiceProcess;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -20,6 +22,51 @@ using System.Threading;
 
 namespace NorthGate.VMFactory.CreateOnly
 {
+    public sealed class PipeClientIdentity
+    {
+        internal PipeClientIdentity(string sid, bool isAdministrator)
+        {
+            this.Sid = sid;
+            this.IsAdministrator = isAdministrator;
+        }
+
+        public string Sid { get; private set; }
+        public bool IsAdministrator { get; private set; }
+    }
+
+    public static class PipeClientIdentityCapture
+    {
+        public static PipeClientIdentity Capture(NamedPipeServerStream pipe)
+        {
+            if (pipe == null || !pipe.IsConnected)
+            {
+                throw new InvalidOperationException("NGCOR-PIPE-CLIENT-IDENTITY-UNAVAILABLE");
+            }
+
+            PipeClientIdentity captured = null;
+            pipe.RunAsClient(delegate
+            {
+                using (WindowsIdentity identity = WindowsIdentity.GetCurrent(true))
+                {
+                    if (identity == null || identity.User == null)
+                    {
+                        throw new InvalidOperationException("NGCOR-PIPE-CLIENT-IDENTITY-UNAVAILABLE");
+                    }
+                    WindowsPrincipal principal = new WindowsPrincipal(identity);
+                    captured = new PipeClientIdentity(
+                        identity.User.Value,
+                        principal.IsInRole(WindowsBuiltInRole.Administrator));
+                }
+            });
+
+            if (captured == null)
+            {
+                throw new InvalidOperationException("NGCOR-PIPE-CLIENT-IDENTITY-UNAVAILABLE");
+            }
+            return captured;
+        }
+    }
+
     internal static class Program
     {
         private const string ScriptSwitch = "--script";

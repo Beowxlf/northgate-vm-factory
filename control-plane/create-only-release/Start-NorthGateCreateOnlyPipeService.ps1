@@ -251,24 +251,20 @@ while (-not $serviceStopEvent.WaitOne(0)) {
         }
         if ($serviceStopEvent.WaitOne(0)) { break }
         $connectionTask.GetAwaiter().GetResult()
-        $identityBox = New-Object 'System.Collections.Generic.List[object]'
-        $pipe.RunAsClient([System.Action]{
-            $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent($true)
-            $groupSids = @($identity.Groups | ForEach-Object { [string]$_.Value })
-            $identityBox.Add([pscustomobject]@{
-                Sid = [string]$identity.User.Value
-                IsAdministrator = ('S-1-5-32-544' -in $groupSids)
-            })
-        })
-        if ($identityBox.Count -ne 1 -or
-            ($identityBox[0].Sid -cne $policy.sshIdentitySid -and -not $identityBox[0].IsAdministrator)) {
-            throw 'NGCOR-PIPE-CLIENT-IDENTITY-MISMATCH'
-        }
         $lengthBytes = Read-NgcorExact $pipe 4 3000
         $length = [BitConverter]::ToInt32($lengthBytes, 0)
         if ($length -le 0 -or $length -gt $maximumFrameBytes) { throw 'NGCOR-ENVELOPE-SIZE-INVALID' }
         $requestBytes = Read-NgcorExact $pipe $length 5000
         $envelope = ConvertFrom-NorthGateCreateOnlyServiceEnvelopeBytes $requestBytes
+        try {
+            $clientIdentity = [NorthGate.VMFactory.CreateOnly.PipeClientIdentityCapture]::Capture($pipe)
+        }
+        catch {
+            throw 'NGCOR-PIPE-CLIENT-IDENTITY-UNAVAILABLE'
+        }
+        if ($clientIdentity.Sid -cne $policy.sshIdentitySid -and -not $clientIdentity.IsAdministrator) {
+            throw 'NGCOR-PIPE-CLIENT-IDENTITY-MISMATCH'
+        }
         try {
             if (-not [bool]$policy.applyEnabled) {
                 if ($envelope.Operation -cne 'status') { throw 'NGCOR-INSTALLED-POLICY-DISABLED' }
@@ -283,8 +279,8 @@ while (-not $serviceStopEvent.WaitOne(0)) {
             else {
                 $result = Invoke-NorthGateCreateOnlyBackendServiceRequest `
                     -Context $backendContext -Operation $envelope.Operation -PlanId $envelope.PlanId `
-                    -BodyBytes $envelope.BodyBytes -ActorSid ([string]$identityBox[0].Sid) `
-                    -ActorIsAdministrator ([bool]$identityBox[0].IsAdministrator) `
+                    -BodyBytes $envelope.BodyBytes -ActorSid ([string]$clientIdentity.Sid) `
+                    -ActorIsAdministrator ([bool]$clientIdentity.IsAdministrator) `
                     -SshIdentitySid ([string]$policy.sshIdentitySid) `
                     -ServiceIdentitySid ([string]$policy.serviceIdentitySid)
             }
@@ -311,8 +307,8 @@ while (-not $serviceStopEvent.WaitOne(0)) {
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBdOs3lGdxn1/+g
-# x62mGo7Cxh594utpsTIJzPwPrKA3PqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAx/VtwsQkgKISE
+# LV6o6OImKpBeGMuzh8/iGtr8SOzd+6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -340,14 +336,14 @@ while (-not $serviceStopEvent.WaitOne(0)) {
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIKpEVL+ZZ3myxYHeyBChoXZojta5hHV+ghbbJ8ZNe35wMA0GCSqG
-# SIb3DQEBAQUABIIBgJgBu3i4ZUZpd/+nVWtMg1VJ5SvuQbb8Aw4qryCpcISrmDHa
-# 4cM+S0vPYETDD4vjnG8PslLST+g2mw7zgQ1B3C5WB5KGrYe3XG+BAjx3pwrQHy99
-# DjWeBYeNaCnpG65QpOtJnyyFYrTs7C9VRpxDqDMVbTirwZY/gOCQVOgxp4r1NKah
-# ic7AiiNwrG7ohZPAMB4QweXyv3Kv/g1npt33dtqZGK6bdbq2kV9Do4x0RoO4rbxh
-# 44nON81996N1y04Ik96gd61oDVM2WjUFeSpFDRj4xe5pu4phYTOaTmEyNNnfMYjq
-# l30aR2ritokBcMs4SkGkyQZoZfiUtJ64g4KVa2qlRWUzCYU9jGOTjnSKdAccuqYj
-# h/R6ruap+LGDJMdxLwNy23AAQ/7cmBPqmAKd/MpkjuAUF1Eq6wBUDM7DcGVij72R
-# dhZd6GMlGJcOgoAzc6z4YRRviA52g5O0a5lr/1Csrzi8YeQhTjmll0NdmxPqr1dy
-# +Pe/79Oa6+iH+Y4dvw==
+# hvcNAQkEMSIEIJuUP/T0rlcfPxgicFRqKIUi76xYfFkUblLtdRRKpqjTMA0GCSqG
+# SIb3DQEBAQUABIIBgBGivigPknG7vIdFtx5zHHwzKSDaC84KST1KEQ2VXtwRabHk
+# 2vYdMnAqZxCWxtznVMp6t2p0AMVPpWgd51sBuymrjAiMizsUw+Qmcx1gU3seb4nt
+# wsCAIwpcR7/fpK118EEfUhReWIxaA5NNlsUvBejJcc48l05/9EB22v2e5GNbspNi
+# ePcUWyxefn0nyi9vMnQyshCwsikQanC9l9nj4v2ML9YSB6PwJKWBaToIfKPHObfa
+# DIJQG/nkC2am7vIsQ7Hnliy3FLfn6Y56Lg+Exxubu/pAz7QIqnm1WwGsZ0QZ8QmZ
+# +8W7NZOgpfXzLhwNk0326n1RQE04weNZNyNbZvha/PtSR9le60M77d1BvNBRIQS/
+# dAPiGfayRlMVLKjd5ClAMq3Ngd7EpHWX5kmUK5e384OBlKA1cjxAeg/yA3wlKTE4
+# 6XfBS1JXoV4WvZ71JeDbsQCPcI+JLaK3ZUtVtGVEOlXijuXbex6QYD82YX5ooiyL
+# 890JTmglbwh3WCJZmA==
 # SIG # End signature block
