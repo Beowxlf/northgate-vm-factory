@@ -122,6 +122,10 @@ $canonicalProbe = [Text.Encoding]::UTF8.GetBytes('{"probe":"module-scope"}')
 $canonicalParsed = ConvertFrom-NorthGateCreateOnlyCanonicalJsonBytes -Bytes $canonicalProbe -MaximumBytes 1024
 Assert-NgcorTest ($canonicalParsed.Value.probe -ceq 'module-scope') `
     'Nested dependency imports preserve the caller-visible protocol commands under Windows PowerShell.'
+$bundleLimitParsed = ConvertFrom-NorthGateCreateOnlyCanonicalJsonBytes `
+    -Bytes $canonicalProbe -MaximumBytes 10485760
+Assert-NgcorTest ($bundleLimitParsed.Value.probe -ceq 'module-scope') `
+    'Canonical parser accepts the explicit ten-MiB artifact ceiling used for signed data bundles.'
 
 foreach ($command in @('status','plan','rollout-context','promote-rollout',
         ('approval-context ngp-' + ('a' * 64)),('approve ngp-' + ('b' * 64)),
