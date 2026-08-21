@@ -56,6 +56,13 @@ try {
         'Native host has bounded cooperative stop handling.'
     Assert-NgchTest ($source -cnotmatch 'Process\.Start|powershell\.exe|cmd\.exe|CreateProcess|ShellExecute') `
         'Native host does not launch a shell or child process.'
+    Assert-NgchTest ($source -match 'PipeClientIdentityCapture' -and
+        $source -match 'pipe\.RunAsClient' -and $source -match 'WindowsPrincipal' -and
+        $serviceScript -match 'PipeClientIdentityCapture\]::Capture\(\$pipe\)' -and
+        $serviceScript -notmatch '\$identityBox' -and
+        $serviceScript.IndexOf('Read-NgcorExact $pipe $length 5000') -lt
+        $serviceScript.IndexOf('PipeClientIdentityCapture]::Capture($pipe)')) `
+        'Client identity and administrator membership are captured inside the fixed native host.'
     Assert-NgchTest ($source -match 'GetSafeFailureCode' -and
         $source -match 'NGCOR-\[A-Z0-9-\]' -and $source -match 'exception\.GetType\(\)\.FullName') `
         'Native host reports only bounded NorthGate codes or exception types when the engine fails.'
@@ -142,6 +149,41 @@ try {
         $assembly.Version.ToString() -ceq '1.0.0.0') 'Built service host has the fixed assembly identity.'
     Assert-NgchTest ($first.signingRequired -eq $true) `
         'Build stage declares detached CMS promotion still required.'
+    $loadedHost = [System.Reflection.Assembly]::Load([System.IO.File]::ReadAllBytes($firstOutput))
+    $captureType = $loadedHost.GetType(
+        'NorthGate.VMFactory.CreateOnly.PipeClientIdentityCapture', $true, $false)
+    $pipeName = 'ngcor-identity-test-' + [guid]::NewGuid().ToString('N')
+    $server = New-Object System.IO.Pipes.NamedPipeServerStream(
+        $pipeName, [System.IO.Pipes.PipeDirection]::InOut, 1,
+        [System.IO.Pipes.PipeTransmissionMode]::Byte,
+        [System.IO.Pipes.PipeOptions]::None
+    )
+    $client = New-Object System.IO.Pipes.NamedPipeClientStream(
+        '.', $pipeName, [System.IO.Pipes.PipeDirection]::InOut,
+        [System.IO.Pipes.PipeOptions]::None
+    )
+    try {
+        $client.Connect(2000)
+        $server.WaitForConnection()
+        $probeBytes = [byte[]]@(1)
+        $probeWrite = $client.WriteAsync($probeBytes, 0, 1)
+        Assert-NgchTest ($server.ReadByte() -eq 1) `
+            'Identity capture test establishes the Windows data-read impersonation precondition.'
+        $null = $probeWrite.GetAwaiter().GetResult()
+        $captureArguments = New-Object object[] 1
+        $captureArguments[0] = $server.PSObject.BaseObject
+        $capturedIdentity = $captureType.GetMethod('Capture').Invoke($null, $captureArguments)
+        $expectedIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+        $expectedPrincipal = New-Object System.Security.Principal.WindowsPrincipal($expectedIdentity)
+        Assert-NgchTest ($capturedIdentity.Sid -ceq [string]$expectedIdentity.User.Value -and
+            $capturedIdentity.IsAdministrator -eq
+            $expectedPrincipal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)) `
+            'Native capture returns the connected client SID and effective administrator membership.'
+    }
+    finally {
+        $client.Dispose()
+        $server.Dispose()
+    }
     $firstProvenanceText = [IO.File]::ReadAllText($firstProvenance)
     $firstProvenanceObject = ConvertFrom-Json $firstProvenanceText
     Assert-NgchTest ($firstProvenanceObject.schema -ceq
