@@ -184,34 +184,37 @@ $null = & $deployment {
     param($Bytes,$SignaturePath,$Pin)
     Test-NgcdDetachedCms $Bytes $SignaturePath $Pin
 } $serviceHostBytes $serviceHostCmsPath ([string]$installed.releaseSignerCertificateSha256)
-$service = Get-CimInstance -ClassName Win32_Service -Filter "Name='NorthGateCreateOnly'" -ErrorAction Stop
-$expectedServicePath = '"' + $serviceHostPath + '" --script "' +
-    (Join-Path $installedRoot 'Start-NorthGateCreateOnlyPipeService.ps1') + '"'
-$expectedStartMode = if ([bool]$policy.applyEnabled) { 'Auto' } else { 'Manual' }
-if ($service.PathName -cne $expectedServicePath -or $service.StartMode -cne $expectedStartMode -or
-    $service.StartName -cne 'NT SERVICE\NorthGateCreateOnly') {
+$service = Get-Service -Name 'NorthGateCreateOnly' -ErrorAction Stop
+$expectedStartType = if ([bool]$policy.applyEnabled) { 'Automatic' } else { 'Manual' }
+try { $currentHostPath = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName }
+catch { throw 'NGCOR-SERVICE-HOST-PATH-UNVERIFIABLE' }
+if ([IO.Path]::GetFullPath($currentHostPath) -cne [IO.Path]::GetFullPath($serviceHostPath) -or
+    [string]$service.StartType -cne $expectedStartType -or [string]$service.Status -cne 'Running') {
     throw 'NGCOR-SERVICE-REGISTRATION-MISMATCH'
 }
 
-$backendContext = New-NorthGateCreateOnlyBackendContext `
-    -StateRoot ([string]$installed.backendStateRoot) `
-    -DataRoot ([string]$installed.backendDataRoot) `
-    -StateKeyPath ([string]$installed.backendStateKeyPath) `
-    -ReleaseManifestPath $manifestPath `
-    -ReleaseManifestSignaturePath $manifestSignaturePath `
-    -ExpectedReleaseManifestSha256 ([string]$installed.releaseManifestSha256) `
-    -ExpectedReleaseSignerCertificateSha256 ([string]$installed.releaseSignerCertificateSha256) `
-    -HostAuthorizationPath $authorizationPath `
-    -HostAuthorizationSignaturePath $authorizationSignaturePath `
-    -ExpectedHostAuthorizationSha256 ([string]$installed.deploymentAuthorizationSha256) `
-    -ExpectedHostAuthorizationSignerCertificateSha256 `
-        ([string]$installed.deploymentAuthorizationSignerCertificateSha256) `
-    -BackendPolicyPath $backendPolicyPath `
-    -BackendPolicySignaturePath $backendPolicySignaturePath `
-    -ExpectedBackendPolicySha256 ([string]$installed.backendPolicySha256) `
-    -DataBundlePath $dataBundlePath `
-    -DataBundleSignaturePath $dataBundleSignaturePath `
-    -ExpectedDataBundleSha256 ([string]$installed.dataBundleSha256)
+$backendContext = $null
+if ([bool]$policy.applyEnabled) {
+    $backendContext = New-NorthGateCreateOnlyBackendContext `
+        -StateRoot ([string]$installed.backendStateRoot) `
+        -DataRoot ([string]$installed.backendDataRoot) `
+        -StateKeyPath ([string]$installed.backendStateKeyPath) `
+        -ReleaseManifestPath $manifestPath `
+        -ReleaseManifestSignaturePath $manifestSignaturePath `
+        -ExpectedReleaseManifestSha256 ([string]$installed.releaseManifestSha256) `
+        -ExpectedReleaseSignerCertificateSha256 ([string]$installed.releaseSignerCertificateSha256) `
+        -HostAuthorizationPath $authorizationPath `
+        -HostAuthorizationSignaturePath $authorizationSignaturePath `
+        -ExpectedHostAuthorizationSha256 ([string]$installed.deploymentAuthorizationSha256) `
+        -ExpectedHostAuthorizationSignerCertificateSha256 `
+            ([string]$installed.deploymentAuthorizationSignerCertificateSha256) `
+        -BackendPolicyPath $backendPolicyPath `
+        -BackendPolicySignaturePath $backendPolicySignaturePath `
+        -ExpectedBackendPolicySha256 ([string]$installed.backendPolicySha256) `
+        -DataBundlePath $dataBundlePath `
+        -DataBundleSignaturePath $dataBundleSignaturePath `
+        -ExpectedDataBundleSha256 ([string]$installed.dataBundleSha256)
+}
 
 $sshSid = New-Object System.Security.Principal.SecurityIdentifier([string]$policy.sshIdentitySid)
 $systemSid = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-18')
@@ -308,8 +311,8 @@ while (-not $serviceStopEvent.WaitOne(0)) {
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCZz89e+YjbXgis
-# GCctPZ7qEvLNAqJXOfenmZYPs4ANLaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBdOs3lGdxn1/+g
+# x62mGo7Cxh594utpsTIJzPwPrKA3PqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -337,14 +340,14 @@ while (-not $serviceStopEvent.WaitOne(0)) {
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIC1x5lif10aQn6j/VibDT7hoW8w5a7Y3g/+6cyzyrVy3MA0GCSqG
-# SIb3DQEBAQUABIIBgEbBA03nzWLQVuxzg2SUNFS194Ym2S7C/rfxLMkvxRS7RoXN
-# EEqKBV3GNojOP62Zb/MJ0+xhhfxJoD6gKq8DDMEshepb+zYpa+FxJ8cw7UMTb4TM
-# rNsxW7VYZE0wh9lxdycwlPZUmo+dfBUjiALl8jdGNyq//UwM7Gl5SuVTjU8gwhuM
-# 4XmenfA0i7ydCEpCzzVTRkNdn0gD5qN2h9Wxjw3grWCqe/hKdPMXTTfwNckqVbcw
-# yPM4fzp1CHwYm+8hDNxdw+PrIGfTXGq05/K4rHO7sdxBPTTQFNxPiMe2Gr5qogxi
-# fXwtZ4vOwFKdupCBL5YxkGJVKvVHMx/+gZHF7k0XRCpVjufoH5gjhL4V0nCBQPdL
-# eJCisA90V3jU/18E3iMXj6DHps84ZwxuQp2pb0Mpfk4FcJ5MGSyhEb8SWQESViyp
-# m2KS+eiPWmNtfSNMnkVdGfcNKlmodDpp2BXvW+y6i0Z+aqLbRBZrtauAf38qYb49
-# bp81WPAIr8iiptxRFw==
+# hvcNAQkEMSIEIKpEVL+ZZ3myxYHeyBChoXZojta5hHV+ghbbJ8ZNe35wMA0GCSqG
+# SIb3DQEBAQUABIIBgJgBu3i4ZUZpd/+nVWtMg1VJ5SvuQbb8Aw4qryCpcISrmDHa
+# 4cM+S0vPYETDD4vjnG8PslLST+g2mw7zgQ1B3C5WB5KGrYe3XG+BAjx3pwrQHy99
+# DjWeBYeNaCnpG65QpOtJnyyFYrTs7C9VRpxDqDMVbTirwZY/gOCQVOgxp4r1NKah
+# ic7AiiNwrG7ohZPAMB4QweXyv3Kv/g1npt33dtqZGK6bdbq2kV9Do4x0RoO4rbxh
+# 44nON81996N1y04Ik96gd61oDVM2WjUFeSpFDRj4xe5pu4phYTOaTmEyNNnfMYjq
+# l30aR2ritokBcMs4SkGkyQZoZfiUtJ64g4KVa2qlRWUzCYU9jGOTjnSKdAccuqYj
+# h/R6ruap+LGDJMdxLwNy23AAQ/7cmBPqmAKd/MpkjuAUF1Eq6wBUDM7DcGVij72R
+# dhZd6GMlGJcOgoAzc6z4YRRviA52g5O0a5lr/1Csrzi8YeQhTjmll0NdmxPqr1dy
+# +Pe/79Oa6+iH+Y4dvw==
 # SIG # End signature block
