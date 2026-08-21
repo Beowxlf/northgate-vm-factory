@@ -1349,6 +1349,21 @@ function Normalize-NgcbVlanList {
     (@($Value -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } | Sort-Object) -join ',')
 }
 
+function Get-NgcbAdapterIdentity {
+    param([object]$Adapter, [Parameter(Mandatory)][string]$VmId)
+    $normalizedVmId = $VmId.ToLowerInvariant()
+    $adapterId = ([string]$Adapter.AdapterId).ToLowerInvariant()
+    if ($adapterId -cmatch '^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$') {
+        return $adapterId
+    }
+    $compositeId = [string]$Adapter.Id
+    if ($compositeId -cnotmatch '^Microsoft:(?<vm>[A-Fa-f0-9]{8}(?:-[A-Fa-f0-9]{4}){3}-[A-Fa-f0-9]{12})\\(?<adapter>[A-Fa-f0-9]{8}(?:-[A-Fa-f0-9]{4}){3}-[A-Fa-f0-9]{12})$' -or
+        $Matches.vm.ToLowerInvariant() -cne $normalizedVmId) {
+        Throw-NgcbError 'NGCB-ADAPTER-IDENTITY-INVALID'
+    }
+    return $Matches.adapter.ToLowerInvariant()
+}
+
 function Get-NgcbSwitchFingerprint {
     param([object]$Switch)
     $record = [pscustomobject][ordered]@{
@@ -1364,7 +1379,7 @@ function Get-NgcbSwitchFingerprint {
 function Get-NgcbTrunkFingerprint {
     param([object]$Adapter, [object]$Vlan, [string]$VmId, [string]$SwitchId)
     $record = [pscustomobject][ordered]@{
-        adapterId = ([string]$Adapter.AdapterId).ToLowerInvariant()
+        adapterId = Get-NgcbAdapterIdentity $Adapter $VmId
         vmId = $VmId.ToLowerInvariant()
         switchId = $SwitchId.ToLowerInvariant()
         operationMode = ([string]$Vlan.OperationMode).ToLowerInvariant()
@@ -1428,7 +1443,7 @@ function Get-NgcbProductionSnapshot {
         foreach ($adapter in @(Hyper-V\Get-VMNetworkAdapter -VM $vm -ErrorAction Stop)) {
             $adapterRecords += [pscustomobject][ordered]@{
                 vmId = ([string]$vm.Id).ToLowerInvariant()
-                adapterId = ([string]$adapter.AdapterId).ToLowerInvariant()
+                adapterId = Get-NgcbAdapterIdentity $adapter ([string]$vm.Id)
                 macAddress = ([string]$adapter.MacAddress).ToUpperInvariant()
                 dynamicMacAddressEnabled = [bool]$adapter.DynamicMacAddressEnabled
                 switchId = ([string]$adapter.SwitchId).ToLowerInvariant()
@@ -1460,7 +1475,7 @@ function Get-NgcbProductionSnapshot {
             $actualDiskIds += ([string](Hyper-V\Get-VHD -Path $drive.Path -ErrorAction Stop).DiskIdentifier).ToLowerInvariant()
         }
         $actualAdapterIds = @(Hyper-V\Get-VMNetworkAdapter -VM $vm -ErrorAction Stop |
-            ForEach-Object { ([string]$_.AdapterId).ToLowerInvariant() })
+            ForEach-Object { Get-NgcbAdapterIdentity $_ ([string]$vm.Id) })
         if ((@($actualDiskIds | Sort-Object) -join '|') -cne
                 (@($protected.diskUniqueIds | ForEach-Object { ([string]$_).ToLowerInvariant() } | Sort-Object) -join '|') -or
             (@($actualAdapterIds | Sort-Object) -join '|') -cne
@@ -1485,7 +1500,7 @@ function Get-NgcbProductionSnapshot {
     }
     $opnsense = @($allVms | Where-Object { $_.Name -ceq 'OPNsense-Tooling' })[0]
     $trunkAdapters = @(Hyper-V\Get-VMNetworkAdapter -VM $opnsense -ErrorAction Stop | Where-Object {
-        ([string]$_.AdapterId).ToLowerInvariant() -ceq ([string]$authorization.switch.trunkAdapterId).ToLowerInvariant()
+        (Get-NgcbAdapterIdentity $_ ([string]$opnsense.Id)) -ceq ([string]$authorization.switch.trunkAdapterId).ToLowerInvariant()
     })
     if ($trunkAdapters.Count -ne 1 -or ([string]$trunkAdapters[0].SwitchId).ToLowerInvariant() -cne
         ([string]$authorization.switch.id).ToLowerInvariant()) { Throw-NgcbError 'NGCB-TRUNK-IDENTITY-MISMATCH' }
@@ -1581,7 +1596,7 @@ function Get-NgcbProductionSnapshot {
         switch = [pscustomobject][ordered]@{
             id = ([string]$switch.Id).ToLowerInvariant()
             fingerprint = $switchFingerprint
-            trunkAdapterId = ([string]$trunkAdapters[0].AdapterId).ToLowerInvariant()
+            trunkAdapterId = Get-NgcbAdapterIdentity $trunkAdapters[0] ([string]$opnsense.Id)
             trunkAdapterFingerprint = $trunkFingerprint
         }
         volumes = @($volumeRecords)
@@ -2251,10 +2266,10 @@ function Get-NgcbRolloutIdentitySnapshot {
             state = [string]$vm.State
             notes = [string]$vm.Notes
         }
-        foreach ($adapter in @(Hyper-V\Get-VMNetworkAdapter -VM $vm -ErrorAction Stop | Sort-Object AdapterId)) {
+        foreach ($adapter in @(Hyper-V\Get-VMNetworkAdapter -VM $vm -ErrorAction Stop)) {
             $adapters += [pscustomobject][ordered]@{
                 vmId = $vmId
-                adapterId = ([string]$adapter.AdapterId).ToLowerInvariant()
+                adapterId = Get-NgcbAdapterIdentity $adapter $vmId
                 switchId = if ([string]$adapter.SwitchId -eq '') { '' } `
                     else { ([string]$adapter.SwitchId).ToLowerInvariant() }
             }
@@ -2995,7 +3010,7 @@ function Assert-NgcbProductionVmReadback {
         installationMediaPaths = @($actualDvdPaths)
         switchId = $adapters[0].SwitchId.ToString().ToLowerInvariant(); vlanId = [int]$vlan.AccessVlanId
         adapterPolicyId = [string]$operation.adapterPolicyId
-        adapterId = ([string]$adapters[0].AdapterId).ToLowerInvariant()
+        adapterId = Get-NgcbAdapterIdentity $adapters[0] $VmId
         staticMacAddress = ([string]$adapters[0].MacAddress).ToUpperInvariant()
         dynamicMacAddressEnabled = [bool]$adapters[0].DynamicMacAddressEnabled
         secureBootEnabled = $secureBootObserved
@@ -3111,7 +3126,7 @@ function Invoke-NgcbProductionCreate {
             [string]$operation.staticMacAddress -or [bool]$adapters[0].DynamicMacAddressEnabled) {
             Throw-NgcbError 'NGCB-VM-ADAPTER-IDENTITY-DRIFT'
         }
-        $adapterId = ([string]$adapters[0].AdapterId).ToLowerInvariant()
+        $adapterId = Get-NgcbAdapterIdentity $adapters[0] $vmId
         $null = Write-NgcbJournalEvent $Context $operation.assetId $Plan.reservationId $Plan.planId `
             'AdapterIdentityBound' $vmId 'NGCB-STATIC-MAC-AND-ADAPTER-BOUND' $adapterId $operation.staticMacAddress
         Hyper-V\Connect-VMNetworkAdapter -VMNetworkAdapter $adapters[0] `

@@ -105,7 +105,17 @@ try {
         '(?i)\bMount-VHD\b','(?i)\bInvoke-Expression\b','(?i)\bStart-Process\b'
     )) { Assert-NgcbTest ($source -notmatch $forbidden) "Privileged source excludes $forbidden." }
     Assert-NgcbTest ($source -match 'Win32_ComputerSystemProduct' -and $source -match '\$hostProducts\[0\]\.UUID' -and $source -notmatch '\$vmHost\.Id') 'Production snapshot binds the supported host to its SMBIOS UUID without assuming a Get-VMHost Id property.'
-    Assert-NgcbTest ($source -match '\$Adapter\.AdapterId' -and $source -match '\$adapter\.AdapterId' -and $source -match '\$adapters\[0\]\.AdapterId' -and $source -notmatch '\$(?:Adapter|adapter)\.Id' -and $source -notmatch '\$adapters\[0\]\.Id') 'Production snapshots, trunk fingerprints, journals, and readback use the bare Hyper-V AdapterId GUID rather than the composite resource Id.'
+    Assert-NgcbTest ($source -match 'function Get-NgcbAdapterIdentity' -and
+        $source -match 'NGCB-ADAPTER-IDENTITY-INVALID') `
+        'Production snapshots use one strict adapter identity normalizer.'
+    $directAdapter = [pscustomobject]@{AdapterId='AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAA1';Id='invalid'}
+    $fallbackAdapter = [pscustomobject]@{AdapterId=$null;Id='Microsoft:11111111-1111-1111-1111-111111111111\BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBB2'}
+    Assert-NgcbTest ((& $module { param($a,$v) Get-NgcbAdapterIdentity $a $v } $directAdapter '11111111-1111-1111-1111-111111111111') -ceq
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1') 'A populated bare AdapterId remains authoritative.'
+    Assert-NgcbTest ((& $module { param($a,$v) Get-NgcbAdapterIdentity $a $v } $fallbackAdapter '11111111-1111-1111-1111-111111111111') -ceq
+        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2') 'A missing AdapterId uses only the validated composite Id adapter GUID.'
+    Assert-NgcbThrows { & $module { param($a,$v) Get-NgcbAdapterIdentity $a $v } $fallbackAdapter '22222222-2222-2222-2222-222222222222' } `
+        '^NGCB-ADAPTER-IDENTITY-INVALID$' 'Composite Id fallback rejects a mismatched VM identity.'
 
     $approvalPin = Get-NgcbTestCertificateHash $approvalMaterial.Certificate
     $receiptPin = Get-NgcbTestCertificateHash $receiptMaterial.Certificate
