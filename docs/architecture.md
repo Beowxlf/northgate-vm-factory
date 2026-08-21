@@ -47,6 +47,7 @@ Source-restricted public-key authentication plus the server-enforced forced comm
 ## Identity and authority
 
 - A separately protected ledger binds immutable `assetId` to the Hyper-V VM ID and canonical case-folded name. The manifest cannot claim a VM ID.
+- Protected Hyper-V adapter identity uses the bare adapter GUID. When Windows Server returns a null `AdapterId`, the backend may recover only the adapter GUID from an exact `Microsoft:<VM GUID>\\<adapter GUID>` provider identity whose VM GUID matches the selected VM; every malformed or cross-VM value fails closed.
 - Asset IDs and names must be unique across desired manifests, observed inventory, the ledger, and live Hyper-V state.
 - An unmanaged same-name VM, mismatched VM ID, reused disk, missing ledger binding, or name drift is a collision and hard stop. It is never implicit adoption.
 - Observed inventory is non-actionable. Adoption and decommission use separate typed records and approvals; neither is represented by a standard VM manifest.
