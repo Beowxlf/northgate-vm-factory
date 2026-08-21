@@ -300,6 +300,8 @@ Assert-NgcorTest ($forcedSource.IndexOf('ConvertFrom-NorthGateCreateOnlyCommand 
     $forcedSource.IndexOf('New-Object System.IO.Pipes.NamedPipeClientStream')) `
     'Command is parsed before pipe construction.'
 Assert-NgcorTest ($forcedSource -match 'Read-NgcorStandardInput 1 2000' -and $forcedSource -match 'NGCOR-STDIN-NOT-EMPTY') 'Non-plan stdin is bounded and required empty.'
+Assert-NgcorTest ($forcedSource -match 'function Read-NgcorStandardInput[\s\S]{0,1800}\$bytes = \$memory\.ToArray\(\)[\s\S]{0,80}return ,\$bytes') `
+    'Empty standard input is preserved as a scalar byte array across the PowerShell function boundary.'
 Assert-NgcorTest ($forcedSource -match '\$maximumPlanBytes \+ 1' -and $forcedSource -match 'ConvertFrom-NorthGateCreateOnlyPlanRequestBytes') 'Plan stdin is bounded and strictly parsed before forwarding.'
 Assert-NgcorTest ($forcedSource -match 'function Get-NgcorForcedSafeErrorCode' -and
     $forcedSource -match '\\bNGCOR-\[A-Z0-9-\]\{1,96\}\\b' -and
