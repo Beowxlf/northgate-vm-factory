@@ -126,7 +126,7 @@ function Read-NgcorJsonValue {
 function Assert-NgcorStrictJson {
     param(
         [string]$Json,
-        [ValidateRange(1, 1048576)][int]$MaximumBytes = $script:MaximumPlanRequestBytes,
+        [ValidateRange(1, 10485760)][int]$MaximumBytes = $script:MaximumPlanRequestBytes,
         [string]$SizeErrorCode = 'NGCOR-PLAN-SIZE-EXCEEDED'
     )
     if ([System.Text.Encoding]::UTF8.GetByteCount($Json) -gt $MaximumBytes) {
@@ -146,7 +146,7 @@ function ConvertFrom-NorthGateCreateOnlyCanonicalJsonBytes {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][byte[]]$Bytes,
-        [ValidateRange(1, 1048576)][int]$MaximumBytes = 262144
+        [ValidateRange(1, 10485760)][int]$MaximumBytes = 262144
     )
     if ($Bytes.Length -eq 0 -or $Bytes.Length -gt $MaximumBytes) {
         Throw-NgcorProtocolError 'NGCOR-CANONICAL-JSON-SIZE-INVALID'
