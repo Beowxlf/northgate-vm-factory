@@ -594,12 +594,64 @@ function Set-NgcdFileSddl {
     catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-ACL-READBACK-FAILED' }
 }
 
+function Get-NgcdServiceSecurityDescriptor {
+    $sddl = ([string](Invoke-NgcdSc @('sdshow',$script:ServiceName))).Trim()
+    if ($sddl -cnotmatch '^D:.{1,4096}$' -or $sddl -match '[\r\n]') {
+        Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-ACL-READBACK-FAILED'
+    }
+    try { $null = New-Object System.Security.AccessControl.RawSecurityDescriptor($sddl) }
+    catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-ACL-READBACK-FAILED' }
+    $sddl
+}
+
+function Set-NgcdServiceQueryIdentity {
+    param([string]$IdentitySid)
+    if ($IdentitySid -cnotmatch '^S-1-5-21-[0-9]+-[0-9]+-[0-9]+-[0-9]+$') {
+        Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-QUERY-SID-INVALID'
+    }
+    try {
+        $sid = New-Object System.Security.Principal.SecurityIdentifier($IdentitySid)
+        $descriptor = New-Object System.Security.AccessControl.RawSecurityDescriptor(
+            (Get-NgcdServiceSecurityDescriptor)
+        )
+        for ($index = $descriptor.DiscretionaryAcl.Count - 1; $index -ge 0; $index--) {
+            $existingAce = $descriptor.DiscretionaryAcl[$index]
+            if ($null -ne $existingAce.SecurityIdentifier -and
+                $existingAce.SecurityIdentifier.Value -ceq $IdentitySid) {
+                $descriptor.DiscretionaryAcl.RemoveAce($index)
+            }
+        }
+        $queryAce = New-Object System.Security.AccessControl.CommonAce(
+            [System.Security.AccessControl.AceFlags]::None,
+            [System.Security.AccessControl.AceQualifier]::AccessAllowed,
+            0x0004, $sid, $false, $null
+        )
+        $descriptor.DiscretionaryAcl.InsertAce($descriptor.DiscretionaryAcl.Count, $queryAce)
+        $wanted = $descriptor.GetSddlForm([System.Security.AccessControl.AccessControlSections]::All)
+        $null = Invoke-NgcdSc @('sdset',$script:ServiceName,$wanted)
+        $readback = New-Object System.Security.AccessControl.RawSecurityDescriptor(
+            (Get-NgcdServiceSecurityDescriptor)
+        )
+        $matches = @($readback.DiscretionaryAcl | Where-Object {
+            $null -ne $_.SecurityIdentifier -and $_.SecurityIdentifier.Value -ceq $IdentitySid -and
+            $_.AceQualifier -eq [System.Security.AccessControl.AceQualifier]::AccessAllowed -and
+            $_.AccessMask -eq 0x0004
+        })
+        if ($matches.Count -ne 1) { Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-ACL-READBACK-FAILED' }
+    }
+    catch {
+        if ($_.Exception.Message -cmatch '^NGCOR-') { throw }
+        Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-ACL-CONFIGURATION-FAILED'
+    }
+    $true
+}
+
 function Get-NgcdServiceConfiguration {
     param([object]$Context)
     if ($Context.Mode -ne 'Production') {
         return [pscustomobject][ordered]@{
             existed = $false; name = $script:ServiceName; pathName = ''; startMode = ''
-            startName = ''; state = ''; description = ''
+            startName = ''; state = ''; description = ''; securityDescriptorSddl = ''
         }
     }
     $service = Get-CimInstance -ClassName Win32_Service -Filter ("Name='" + $script:ServiceName + "'") `
@@ -607,7 +659,7 @@ function Get-NgcdServiceConfiguration {
     if ($null -eq $service) {
         return [pscustomobject][ordered]@{
             existed = $false; name = $script:ServiceName; pathName = ''; startMode = ''
-            startName = ''; state = ''; description = ''
+            startName = ''; state = ''; description = ''; securityDescriptorSddl = ''
         }
     }
     [pscustomobject][ordered]@{
@@ -618,13 +670,14 @@ function Get-NgcdServiceConfiguration {
         startName = [string]$service.StartName
         state = [string]$service.State
         description = [string]$service.Description
+        securityDescriptorSddl = Get-NgcdServiceSecurityDescriptor
     }
 }
 
 function Restore-NgcdServiceConfiguration {
     param([object]$Context, [object]$Configuration)
     Assert-NgcdExactProperties $Configuration @(
-        'existed','name','pathName','startMode','startName','state','description'
+        'existed','name','pathName','startMode','startName','state','description','securityDescriptorSddl'
     ) 'NGCOR-DEPLOYMENT-SERVICE-BACKUP-INVALID'
     if ($Configuration.name -cne $script:ServiceName) { Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-BACKUP-INVALID' }
     if ($Context.Mode -ne 'Production') { return }
@@ -663,6 +716,11 @@ function Restore-NgcdServiceConfiguration {
     if (-not [string]::IsNullOrEmpty([string]$Configuration.description)) {
         $null = Invoke-NgcdSc @('description',$script:ServiceName,([string]$Configuration.description))
     }
+    if ([string]::IsNullOrWhiteSpace([string]$Configuration.securityDescriptorSddl) -or
+        [string]$Configuration.securityDescriptorSddl -cnotmatch '^D:.{1,4096}$') {
+        Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-BACKUP-INVALID'
+    }
+    $null = Invoke-NgcdSc @('sdset',$script:ServiceName,([string]$Configuration.securityDescriptorSddl))
     if ($Configuration.state -ceq 'Running') { $null = Invoke-NgcdSc @('start',$script:ServiceName) }
 }
 
@@ -1322,6 +1380,7 @@ function Invoke-NgcdFileInstallTransaction {
             $serviceHostPath = Join-Path $destinationRoot ([string]$Context.ServiceHostFileName)
             $null = Set-NgcdWindowsService $serviceHostPath $destinationRoot `
                 ([string]$Authorization.identity.serviceIdentitySid) `
+                ([string]$Authorization.identity.sshIdentitySid) `
                 ([bool]$Authorization.initialPolicy.applyEnabled)
             try {
                 $sshAccount = (New-Object System.Security.Principal.SecurityIdentifier(
@@ -1532,7 +1591,7 @@ function Invoke-NgcdSc {
 function Set-NgcdWindowsService {
     param(
         [string]$ServiceHostPath, [string]$ReleaseRoot, [string]$ExpectedServiceSid,
-        [bool]$InstallEnabled
+        [string]$ExpectedSshSid, [bool]$InstallEnabled
     )
     if ((Get-NgcdServiceSid) -cne $ExpectedServiceSid) { Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-SID-MISMATCH' }
     $hostPath = Assert-NgcdPathWithin $ServiceHostPath $ReleaseRoot 'NGCOR-DEPLOYMENT-SERVICE-HOST-PATH-INVALID'
@@ -1566,6 +1625,7 @@ function Set-NgcdWindowsService {
     $null = Invoke-NgcdSc @('failure',$script:ServiceName,'reset=','86400','actions=','restart/5000/restart/15000/restart/60000')
     $null = Invoke-NgcdSc @('failureflag',$script:ServiceName,'1')
     $null = Invoke-NgcdSc @('sidtype',$script:ServiceName,'restricted')
+    $null = Set-NgcdServiceQueryIdentity $ExpectedSshSid
     if ($InstallEnabled) {
         $null = Invoke-NgcdSc @('start',$script:ServiceName)
         Start-Sleep -Milliseconds 500
@@ -1758,8 +1818,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDQCLVfbiTmTyyy
-# AfxCnjGSyhxoLzDWA6nzO3aMAcOw/qCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBKueBBK0ewnLHS
+# uRlhknha4IPPRZzgNlQrNB+SMAlIjKCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -1787,14 +1847,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIDyoSFLN7QyNaVgUo88nhfe8s2WFjlLQ6eZqqj9Rysq2MA0GCSqG
-# SIb3DQEBAQUABIIBgE855qKImDZgpjYa/fEAjaGqCTpeXVRrIci7WaG9vvWMoEUV
-# 2bmgEVuj7ui+KgBophSx+jO3kup6n57fKWtx3Kj2MXlTtY5cvl+DT6s/s3tHDnyb
-# 9MIKuPZVzDFqlIp4jZRvD4DqUCPWiyraEnQmcyGOJ0ZnccWz8dkpbZleDoWBS0gx
-# RpJC/zh9UIfbq6MC+Vv5nHoo/WMwv/m6jDU+dTE7x/OoMSlQGkTHfXMsB+pUkChb
-# d/1YiQJ4RYDteFfSIXeVeXfmELumVJ6F6eChdfwBkITvuj0wadnsR7sRznfAG6gZ
-# OIRR3Jr//ehSXc/71Gs28JGoW/ZQUH8kN/jszXoJ2BW5mbWp0PJ0ysvxntTGasSR
-# 20YOdwFpfiJHMVowDqZVoAJjaC34kUSsOenYnFV6RgsDfrV2x0pABu4xSOVvouvO
-# 86/MAtqZtshdoFRZMQST2llKIew/Ys8y8aOW2fdGeJXOMrG00/4WcSYykfwnkWzr
-# M7iOGN1mkJmvPz2nGA==
+# hvcNAQkEMSIEIDEbBSaqAZucQR7z1pcGM0VedQ2XgeQgcJRlaJYzKp66MA0GCSqG
+# SIb3DQEBAQUABIIBgEdKiQ+hINL4FFkFsJNPHrvYlYy29OhBpmLVELMDT8Qff824
+# ycI1+HJFKv8hFYFtc8kN6R5t574T+/xcn01yZ77eac2ObdQVU0aJvUWtufuirxPW
+# Wj12fhu+0Iqmu53Ruum0O8hsjli8JQIiFKHyd8oetloA4OwRjLd1b/Efhl9msdyM
+# xj4f+F/eXfiWq2xfUzQoRcPQZptHKLz2J7TUhppxda5DhYzK0n6BpJWuzOHMnCwM
+# gPOZeeNmR4S/vaoDcGLzdkFuW/WjcxKyCcbTiSeRTx2L9tNcRuhUNU1ajtbbk+GU
+# gpiLfI2FEqXG6uCCHsNaDM0xXOTwgOwBNdNFiKxVfxg7tBVJa1Apl9kYnYMsckYi
+# VHnlTlK/7/vzrOtzSNxI/ATb0OG0jXV+hNVuedzDL2U40BBtc8+UyVosJrV9UmRx
+# duqw4kY+Z0BZSYUKDFiZYqq74TiQp+qZ4/EYoJYUHLM3B3WwB9grvwZBmtC1cL9N
+# vD1gV4xuGNNFOJLBBA==
 # SIG # End signature block
