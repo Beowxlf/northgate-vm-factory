@@ -247,6 +247,14 @@ try {
     Assert-NgcdTest ($source -match 'Set-NgcdProtectedDirectoryAcl \$stateRoot[^\r\n]*\$serviceRead' -and
         $source -match 'Set-NgcdProtectedDirectoryAcl \(Join-Path \$stateRoot ''deployment-transactions''\)[\s\S]{0,160}\$serviceRead') `
         'Runtime service has read-only deployment-state access.'
+    Assert-NgcdTest ($source -match 'function Set-NgcdServiceQueryIdentity' -and
+        $source -match '0x0004, \$sid' -and
+        $source -match 'Set-NgcdServiceQueryIdentity \$ExpectedSshSid' -and
+        $source -notmatch 'Set-NgcdServiceQueryIdentity[\s\S]{0,2500}0x0010|Set-NgcdServiceQueryIdentity[\s\S]{0,2500}0x0020') `
+        'Dedicated SSH identity receives only SERVICE_QUERY_STATUS on the factory service.'
+    Assert-NgcdTest ($source -match 'securityDescriptorSddl = Get-NgcdServiceSecurityDescriptor' -and
+        $source -match 'Invoke-NgcdSc @\(''sdset'',\$script:ServiceName,\(\[string\]\$Configuration\.securityDescriptorSddl\)\)') `
+        'Service security descriptor is captured and exactly restored by rollback.'
     Assert-NgcdTest ($source -match 'GetOwner\(\[System\.Security\.Principal\.SecurityIdentifier\]\)' -and
         $source -match 'GetAccessRules\([\s\S]{0,100}\$true, \$true, \[System\.Security\.Principal\.SecurityIdentifier\]' -and
         $source -match 'Get-NgcdAclRuleFingerprint' -and
