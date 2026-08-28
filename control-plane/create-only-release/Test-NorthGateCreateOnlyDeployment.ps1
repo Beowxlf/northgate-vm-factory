@@ -255,6 +255,15 @@ try {
     Assert-NgcdTest ($source -match 'securityDescriptorSddl = Get-NgcdServiceSecurityDescriptor' -and
         $source -match 'Invoke-NgcdSc @\(''sdset'',\$script:ServiceName,\(\[string\]\$Configuration\.securityDescriptorSddl\)\)') `
         'Service security descriptor is captured and exactly restored by rollback.'
+    Assert-NgcdTest ($source -match 'function Restore-NgcdServiceConfiguration' -and
+        $source -match 'Invoke-CimMethod -InputObject \$current -MethodName Change' -and
+        $source -match 'Invoke-CimMethod -ClassName Win32_Service -MethodName Create' -and
+        $source -notmatch '''config'',\$script:ServiceName,''binPath=''' ) `
+        'Rollback restores quoted service paths through the native Windows service API.'
+    Assert-NgcdTest ($source -match "Verified = @\('RollbackPending','OutcomeUnknown'\)" -and
+        $source -match "RollbackPending = @\('RolledBack','OutcomeUnknown'\)" -and
+        $source -match 'NGCOR-DEPLOYMENT-ROLLBACK-RETRY-REQUIRED') `
+        'An interrupted rollback remains bound and explicitly retryable instead of becoming ambiguous.'
     Assert-NgcdTest ($source -match 'GetOwner\(\[System\.Security\.Principal\.SecurityIdentifier\]\)' -and
         $source -match 'GetAccessRules\([\s\S]{0,100}\$true, \$true, \[System\.Security\.Principal\.SecurityIdentifier\]' -and
         $source -match 'Get-NgcdAclRuleFingerprint' -and
@@ -344,6 +353,60 @@ try {
     Assert-NgcdTest (-not (Test-Path -LiteralPath $result.releaseRoot) -and
         (Test-Path -LiteralPath $rollback.quarantinedReleaseRoot -PathType Container)) `
         'Rollback quarantines release code instead of deleting it.'
+
+    $retryRoot = Join-Path $testRoot 'rollback-retry'
+    $retryKey = New-Object byte[] 32
+    [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($retryKey)
+    $retryContext = & $deployment { param($Path,$Key) New-NgcdLocalTestContext $Path $Key } `
+        $retryRoot $retryKey
+    [IO.File]::WriteAllText($retryContext.CurrentPointerPath, 'retry-old-pointer',
+        (New-Object Text.UTF8Encoding($false)))
+    [IO.File]::WriteAllText($retryContext.PolicyPath, 'retry-old-policy',
+        (New-Object Text.UTF8Encoding($false)))
+    [IO.File]::WriteAllText($retryContext.SshConfigPath, 'retry-old-sshd',
+        (New-Object Text.UTF8Encoding($false)))
+    $retryFixture = New-NgcdTestFixture (Join-Path $retryRoot 'input') `
+        'ngcor-rollback-retry-01' 'ngdeploy-rollback-retry-01'
+    $retryInstall = & $deployment {
+        param($Context,$Fixture)
+        Invoke-NgcdFileInstallTransaction $Context $Fixture.PackageRoot $Fixture.Manifest `
+            $Fixture.Authorization $Fixture.AuthorizationSha256 $Fixture.PolicyBytes $Fixture.SshBytes 'None'
+    } $retryContext $retryFixture
+    $quarantineConflict = Join-Path $retryContext.QuarantineRoot `
+        ($retryInstall.transactionId + '-rollback')
+    $null = [IO.Directory]::CreateDirectory($quarantineConflict)
+    Assert-NgcdTestThrows {
+        & $deployment {
+            param($Context,$TransactionId,$ReleaseId,$ManifestHash,$ReceiptHash)
+            Invoke-NgcdFileRollbackTransaction $Context $TransactionId $ReleaseId $ManifestHash $ReceiptHash
+        } $retryContext $retryInstall.transactionId $retryFixture.Manifest.releaseId `
+            $retryFixture.Authorization.releaseManifestSha256 $retryInstall.backupReceiptSha256
+    } '^NGCOR-DEPLOYMENT-QUARANTINE-TARGET-EXISTS$' `
+        'A post-restore quarantine conflict leaves a retryable rollback record.'
+    $retryPending = & $deployment {
+        param($Context,$Path) Read-NgcdJournal $Context $Path
+    } $retryContext (Join-Path $retryContext.TransactionsRoot ($retryInstall.transactionId + '.json'))
+    Assert-NgcdTest ($retryPending.phase -ceq 'RollbackPending') `
+        'A partially completed rollback is recorded as RollbackPending.'
+    Assert-NgcdTestThrows {
+        & $deployment {
+            param($Context,$Fixture)
+            Invoke-NgcdFileInstallTransaction $Context $Fixture.PackageRoot $Fixture.Manifest `
+                $Fixture.Authorization $Fixture.AuthorizationSha256 $Fixture.PolicyBytes $Fixture.SshBytes 'None'
+        } $retryContext $retryFixture
+    } '^NGCOR-DEPLOYMENT-ROLLBACK-RETRY-REQUIRED$' `
+        'Install replay cannot bypass a pending rollback.'
+    [IO.Directory]::Delete($quarantineConflict)
+    $retryRollback = & $deployment {
+        param($Context,$TransactionId,$ReleaseId,$ManifestHash,$ReceiptHash)
+        Invoke-NgcdFileRollbackTransaction $Context $TransactionId $ReleaseId $ManifestHash $ReceiptHash
+    } $retryContext $retryInstall.transactionId $retryFixture.Manifest.releaseId `
+        $retryFixture.Authorization.releaseManifestSha256 $retryInstall.backupReceiptSha256
+    Assert-NgcdTest ($retryRollback.phase -ceq 'RolledBack' -and
+        [IO.File]::ReadAllText($retryContext.CurrentPointerPath) -ceq 'retry-old-pointer' -and
+        [IO.File]::ReadAllText($retryContext.PolicyPath) -ceq 'retry-old-policy' -and
+        [IO.File]::ReadAllText($retryContext.SshConfigPath) -ceq 'retry-old-sshd') `
+        'The exact bound rollback retries idempotently and restores the prior configuration.'
 
     foreach ($crashPhase in @('Prepared','Activated')) {
         $phaseRoot = Join-Path $testRoot $crashPhase.ToLowerInvariant()

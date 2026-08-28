@@ -295,16 +295,18 @@ Assert-NgcorThrows {
 
 $forcedSource = [IO.File]::ReadAllText((Join-Path $root 'Invoke-NorthGateCreateOnlyForcedCommand.ps1'))
 $serviceSource = [IO.File]::ReadAllText((Join-Path $root 'Start-NorthGateCreateOnlyPipeService.ps1'))
+$serviceHostSource = [IO.File]::ReadAllText((Join-Path $root 'NorthGate.CreateOnly.ServiceHost.cs'))
 Assert-NgcorTest ($forcedSource -cnotmatch '(?i)Invoke-Expression|ScriptBlock::Create|EncodedCommand|New-VM|Hyper-V|CreateOnlyRelease\.psd1') 'Forced handler has no privileged module or evaluation primitive.'
 Assert-NgcorTest ($forcedSource.IndexOf('ConvertFrom-NorthGateCreateOnlyCommand $originalCommand') -lt
     $forcedSource.IndexOf('New-Object System.IO.Pipes.NamedPipeClientStream')) `
     'Command is parsed before pipe construction.'
-Assert-NgcorTest ($forcedSource -match 'GetNamedPipeServerProcessId' -and
-    $forcedSource -match 'OpenSCManager' -and $forcedSource -match 'OpenService' -and
-    $forcedSource -match 'QueryServiceStatusEx' -and
+Assert-NgcorTest ($serviceHostSource -match 'GetNamedPipeServerProcessId' -and
+    $serviceHostSource -match 'OpenSCManager' -and $serviceHostSource -match 'OpenService' -and
+    $serviceHostSource -match 'QueryServiceStatusEx' -and
     $forcedSource -match 'NGCOR-PIPE-SERVER-PROCESS-MISMATCH' -and
-    $forcedSource -notmatch 'OpenProcess|QueryFullProcessImageName') `
-    'Least-privilege server authentication binds the pipe PID to the running registered service PID.'
+    $serviceHostSource -notmatch 'OpenProcess|QueryFullProcessImageName' -and
+    $forcedSource -notmatch 'Add-Type\s+-TypeDefinition') `
+    'Signed least-privilege server authentication binds the pipe PID to the running registered service PID.'
 Assert-NgcorTest ($forcedSource -match 'Read-NgcorStandardInput 1 2000' -and $forcedSource -match 'NGCOR-STDIN-NOT-EMPTY') 'Non-plan stdin is bounded and required empty.'
 Assert-NgcorTest ($forcedSource -match 'function Read-NgcorStandardInput[\s\S]{0,1800}\$bytes = \$memory\.ToArray\(\)[\s\S]{0,80}return ,\$bytes') `
     'Empty standard input is preserved as a scalar byte array across the PowerShell function boundary.'

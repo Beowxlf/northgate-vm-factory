@@ -40,6 +40,7 @@ $sourcePath = Join-Path $root 'NorthGate.CreateOnly.ServiceHost.cs'
 $builderPath = Join-Path $root 'Build-NorthGateCreateOnlyServiceHost.ps1'
 $serviceScriptPath = Join-Path $root 'Start-NorthGateCreateOnlyPipeService.ps1'
 $forcedScriptPath = Join-Path $root 'Invoke-NorthGateCreateOnlyForcedCommand.ps1'
+$promotionScriptPath = Join-Path $root 'New-NorthGateCreateOnlyRolloutPromotion.ps1'
 $testRoot = Join-Path ([System.IO.Path]::GetTempPath()) `
     ('ngcor-service-host-test-' + [guid]::NewGuid().ToString('N'))
 
@@ -48,6 +49,7 @@ try {
     $builder = [System.IO.File]::ReadAllText($builderPath)
     $serviceScript = [System.IO.File]::ReadAllText($serviceScriptPath)
     $forcedScript = [System.IO.File]::ReadAllText($forcedScriptPath)
+    $promotionScript = [System.IO.File]::ReadAllText($promotionScriptPath)
     Assert-NgchTest ($source -match 'ServiceBase\.Run' -and $source -match 'RunspaceFactory\.CreateRunspace') `
         'Native host runs as a Windows service and hosts Windows PowerShell in-process.'
     Assert-NgchTest ($source -match 'Start-NorthGateCreateOnlyPipeService\.ps1' -and
@@ -68,6 +70,13 @@ try {
     Assert-NgchTest ($forcedScript -match 'TokenImpersonationLevel\]::Impersonation' -and
         $forcedScript -notmatch 'TokenImpersonationLevel\]::Identification') `
         'Authenticated pipe clients permit the fixed signed service host to capture their effective Windows identity.'
+    Assert-NgchTest ($source -match 'public static class PipeServerIdentityVerifier' -and
+        $source -match 'GetNamedPipeServerProcessId' -and $source -match 'QueryServiceStatusEx' -and
+        $forcedScript -notmatch 'Add-Type\s+-TypeDefinition' -and
+        $promotionScript -notmatch 'Add-Type\s+-TypeDefinition' -and
+        $forcedScript.IndexOf('Test-NgcorDetachedCms') -lt
+        $forcedScript.IndexOf('[Reflection.Assembly]::Load')) `
+        'Forced-command and promotion pipe verification use the precompiled signed service host without runtime compilation.'
     Assert-NgchTest ($source -match 'GetSafeFailureCode' -and
         $source -match 'NGCOR-\[A-Z0-9-\]' -and $source -match 'exception\.GetType\(\)\.FullName') `
         'Native host reports only bounded NorthGate codes or exception types when the engine fails.'
@@ -185,6 +194,14 @@ try {
             $capturedIdentity.IsAdministrator -eq
             $expectedPrincipal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)) `
             'Native capture returns the connected client SID and effective administrator membership.'
+        $verifierType = $loadedHost.GetType(
+            'NorthGate.VMFactory.CreateOnly.PipeServerIdentityVerifier', $true, $false)
+        $serverPidArguments = New-Object object[] 1
+        $serverPidArguments[0] = $client.SafePipeHandle.PSObject.BaseObject
+        $serverProcessId = [uint32]$verifierType.GetMethod('GetPipeServerProcessId').Invoke(
+            $null, $serverPidArguments)
+        Assert-NgchTest ($serverProcessId -eq [uint32][Diagnostics.Process]::GetCurrentProcess().Id) `
+            'Precompiled verifier resolves the connected named-pipe server process without runtime compilation.'
     }
     finally {
         $client.Dispose()

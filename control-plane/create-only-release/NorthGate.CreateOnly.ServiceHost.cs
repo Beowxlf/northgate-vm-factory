@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.IO;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
@@ -9,6 +10,7 @@ using System.Security.Principal;
 using System.ServiceProcess;
 using System.Text.RegularExpressions;
 using System.Threading;
+using Microsoft.Win32.SafeHandles;
 
 [assembly: AssemblyTitle("NorthGate Create-Only Service Host")]
 [assembly: AssemblyDescription("Fixed Windows service host for the NorthGate create-only control plane")]
@@ -64,6 +66,113 @@ namespace NorthGate.VMFactory.CreateOnly
                 throw new InvalidOperationException("NGCOR-PIPE-CLIENT-IDENTITY-UNAVAILABLE");
             }
             return captured;
+        }
+    }
+
+    public static class PipeServerIdentityVerifier
+    {
+        private const uint ScManagerConnect = 0x0001;
+        private const uint ServiceQueryStatus = 0x0004;
+        private const uint ServiceRunning = 0x00000004;
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetNamedPipeServerProcessId(
+            SafePipeHandle pipe,
+            out uint serverProcessId);
+
+        [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr OpenSCManager(
+            string machineName,
+            string databaseName,
+            uint desiredAccess);
+
+        [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr OpenService(
+            IntPtr manager,
+            string serviceName,
+            uint desiredAccess);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool QueryServiceStatusEx(
+            IntPtr service,
+            int infoLevel,
+            out ServiceStatusProcess status,
+            int bufferSize,
+            out int bytesNeeded);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool CloseServiceHandle(IntPtr handle);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct ServiceStatusProcess
+        {
+            public uint ServiceType;
+            public uint CurrentState;
+            public uint ControlsAccepted;
+            public uint Win32ExitCode;
+            public uint ServiceSpecificExitCode;
+            public uint CheckPoint;
+            public uint WaitHint;
+            public uint ProcessId;
+            public uint ServiceFlags;
+        }
+
+        public static uint GetPipeServerProcessId(SafePipeHandle pipe)
+        {
+            if (pipe == null || pipe.IsInvalid || pipe.IsClosed)
+            {
+                throw new InvalidOperationException("NGCOR-PIPE-SERVER-HANDLE-INVALID");
+            }
+            uint processId;
+            if (!GetNamedPipeServerProcessId(pipe, out processId) || processId == 0)
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+            return processId;
+        }
+
+        public static uint GetServiceProcessId(string serviceName)
+        {
+            if (String.IsNullOrEmpty(serviceName))
+            {
+                throw new InvalidOperationException("NGCOR-PIPE-SERVER-SERVICE-NAME-INVALID");
+            }
+            IntPtr manager = OpenSCManager(null, null, ScManagerConnect);
+            if (manager == IntPtr.Zero)
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+            try
+            {
+                IntPtr service = OpenService(manager, serviceName, ServiceQueryStatus);
+                if (service == IntPtr.Zero)
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                }
+                try
+                {
+                    ServiceStatusProcess status;
+                    int bytesNeeded;
+                    int size = Marshal.SizeOf(typeof(ServiceStatusProcess));
+                    if (!QueryServiceStatusEx(service, 0, out status, size, out bytesNeeded))
+                    {
+                        throw new Win32Exception(Marshal.GetLastWin32Error());
+                    }
+                    if (status.CurrentState != ServiceRunning || status.ProcessId == 0)
+                    {
+                        throw new InvalidOperationException("NGCOR-PIPE-SERVER-SERVICE-NOT-RUNNING");
+                    }
+                    return status.ProcessId;
+                }
+                finally
+                {
+                    CloseServiceHandle(service);
+                }
+            }
+            finally
+            {
+                CloseServiceHandle(manager);
+            }
         }
     }
 
