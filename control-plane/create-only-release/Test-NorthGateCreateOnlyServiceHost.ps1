@@ -41,6 +41,7 @@ $builderPath = Join-Path $root 'Build-NorthGateCreateOnlyServiceHost.ps1'
 $serviceScriptPath = Join-Path $root 'Start-NorthGateCreateOnlyPipeService.ps1'
 $forcedScriptPath = Join-Path $root 'Invoke-NorthGateCreateOnlyForcedCommand.ps1'
 $promotionScriptPath = Join-Path $root 'New-NorthGateCreateOnlyRolloutPromotion.ps1'
+$activationScriptPath = Join-Path $root 'Enable-NorthGateCreateOnlyInitialActivation.ps1'
 $testRoot = Join-Path ([System.IO.Path]::GetTempPath()) `
     ('ngcor-service-host-test-' + [guid]::NewGuid().ToString('N'))
 
@@ -50,6 +51,7 @@ try {
     $serviceScript = [System.IO.File]::ReadAllText($serviceScriptPath)
     $forcedScript = [System.IO.File]::ReadAllText($forcedScriptPath)
     $promotionScript = [System.IO.File]::ReadAllText($promotionScriptPath)
+    $activationScript = [System.IO.File]::ReadAllText($activationScriptPath)
     Assert-NgchTest ($source -match 'ServiceBase\.Run' -and $source -match 'RunspaceFactory\.CreateRunspace') `
         'Native host runs as a Windows service and hosts Windows PowerShell in-process.'
     Assert-NgchTest ($source -match 'Start-NorthGateCreateOnlyPipeService\.ps1' -and
@@ -74,6 +76,7 @@ try {
         $source -match 'GetNamedPipeServerProcessId' -and $source -match 'QueryServiceStatusEx' -and
         $forcedScript -notmatch 'Add-Type\s+-TypeDefinition' -and
         $promotionScript -notmatch 'Add-Type\s+-TypeDefinition' -and
+        $activationScript -notmatch 'Add-Type\s+-TypeDefinition' -and
         $forcedScript.IndexOf('Test-NgcorDetachedCms') -lt
         $forcedScript.IndexOf('[Reflection.Assembly]::Load')) `
         'Forced-command and promotion pipe verification use the precompiled signed service host without runtime compilation.'
@@ -92,10 +95,14 @@ try {
         $serviceScript -match 'applyEnabled = \$false') `
         'A running diagnostic service exposes disabled status but rejects every non-status operation.'
     Assert-NgchTest ($serviceScript -notmatch 'Get-CimInstance -ClassName Win32_Service' -and
-        $serviceScript -match '\$expectedStartType = if \(\[bool\]\$policy\.applyEnabled\) \{ ''Automatic'' \} else \{ ''Manual'' \}' -and
+        $serviceScript -match '\$expectedStartType = if \(\[bool\]\$policy\.applyEnabled\) \{ ''Automatic'' \} else \{ ''Disabled'' \}' -and
         $serviceScript -match '\[System\.Diagnostics\.Process\]::GetCurrentProcess\(\)\.MainModule\.FileName' -and
         $serviceScript -match '\$service\.StartType -cne \$expectedStartType') `
-        'Least-privilege service startup verifies its current host path and explicit Manual diagnostic posture without WMI.'
+        'Least-privilege service startup verifies its current host path and disabled-or-automatic posture without WMI.'
+    Assert-NgchTest ($serviceScript -match 'Test-NgcdInitialActivationState' -and
+        $serviceScript -match 'initialActivationSha256' -and
+        $serviceScript -match 'NGCOR-INITIAL-ACTIVATION-STATE-INVALID') `
+        'An active service requires the HMAC and approval-signer bound initial activation record.'
     Assert-NgchTest ($serviceScript -match '\$backendContext = \$null\s+if \(\[bool\]\$policy\.applyEnabled\)' -and
         $serviceScript.IndexOf('if ([bool]$policy.applyEnabled)') -lt
         $serviceScript.IndexOf('$backendContext = New-NorthGateCreateOnlyBackendContext')) `
@@ -272,3 +279,47 @@ try {
 finally {
     if (Test-Path -LiteralPath $testRoot) { Remove-Item -LiteralPath $testRoot -Recurse -Force }
 }
+
+# SIG # Begin signature block
+# MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
+# BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAmiodKUp6sXHNg
+# HOEo4LHq5iX6DMmSsUsllKG/62psF6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
+# TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
+# MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
+# RmFjdG9yeSBSZWxlYXNlIFNpZ25lciAyMDI2LTA4LTIxIHYyMIIBojANBgkqhkiG
+# 9w0BAQEFAAOCAY8AMIIBigKCAYEAuK2RPh+kwyLvYhpQmiHvsROwEKzmIdyEc6WV
+# b1N80dzFqV4o16F7MTsoC1Xbo3VdbDurlCWifItnM+UTZ7B6xP8TLmPGRys7sGa/
+# QQOm77wKKQ7OdjJlqSSXz4+efiUwoMEkhyP3YkL8G7VvS7EcKCVaspPX8ghvtCYe
+# rOQQYWVFOV9EuvajfvnFPna0Y4Y4qMJAxZZEtfMVKtLejdftGHra9pZm/Vi3OiIx
+# At/lfqeqK1vYu96Uyh4LhSoxSaev2EOpsznHtTIwY3KNC9dpwlogX2FYa0l1zH1k
+# Kk0n/AjTYgR0mxQXMP89640xScVCb+rmY8SNG5w/YZB9uQnkTY5Zkh8z5dfHH8HM
+# Fvibww5+B8nEBiMe/1RrUzpf1qOyuwyCphrAMRl2NbWR/yzdjCvUBaLbbmkVW20f
+# U3X2CTd144vt2iLfCco+WEIuXaRy6g1vQxu1bYtOHuO5GwobWUCN4CVvhILf+VVt
+# hPvyDnvdRZEyaJ2wmI3xWE0+QJY9AgMBAAGjVzBVMA4GA1UdDwEB/wQEAwIHgDAM
+# BgNVHRMBAf8EAjAAMBYGA1UdJQEB/wQMMAoGCCsGAQUFBwMDMB0GA1UdDgQWBBRb
+# WaTBPZZW7QhHiKCc/W2Z3DB9oTANBgkqhkiG9w0BAQsFAAOCAYEAaNP8lBhUC94L
+# AUcORggLbH+yuwZ92dK4vhUVrqukaQKL0CpTouv88GOJtrocGo09vyZ1Y7T+ieZ2
+# SKKMwmM+efwt+cDQ0b4HDIWYfswSQdfd/HATQX5PNSmC6uEYi6cf/yd31aHkySrN
+# W2gfy82zjixp/SP/k9KmpbE+I5f8wppCZ4+ePk5/g+f7gb7a9+g66Ywua2apF76N
+# gQB0LPaz0SXwWZ4QS4w/X4TUSDnluz9uHzX2NZ4oNAzT1tR7tBF7Ntu+8mEw2mot
+# BcI7pQEu6CDLNGl1rSwPswnZDUWOcnImdqW3IDab4XUmN5my5pB3iLmojG2UOVXr
+# SWVYZkiHWI5RGHNDBmdnbDXxK2Xy4uJMLiVEqws8QosKSTUTSAL5B3KM1/HWwQzv
+# X2fiwRK2cIfTIJ34Dtlp0lewhzvauoSuVZkYxQ/43QfYxed20zWo44UnRTrScDdC
+# 9UmREbQDcZjjpb04T4zAXLHmS9e0k1IwA7vXMRcs4x7Uiq5diaQdMYICgjCCAn4C
+# AQEwUDA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0gRmFjdG9yeSBSZWxlYXNlIFNp
+# Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
+# AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
+# CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
+# hvcNAQkEMSIEIDKrTma4ieqRW5JwXPZCY05jGQju5AJ8r4Furz870pkiMA0GCSqG
+# SIb3DQEBAQUABIIBgI7waSoxLlL7XtTvWsTwjT7C3p1PDGyCLz3n3I1Bae+LNZlp
+# 4TyNmNWxVX4YYo64vCL2Y00dL+kCzv2ot7M3VLROjxz0zMlu9MhpNw0pOy6EhJyo
+# /sW9xcD25tnipABw6QDok9vIV64IR5TTAGNFLFNQzgmWCAB/0HExXSgrgB40n+6b
+# B3/VO3EFoD1KbfJSHSwgTmotT4FyEeVUiJX1kPYWMawGMQ+CkifjLcUxRGnHB31q
+# DACA3NzQX8utRU1IKHpAilYI7nHKKMVV0MyimZF7PQG1RHaMY/3+rdj7kGp00p9O
+# dbe8AfNiThOJJdWwwvggQB9W8djllGDv75lJe5o6/J3mrj0oi/vB3G3OAqn2/gQW
+# 66W9j1o0WjdbNaa0URnwyR0WGrHrxhG4lztiMOPzo4M4bU+fQvf4Q8wh6F5a07SS
+# QAn4Wq4quIPninqrx4MuWy2WiSCjXrKzwwjja4oZsBq8Ob+ND1HbHg50RTuNvX28
+# HRYnPQBdoGAI0xbU6g==
+# SIG # End signature block

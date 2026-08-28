@@ -93,6 +93,13 @@ Prove all of the following before activation:
 Exit evidence: complete negative-test matrix and rollback drill. No plan is approved and
 no Hyper-V mutation has occurred.
 
+Before requesting the first plan, run the installed-only initial-activation helper as a
+native elevated human administrator. Bind the exact Stage 3 readiness-evidence SHA-256,
+approved change ID, pinned approval-certificate SHA-256, and a 30-to-300-second signing
+window. Verify the returned activation ID/hash, HMAC-protected registration, active
+installed policy (`Create`, `debian-canary`), fixed service path, and Automatic/Running
+readback. This gate activates planning capability only; it is not plan approval.
+
 ## Stage 4 — Debian canary Create
 
 1. Confirm the immutable installed backend policy begins at `debian-canary`, carries

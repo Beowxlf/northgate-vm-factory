@@ -69,7 +69,7 @@ quarantined.
 
 | Asset | VM name | Class | CPU | Memory MiB min/start/max | Disk GiB | Opaque volume | VLAN profile / ID |
 |---|---|---:|---:|---:|---:|---|---|
-| NG-VM-018 | NG-DEB-CAN01 | canary | 2 | 2048/2048/4096 | 40 | volume-d | business-apps / 150 |
+| NG-VM-018 | NG-DEB-CAN01 | canary | 2 | 2048/2048/4096 | 40 | volume-f | business-apps / 150 |
 | NG-VM-010 | NG-CANARY-01 | canary | 2 | 4096/4096/8192 | 80 | volume-f | users-workstations / 110 |
 | NG-VM-014 | NG-MAIL-EXT01 | persistent | 2 | 2048/2048/4096 | 40 | volume-d | external-mail / 240 |
 | NG-VM-013 | NG-MAIL-INT01 | persistent | 2 | 2048/4096/8192 | 80 | volume-d | mail-internal / 120 |
@@ -83,8 +83,10 @@ quarantined.
 | NG-VM-015 | NG-KALI-EXT01 | persistent | 4 | 4096/4096/12288 | 100 | volume-d | sim-wan / 250 |
 
 Persistent disk ceilings are 440 GiB on `volume-d` and 460 GiB on `volume-f`.
-The Debian and Windows canaries use an additional 40 and 80 GiB respectively, and
-must never overlap. Minimum post-plan free space is the greater of 100 GiB or 15%.
+The Debian and Windows canaries use an additional 40 and 80 GiB on `volume-f`
+respectively, and must never overlap. `volume-d` is not used for either canary because
+its current capacity cannot preserve the approved reserve. Minimum post-plan free
+space is the greater of 100 GiB or 15%.
 
 The only rollout order is:
 
@@ -141,11 +143,17 @@ required detached CMS signature and requires every packaged `.ps1`, `.psm1`, and
 to have a trusted SHA-256 Authenticode signature from that same pinned release signer
 before importing package code or writing host state.
 
-`authorization.initialPolicy` is the sole initial activation authority. With
+`authorization.initialPolicy` is the sole installation authority. With
 `applyEnabled=false`, the installed policy remains disabled with no executable actions,
-and the service is registered stopped with startup disabled. An active signed backend
-bundle is retained for a later separately approved promotion but cannot enable the
-installation.
+and the service is registered stopped with startup disabled. The installed-only
+`Enable-NorthGateCreateOnlyInitialActivation.ps1` helper is the separate initial
+activation authority: a native human administrator must bind nonzero readiness
+evidence, the exact installed authorization/release/policy/data tuple, repository
+commit/tree, a change ID, and a 30-to-300-second validity window. The helper signs that
+canonical record with the pinned non-exportable approval key, protects its registration
+with the host state HMAC, changes only the installed policy to Debian/Create, and starts
+the fixed service transactionally. Every service start revalidates that record; an
+unsigned edit to `installed-policy.json` fails closed.
 
 The release-signing key, approval key, receipt key, SSH private key, state-protection
 keys, and credentials must never be stored in Git, package files, command parameters,
@@ -184,6 +192,12 @@ service identity, SYSTEM, and non-administrators. The installed-only helper
 the independent acceptance and retirement evidence, creates the canonical expiring
 promotion, signs it with the exact approval-signer certificate, and submits it directly
 through the pinned local named pipe. It never replaces `backend-policy.json`.
+
+Initial activation is also native-Administrator-only and must be run from the installed
+versioned release, never from a checkout. A failed activation restores the exact
+disabled policy and stopped/disabled service; failure to prove that restoration is an
+outcome-unknown hard stop. Initial activation permits planning but does not approve or
+execute any host plan.
 
 ## Remaining promotion gates
 
