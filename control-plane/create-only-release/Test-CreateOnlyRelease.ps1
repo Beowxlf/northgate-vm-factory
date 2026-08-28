@@ -307,6 +307,10 @@ Assert-NgcorTest ($serviceHostSource -match 'GetNamedPipeServerProcessId' -and
     $serviceHostSource -notmatch 'OpenProcess|QueryFullProcessImageName' -and
     $forcedSource -notmatch 'Add-Type\s+-TypeDefinition') `
     'Signed least-privilege server authentication binds the pipe PID to the running registered service PID.'
+Assert-NgcorTest ($forcedSource -match "installed\.serviceName -cne 'NorthGateCreateOnly'" -and
+    $serviceSource -match "installed\.serviceName -cne 'NorthGateCreateOnly'" -and
+    $forcedSource -match "serviceArguments\[0\] = \[string\]\`$Installed\.serviceName") `
+    'Forced command refuses missing or altered installed service-name evidence before SCM verification.'
 Assert-NgcorTest ($forcedSource -match 'Read-NgcorStandardInput 1 2000' -and $forcedSource -match 'NGCOR-STDIN-NOT-EMPTY') 'Non-plan stdin is bounded and required empty.'
 Assert-NgcorTest ($forcedSource -match 'function Read-NgcorStandardInput[\s\S]{0,1800}\$bytes = \$memory\.ToArray\(\)[\s\S]{0,80}return ,\$bytes') `
     'Empty standard input is preserved as a scalar byte array across the PowerShell function boundary.'

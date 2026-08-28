@@ -296,6 +296,11 @@ try {
     Assert-NgcdTest ((Test-Path -LiteralPath $result.releaseRoot -PathType Container) -and
         (Test-Path -LiteralPath (Join-Path $result.releaseRoot 'installed-release.json') -PathType Leaf)) `
         'Verified transaction atomically exposes one versioned release.'
+    $installedRecord = Get-Content -LiteralPath (Join-Path $result.releaseRoot 'installed-release.json') `
+        -Raw | ConvertFrom-Json
+    Assert-NgcdTest ($installedRecord.serviceName -ceq 'NorthGateCreateOnly' -and
+        $installedRecord.serviceHostFileName -ceq 'NorthGate.CreateOnly.ServiceHost.exe') `
+        'Installed evidence binds both the registered service name and signed host filename.'
     Assert-NgcdTest ([IO.File]::ReadAllText($context.PolicyPath) -ceq 'new-policy-fixture' -and
         [IO.File]::ReadAllText($context.SshConfigPath) -ceq 'new-sshd-fixture') `
         'Verified transaction writes and reads back managed configuration.'
