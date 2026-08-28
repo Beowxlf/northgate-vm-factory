@@ -134,6 +134,7 @@ Issue one fresh plan per persistent VM in the approved order. Revalidate capacit
 
 ## Rollback rules
 
+- Immediately before a disabled security or rollback test, capture a canonical snapshot of every live VM's immutable ID, name, state, CPU, memory, disks, and adapters. Compare the complete snapshot after the test and require exact equality unless a separately authorized concurrent change is linked as evidence. Fleet totals are reporting fields only; hard-coded VM or running-VM counts are forbidden as safety gates because legitimate unrelated state changes can create false failures.
 - Before an apply begins, rollback may remove the new application identity and restore SSH/tunnel/MCP configuration from the exact backup.
 - After an apply begins, control-plane rollback never deletes a VM. A transaction-marked new VM is left off and disconnected, recorded as `OutcomeUnknown`, and reconciled through the recovery/decommission workflow.
 - A failed evidence publication does not imply Hyper-V rollback; it creates an evidence-reconciliation finding.

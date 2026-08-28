@@ -128,67 +128,7 @@ function Assert-NgcorPipeServerIdentity {
         [System.IO.Pipes.NamedPipeClientStream]$Pipe, [object]$Installed,
         [object]$Manifest, [string]$InstalledRoot
     )
-    if ($null -eq ('NorthGateCreateOnlyPipeIdentity' -as [type])) {
-        Add-Type -TypeDefinition @'
-using System;
-using System.ComponentModel;
-using System.Runtime.InteropServices;
-using Microsoft.Win32.SafeHandles;
-public static class NorthGateCreateOnlyPipeIdentity {
-    [DllImport("kernel32.dll", SetLastError=true)]
-    private static extern bool GetNamedPipeServerProcessId(SafePipeHandle pipe, out uint serverProcessId);
-    [DllImport("advapi32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
-    private static extern IntPtr OpenSCManager(string machineName, string databaseName, uint desiredAccess);
-    [DllImport("advapi32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
-    private static extern IntPtr OpenService(IntPtr manager, string serviceName, uint desiredAccess);
-    [DllImport("advapi32.dll", SetLastError=true)]
-    private static extern bool QueryServiceStatusEx(IntPtr service, int infoLevel,
-        out SERVICE_STATUS_PROCESS status, int bufferSize, out int bytesNeeded);
-    [DllImport("advapi32.dll", SetLastError=true)]
-    private static extern bool CloseServiceHandle(IntPtr handle);
-    [StructLayout(LayoutKind.Sequential)]
-    private struct SERVICE_STATUS_PROCESS {
-        public uint serviceType; public uint currentState; public uint controlsAccepted;
-        public uint win32ExitCode; public uint serviceSpecificExitCode; public uint checkPoint;
-        public uint waitHint; public uint processId; public uint serviceFlags;
-    }
-    public static uint GetPipeServerProcessId(SafePipeHandle pipe) {
-        uint pid;
-        if (!GetNamedPipeServerProcessId(pipe, out pid)) throw new Win32Exception(Marshal.GetLastWin32Error());
-        return pid;
-    }
-    public static uint GetServiceProcessId(string serviceName) {
-        IntPtr manager = OpenSCManager(null, null, 0x0001);
-        if (manager == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
-        try {
-            IntPtr service = OpenService(manager, serviceName, 0x0004);
-            if (service == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
-            try {
-                SERVICE_STATUS_PROCESS status;
-                int needed;
-                int size = Marshal.SizeOf(typeof(SERVICE_STATUS_PROCESS));
-                if (!QueryServiceStatusEx(service, 0, out status, size, out needed))
-                    throw new Win32Exception(Marshal.GetLastWin32Error());
-                if (status.currentState != 4 || status.processId == 0)
-                    throw new InvalidOperationException("NGCOR-PIPE-SERVER-SERVICE-NOT-RUNNING");
-                return status.processId;
-            }
-            finally { CloseServiceHandle(service); }
-        }
-        finally { CloseServiceHandle(manager); }
-    }
-}
-'@
-    }
-    try {
-        $pipeProcessId = [NorthGateCreateOnlyPipeIdentity]::GetPipeServerProcessId($Pipe.SafePipeHandle)
-        $serviceProcessId = [NorthGateCreateOnlyPipeIdentity]::GetServiceProcessId([string]$Installed.serviceName)
-    }
-    catch { throw 'NGCOR-PIPE-SERVER-IDENTITY-UNVERIFIABLE' }
     $expectedPath = Join-Path $InstalledRoot ([string]$Installed.serviceHostFileName)
-    if ($pipeProcessId -ne $serviceProcessId) {
-        throw 'NGCOR-PIPE-SERVER-PROCESS-MISMATCH'
-    }
     $records = @($Manifest.files | Where-Object {
         $_.artifactKind -ceq 'derived-signed-artifact' -and $_.path -ceq $Installed.serviceHostFileName
     })
@@ -204,6 +144,31 @@ public static class NorthGateCreateOnlyPipeIdentity {
     }
     Test-NgcorDetachedCms ([IO.File]::ReadAllBytes($expectedPath)) $cmsPath `
         ([string]$Installed.releaseSignerCertificateSha256)
+    $verifier = 'NorthGate.VMFactory.CreateOnly.PipeServerIdentityVerifier' -as [type]
+    if ($null -eq $verifier) {
+        try {
+            $assembly = [Reflection.Assembly]::Load([IO.File]::ReadAllBytes($expectedPath))
+            $verifier = $assembly.GetType(
+                'NorthGate.VMFactory.CreateOnly.PipeServerIdentityVerifier', $true, $false
+            )
+        }
+        catch { throw 'NGCOR-PIPE-SERVER-VERIFIER-INVALID' }
+    }
+    try {
+        $pipeArguments = New-Object object[] 1
+        $pipeArguments[0] = $Pipe.SafePipeHandle.PSObject.BaseObject
+        $pipeProcessId = [uint32]$verifier.GetMethod('GetPipeServerProcessId').Invoke($null,$pipeArguments)
+    }
+    catch { throw 'NGCOR-PIPE-SERVER-PID-UNAVAILABLE' }
+    try {
+        $serviceArguments = New-Object object[] 1
+        $serviceArguments[0] = [string]$Installed.serviceName
+        $serviceProcessId = [uint32]$verifier.GetMethod('GetServiceProcessId').Invoke($null,$serviceArguments)
+    }
+    catch { throw 'NGCOR-PIPE-SERVER-SERVICE-UNAVAILABLE' }
+    if ($pipeProcessId -ne $serviceProcessId) {
+        throw 'NGCOR-PIPE-SERVER-PROCESS-MISMATCH'
+    }
 }
 
 function Read-NgcorStandardInput {
@@ -342,8 +307,8 @@ catch {
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDDYQyk9XORMEHj
-# GmWKXg90IE539+Zlct9WD4L2iMhsJqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCD6odgMIhYp8ymA
+# ci0IWBOVKUhIwQmpvQpE0Aefw8xnFaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -371,14 +336,14 @@ catch {
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIAhhbjOzvc4HhHkGhaOdLP6Zbq9W18JuzcZCmoURTZcgMA0GCSqG
-# SIb3DQEBAQUABIIBgCqd4vkUtcOmS3i6r2xO6ol+vlTBa9akLgLpns7IpNoKT6wH
-# opaf+oT2tf/nwhJp11U8bQYCCFFj2NdV/77NzHjKCZ2UskZZ7uMKNnB5KLSIsgTA
-# ykBRYy/m8JNLZwu5B8l/QaosjRi6AZamaZYH+kuzxuX/xB08RQ7O1yT+uzY35XgQ
-# KjS8miK/gKiA71K33Sx/1IKo8jb8ViMmzR6qzLQ5pzc6uu6OlOK10cg+yVoQpCaN
-# D38vgdV1dV6xsZ/4v7FCmqNEwuXQzAy3o4NvZI6f+DmeT0yqPfSJP841J/x4nrcz
-# 0kYhEKRFAaV/jwv8axcyEnU0mxIhlca7xVgXSLXXsO1aoCsO5rke5UZ7iGfouLDr
-# 5DMZtb7AT3z0lqLtdnCs5tssnthqlyeB3RLftKRDHobnrd6IwuhEu4UWWxGNsyvd
-# tEWpuBw/fyL9D6jIk3x46YX1HnCWZQyDQL2bxR6Tznd/hqev79jW/dhY9WMFiTl2
-# xz4W3WNWM6ZJbnJ6BA==
+# hvcNAQkEMSIEICeMMdl9zWThiLTd8aE7ZVIrgasY2MAmzxNddUbjUbFCMA0GCSqG
+# SIb3DQEBAQUABIIBgK5Yx1jqMpZidji3Osrq6fIXphQcMVELe5kSuDOsWJqnwtyc
+# vjVG5WDDmBqhcEGFR+3CEcSvOT1UQpm6LvQ9fjDY6k3mXvD09Jg9Gh6LRWz25kTK
+# 8o6evKlo2qh4QmKqYTgne2ge9/KdUR5MV1m/RNPDJKMViZbYz5FJz6dEPyz7EEq2
+# Yz0Cac42IIOy4NDkus6SBkOOy0MPiAFZpntUSLPmxbS7kBCGh/EJOmFd98dlbuc5
+# 9CVgzQrbHJLbVBNySZEoj99XM7hPmNya5akNv0QeorSGvfssv1YQEwp60wbAdgVC
+# hh1y1CyEDLnP4smTu7BnpUQfFrbFuPdgDVU9Ja64VXnkCPgsJ3dZX+TDkYu1wC9H
+# 2dc19vLT0J3LxmJt7dM7bRLWXkNGknfeqCwXrskhtLeHcW7l/OrdtS9FhfSZr4y0
+# D7ZE9QOdBIoN5VxB+B6ytLdmuiXS0VjZagvmhf9h4waF8EUQnv28mYNHML8YDAsb
+# vcF95znzmFGNxpCvJg==
 # SIG # End signature block

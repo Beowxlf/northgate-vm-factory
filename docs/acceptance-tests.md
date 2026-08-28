@@ -15,6 +15,7 @@ installed. These tests define the minimum exit criteria for that promotion.
 - Hosted CI has read-only repository permission and no route or credential to NorthGate.
 - Every packaged PowerShell script and module has a non-mismatched SHA-256 Authenticode signature from the exact release-signer certificate; host preflight requires a trusted `Valid` result before importing package code.
 - Disabled installation readback proves `applyEnabled=false`, no executable actions, canary stage `disabled`, service state `Stopped`, and startup mode `Disabled` even when the signed backend data bundle contains active source policy.
+- Disabled security and rollback tests bind a fresh canonical before snapshot of every VM identity and configuration to the corresponding after snapshot. Exact equality is the gate; fixed fleet totals or hard-coded running-VM counts are never used as pass/fail criteria.
 
 ## Must-pass negative tests
 

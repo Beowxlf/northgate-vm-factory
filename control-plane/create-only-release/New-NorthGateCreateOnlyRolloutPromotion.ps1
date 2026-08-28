@@ -67,52 +67,44 @@ function Read-NgcrExact {
 }
 
 function Assert-NgcrPipeServerIdentity {
-    param([IO.Pipes.NamedPipeClientStream]$Pipe,[string]$ExpectedImagePath)
-    if ($null -eq ('NorthGateCreateOnlyRolloutPipeIdentity' -as [type])) {
-        Add-Type -TypeDefinition @'
-using System;
-using System.ComponentModel;
-using System.Runtime.InteropServices;
-using System.Text;
-using Microsoft.Win32.SafeHandles;
-public static class NorthGateCreateOnlyRolloutPipeIdentity {
-    [DllImport("kernel32.dll", SetLastError=true)]
-    private static extern bool GetNamedPipeServerProcessId(SafePipeHandle pipe, out uint processId);
-    [DllImport("kernel32.dll", SetLastError=true)]
-    private static extern IntPtr OpenProcess(uint desiredAccess, bool inheritHandle, uint processId);
-    [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
-    private static extern bool QueryFullProcessImageName(IntPtr process, uint flags, StringBuilder name, ref uint size);
-    [DllImport("kernel32.dll", SetLastError=true)]
-    private static extern bool CloseHandle(IntPtr handle);
-    public static string GetServerImagePath(SafePipeHandle pipe) {
-        uint processId;
-        if (!GetNamedPipeServerProcessId(pipe, out processId))
-            throw new Win32Exception(Marshal.GetLastWin32Error());
-        IntPtr process = OpenProcess(0x1000, false, processId);
-        if (process == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
+    param(
+        [IO.Pipes.NamedPipeClientStream]$Pipe,
+        [string]$ExpectedImagePath,
+        [string]$ExpectedServiceName
+    )
+    $verifier = 'NorthGate.VMFactory.CreateOnly.PipeServerIdentityVerifier' -as [type]
+    if ($null -eq $verifier) {
         try {
-            StringBuilder path = new StringBuilder(32768);
-            uint size = (uint)path.Capacity;
-            if (!QueryFullProcessImageName(process, 0, path, ref size))
-                throw new Win32Exception(Marshal.GetLastWin32Error());
-            return path.ToString();
+            $assembly = [Reflection.Assembly]::Load([IO.File]::ReadAllBytes($ExpectedImagePath))
+            $verifier = $assembly.GetType(
+                'NorthGate.VMFactory.CreateOnly.PipeServerIdentityVerifier', $true, $false
+            )
         }
-        finally { CloseHandle(process); }
-    }
-}
-'@
+        catch { Stop-Ngcr 'NGCOR-ROLLOUT-PIPE-SERVER-VERIFIER-INVALID' }
     }
     try {
-        $actual = [NorthGateCreateOnlyRolloutPipeIdentity]::GetServerImagePath($Pipe.SafePipeHandle)
+        $pipeArguments = New-Object object[] 1
+        $pipeArguments[0] = $Pipe.SafePipeHandle.PSObject.BaseObject
+        $pipeProcessId = [uint32]$verifier.GetMethod('GetPipeServerProcessId').Invoke(
+            $null, $pipeArguments)
+        $serviceArguments = New-Object object[] 1
+        $serviceArguments[0] = $ExpectedServiceName
+        $serviceProcessId = [uint32]$verifier.GetMethod('GetServiceProcessId').Invoke(
+            $null, $serviceArguments)
     }
     catch { Stop-Ngcr 'NGCOR-ROLLOUT-PIPE-SERVER-IDENTITY-UNVERIFIABLE' }
-    if ([IO.Path]::GetFullPath($actual) -cne [IO.Path]::GetFullPath($ExpectedImagePath)) {
-        Stop-Ngcr 'NGCOR-ROLLOUT-PIPE-SERVER-IMAGE-MISMATCH'
+    if ($pipeProcessId -ne $serviceProcessId) {
+        Stop-Ngcr 'NGCOR-ROLLOUT-PIPE-SERVER-PROCESS-MISMATCH'
     }
 }
 
 function Invoke-NgcrPipeRequest {
-    param([string]$Command,[string]$Body,[string]$ExpectedServiceHostPath)
+    param(
+        [string]$Command,
+        [string]$Body,
+        [string]$ExpectedServiceHostPath,
+        [string]$ExpectedServiceName
+    )
     $envelope = [pscustomobject][ordered]@{version=1;command=$Command;body=$Body}
     $bytes = [Text.Encoding]::UTF8.GetBytes((ConvertTo-NorthGateCreateOnlyCanonicalJson $envelope))
     if ($bytes.Length -gt $maximumFrameBytes) { Stop-Ngcr 'NGCOR-ROLLOUT-ENVELOPE-SIZE-INVALID' }
@@ -123,7 +115,7 @@ function Invoke-NgcrPipeRequest {
     )
     try {
         $pipe.Connect(3000)
-        Assert-NgcrPipeServerIdentity $pipe $ExpectedServiceHostPath
+        Assert-NgcrPipeServerIdentity $pipe $ExpectedServiceHostPath $ExpectedServiceName
         $length = [BitConverter]::GetBytes([int]$bytes.Length)
         $pipe.Write($length,0,4); $pipe.Write($bytes,0,$bytes.Length); $pipe.Flush()
         $responseLength = [BitConverter]::ToInt32((Read-NgcrExact $pipe 4 10000),0)
@@ -258,7 +250,8 @@ if ($verified.status -cne 'verified' -or
     Stop-Ngcr 'NGCOR-ROLLOUT-INSTALLED-RELEASE-NOT-VERIFIED'
 }
 $expectedServiceHostPath = Join-Path $installedRoot ([string]$installed.serviceHostFileName)
-$context = Invoke-NgcrPipeRequest 'rollout-context' '' $expectedServiceHostPath
+$context = Invoke-NgcrPipeRequest 'rollout-context' '' $expectedServiceHostPath `
+    ([string]$installed.serviceName)
 Assert-NgcrExactProperties $context @(
     'schema','nextSequence','previousAuthorizationSha256','basePolicySha256',
     'authorizationSha256','releaseManifestSha256','dataBundleSha256','repository',
@@ -385,15 +378,16 @@ try {
         detachedCmsSignatureBase64=[Convert]::ToBase64String($cms.Encode())
     }
     Invoke-NgcrPipeRequest 'promote-rollout' `
-        (ConvertTo-NorthGateCreateOnlyCanonicalJson $wrapper) $expectedServiceHostPath
+        (ConvertTo-NorthGateCreateOnlyCanonicalJson $wrapper) $expectedServiceHostPath `
+        ([string]$installed.serviceName)
 }
 finally { $keyMaterial.Rsa.Dispose() }
 
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBBKFxZnU2BsFos
-# m0yfBmcQHkHYt1uflLUwlKSORxYLi6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCMMIteiPm1o/Bq
+# cEIk4FIYUdAHCMpt3ofV73CRDzxH/aCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -421,14 +415,14 @@ finally { $keyMaterial.Rsa.Dispose() }
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIEvPqs407ilwtAAP+/i+FY00w4PeTHRtC0aeL9Dk/XNkMA0GCSqG
-# SIb3DQEBAQUABIIBgC/1VvUkAEqpS43g+QQc98Ki+IsAw4qQ0Ojsx3Z7Ttk37rFj
-# WMGlJaOzgi4l1msDxNhw0gNznvLVi8/E+QbGlmBjiLdI3I4K9BkMQL1GdG3jnlvR
-# hheIgEJz4KHDWF1lIy+OHZc8hl9gPU4oLki/QXMw0FNv4R/j4yGtoef1imHQOh/t
-# 7pshCIhyZYXWZSmylo9b9rHiLNz38CDQN9Y3HBxaZhVrFrSZNjcjngZzfGTLHToy
-# J3du1trJ+9B6hACPdtUi0+5CCKcFNs1uJMYMiMQYN+VnkUIIAhqRtLAHuiAsJEUz
-# 9B3N0/nIZOK5vcC/sDlYqMe0q2HyiN6DUYc4k3knFAy9vVO+kacA3oycrgf+bwhP
-# kmhbwqpsIIWmMial2cG1y/koyr4b/wO2LyNGjyxIstP2f+nWv5p231rcv09FNerx
-# rvohi1oPLcrBDlIf40jL0AYSczdHcwhL8o4hfu1pAKim8oGNK8iD/+KCxqsoaR+W
-# GZnvhUGbDANi5h/TJg==
+# hvcNAQkEMSIEICE8W+Z7xa19icEDIJNXrRY6/FGqMVw2z/QD8i1g9HTuMA0GCSqG
+# SIb3DQEBAQUABIIBgEtatse3hvja9PrhpTjSjeN2XDpbw77DwwCBZ99lFB62OUqO
+# UtVp4yUoO9K+v0QP6CaHqqRH4xh4gophF1Lce2HabbW9s63gpODkexDcCVehkwzD
+# UVwsUg93D9luhce0TcBdHp5U6kV5Ddc0Jeh6vFDtJqacDq2XlbbdcECHGLceDXuQ
+# /+M7JmYM2ylvic/KmqegzRRYvykMuyrBFe9hCJy5zNtL1t3EmRsJzX7ljuMRaAKF
+# 5TL23ZOIeVj2/jq3IE0vo15W2PtB3Ctqf6XExcNU3G8zedR+YbxDoYqnGsv7NsmT
+# q/Gzy+LwzvB+KeXjhsCiDCArdMh2WMDoY48cX67gAgKoABg1LaLsHq8aUqc8Jup9
+# IOkiGSkVHm07K8I+DXSqdSQVOxei0tSJmcUovTyswGTOsr9jxN8iFTdSbtDT4GPc
+# FYkR7BkUOqKwfgtXF+Im1wtVtBQCmfrsLupn3AS0BoR8Hxne8PWzsp556kGgkAEt
+# tGHx5gNF73juMU1a0A==
 # SIG # End signature block

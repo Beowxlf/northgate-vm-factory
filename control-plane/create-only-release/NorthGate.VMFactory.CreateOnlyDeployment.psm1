@@ -685,7 +685,16 @@ function Restore-NgcdServiceConfiguration {
         -ErrorAction SilentlyContinue
     if ($Configuration.existed -eq $false) {
         if ($null -ne $current) {
-            if ($current.State -ne 'Stopped') { $null = Invoke-NgcdSc @('stop',$script:ServiceName) }
+            if ($current.State -ne 'Stopped') {
+                $null = Invoke-NgcdSc @('stop',$script:ServiceName)
+                try {
+                    (Get-Service -Name $script:ServiceName -ErrorAction Stop).WaitForStatus(
+                        [System.ServiceProcess.ServiceControllerStatus]::Stopped,
+                        [TimeSpan]::FromSeconds(15)
+                    )
+                }
+                catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-CONFIGURATION-FAILED' }
+            }
             $null = Invoke-NgcdSc @('delete',$script:ServiceName)
         }
         return
@@ -694,24 +703,52 @@ function Restore-NgcdServiceConfiguration {
         [string]::IsNullOrWhiteSpace([string]$Configuration.startName)) {
         Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-BACKUP-INVALID'
     }
-    $start = switch ([string]$Configuration.startMode) {
-        'Auto' { 'auto' }
-        'Manual' { 'demand' }
-        'Disabled' { 'disabled' }
+    $startMode = switch ([string]$Configuration.startMode) {
+        'Auto' { 'Automatic' }
+        'Manual' { 'Manual' }
+        'Disabled' { 'Disabled' }
         default { Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-BACKUP-INVALID' }
     }
+    if ([string]$Configuration.startName -cne $script:ServiceAccount) {
+        Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-BACKUP-INVALID'
+    }
     if ($null -eq $current) {
-        $null = Invoke-NgcdSc @(
-            'create',$script:ServiceName,'binPath=',([string]$Configuration.pathName),
-            'start=',$start,'obj=',([string]$Configuration.startName)
-        )
+        try {
+            $created = Invoke-CimMethod -ClassName Win32_Service -MethodName Create -Arguments @{
+                Name = $script:ServiceName
+                DisplayName = $script:ServiceName
+                PathName = [string]$Configuration.pathName
+                StartMode = $startMode
+                StartName = [string]$Configuration.startName
+            } -ErrorAction Stop
+        }
+        catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-CONFIGURATION-FAILED' }
+        if ([int]$created.ReturnValue -ne 0) {
+            Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-CONFIGURATION-FAILED'
+        }
     }
     else {
-        if ($current.State -ne 'Stopped') { $null = Invoke-NgcdSc @('stop',$script:ServiceName) }
-        $null = Invoke-NgcdSc @(
-            'config',$script:ServiceName,'binPath=',([string]$Configuration.pathName),
-            'start=',$start,'obj=',([string]$Configuration.startName)
-        )
+        if ($current.State -ne 'Stopped') {
+            $null = Invoke-NgcdSc @('stop',$script:ServiceName)
+            try {
+                (Get-Service -Name $script:ServiceName -ErrorAction Stop).WaitForStatus(
+                    [System.ServiceProcess.ServiceControllerStatus]::Stopped,
+                    [TimeSpan]::FromSeconds(15)
+                )
+            }
+            catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-CONFIGURATION-FAILED' }
+        }
+        try {
+            $changed = Invoke-CimMethod -InputObject $current -MethodName Change -Arguments @{
+                PathName = [string]$Configuration.pathName
+                StartMode = $startMode
+                StartName = [string]$Configuration.startName
+            } -ErrorAction Stop
+        }
+        catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-CONFIGURATION-FAILED' }
+        if ([int]$changed.ReturnValue -ne 0) {
+            Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-CONFIGURATION-FAILED'
+        }
     }
     if (-not [string]::IsNullOrEmpty([string]$Configuration.description)) {
         $null = Invoke-NgcdSc @('description',$script:ServiceName,([string]$Configuration.description))
@@ -721,7 +758,25 @@ function Restore-NgcdServiceConfiguration {
         Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-BACKUP-INVALID'
     }
     $null = Invoke-NgcdSc @('sdset',$script:ServiceName,([string]$Configuration.securityDescriptorSddl))
-    if ($Configuration.state -ceq 'Running') { $null = Invoke-NgcdSc @('start',$script:ServiceName) }
+    if ($Configuration.state -ceq 'Running') {
+        $null = Invoke-NgcdSc @('start',$script:ServiceName)
+        try {
+            (Get-Service -Name $script:ServiceName -ErrorAction Stop).WaitForStatus(
+                [System.ServiceProcess.ServiceControllerStatus]::Running,
+                [TimeSpan]::FromSeconds(15)
+            )
+        }
+        catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-CONFIGURATION-FAILED' }
+    }
+    $readback = Get-CimInstance -ClassName Win32_Service -Filter ("Name='" + $script:ServiceName + "'") `
+        -ErrorAction Stop
+    if ($readback.PathName -cne [string]$Configuration.pathName -or
+        $readback.StartMode -cne [string]$Configuration.startMode -or
+        $readback.StartName -cne [string]$Configuration.startName -or
+        $readback.State -cne [string]$Configuration.state -or
+        (Get-NgcdServiceSecurityDescriptor) -cne [string]$Configuration.securityDescriptorSddl) {
+        Stop-Ngcd 'NGCOR-DEPLOYMENT-SERVICE-READBACK-FAILED'
+    }
 }
 
 function New-NgcdBackup {
@@ -1162,7 +1217,9 @@ function Read-NgcdJournal {
         'schema','transactionId','sequence','phase','binding','paths','backupReceiptSha256','events'
     ) 'NGCOR-DEPLOYMENT-JOURNAL-INVALID'
     if ($record.schema -cne $script:DeploymentSchema -or $record.transactionId -cnotmatch '^ngtxn-[a-f0-9]{64}$' -or
-        $record.phase -notin @('Prepared','Activated','Verified','Recovered','RolledBack','OutcomeUnknown') -or
+        $record.phase -notin @(
+            'Prepared','Activated','Verified','RollbackPending','Recovered','RolledBack','OutcomeUnknown'
+        ) -or
         $record.backupReceiptSha256 -cnotmatch '^[a-f0-9]{64}$') {
         Stop-Ngcd 'NGCOR-DEPLOYMENT-JOURNAL-INVALID'
     }
@@ -1174,7 +1231,8 @@ function Set-NgcdJournalPhase {
     $allowed = @{
         Prepared = @('Activated','Recovered','OutcomeUnknown')
         Activated = @('Verified','Recovered','OutcomeUnknown')
-        Verified = @('RolledBack','OutcomeUnknown')
+        Verified = @('RollbackPending','OutcomeUnknown')
+        RollbackPending = @('RolledBack','OutcomeUnknown')
     }
     $record = Read-NgcdJournal $Context $JournalPath
     if ($record.phase -cne $ExpectedPhase -or -not $allowed.ContainsKey($ExpectedPhase) -or
@@ -1294,6 +1352,9 @@ function Invoke-NgcdFileInstallTransaction {
             if ($existing.phase -in @('Prepared','Activated')) {
                 $null = Repair-NgcdInterruptedTransaction $Context $journalPath
                 Stop-Ngcd 'NGCOR-DEPLOYMENT-RECOVERED-RERUN-REQUIRED'
+            }
+            if ($existing.phase -ceq 'RollbackPending') {
+                Stop-Ngcd 'NGCOR-DEPLOYMENT-ROLLBACK-RETRY-REQUIRED'
             }
             Stop-Ngcd 'NGCOR-DEPLOYMENT-AUTHORIZATION-ALREADY-CONSUMED'
         }
@@ -1429,10 +1490,10 @@ function Invoke-NgcdFileRollbackTransaction {
     Assert-NgcdContext $Context
     $journalPath = Join-Path $Context.TransactionsRoot ($TransactionId + '.json')
     $lock = Enter-NgcdDeploymentLock $Context.LockName
-    $mutationStarted = $false
     try {
         $journal = Read-NgcdJournal $Context $journalPath
-        if ($journal.phase -cne 'Verified' -or $journal.binding.releaseId -cne $ExpectedReleaseId -or
+        if ($journal.phase -notin @('Verified','RollbackPending') -or
+            $journal.binding.releaseId -cne $ExpectedReleaseId -or
             $journal.binding.releaseManifestSha256 -cne $ExpectedManifestSha256 -or
             $journal.backupReceiptSha256 -cne $ExpectedBackupReceiptSha256) {
             Stop-Ngcd 'NGCOR-ROLLBACK-BINDING-MISMATCH'
@@ -1442,28 +1503,19 @@ function Invoke-NgcdFileRollbackTransaction {
         if (-not (Test-NgcdFixedHexEquals $actualReceiptHash $ExpectedBackupReceiptSha256)) {
             Stop-Ngcd 'NGCOR-ROLLBACK-RECEIPT-HASH-MISMATCH'
         }
-        $mutationStarted = $true
+        if ($journal.phase -ceq 'Verified') {
+            $journal = Set-NgcdJournalPhase $Context $journalPath 'Verified' 'RollbackPending'
+        }
         Restore-NgcdBackup $Context ([string]$journal.paths.backupRoot) $journal.binding
         $quarantine = Move-NgcdDirectoryToQuarantine $Context ([string]$journal.paths.destinationRoot) `
             $TransactionId 'rollback'
-        $rolledBack = Set-NgcdJournalPhase $Context $journalPath 'Verified' 'RolledBack'
+        $rolledBack = Set-NgcdJournalPhase $Context $journalPath 'RollbackPending' 'RolledBack'
         [pscustomobject][ordered]@{
             status = 'rolled-back'; transactionId = $TransactionId; phase = [string]$rolledBack.phase
             quarantinedReleaseRoot = $quarantine; durableStatePreserved = $true
         }
     }
-    catch {
-        if ($mutationStarted) {
-            try {
-                $current = Read-NgcdJournal $Context $journalPath
-                if ($current.phase -eq 'Verified') {
-                    $null = Set-NgcdJournalPhase $Context $journalPath 'Verified' 'OutcomeUnknown'
-                }
-            }
-            catch { }
-        }
-        throw
-    }
+    catch { throw }
     finally { Exit-NgcdDeploymentLock $lock }
 }
 
@@ -1818,8 +1870,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBKueBBK0ewnLHS
-# uRlhknha4IPPRZzgNlQrNB+SMAlIjKCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCP2r+4rQFrDAt7
+# E7l4xPlX3GMy8rZNzZGDDW3WVjaFWqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -1847,14 +1899,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIDEbBSaqAZucQR7z1pcGM0VedQ2XgeQgcJRlaJYzKp66MA0GCSqG
-# SIb3DQEBAQUABIIBgEdKiQ+hINL4FFkFsJNPHrvYlYy29OhBpmLVELMDT8Qff824
-# ycI1+HJFKv8hFYFtc8kN6R5t574T+/xcn01yZ77eac2ObdQVU0aJvUWtufuirxPW
-# Wj12fhu+0Iqmu53Ruum0O8hsjli8JQIiFKHyd8oetloA4OwRjLd1b/Efhl9msdyM
-# xj4f+F/eXfiWq2xfUzQoRcPQZptHKLz2J7TUhppxda5DhYzK0n6BpJWuzOHMnCwM
-# gPOZeeNmR4S/vaoDcGLzdkFuW/WjcxKyCcbTiSeRTx2L9tNcRuhUNU1ajtbbk+GU
-# gpiLfI2FEqXG6uCCHsNaDM0xXOTwgOwBNdNFiKxVfxg7tBVJa1Apl9kYnYMsckYi
-# VHnlTlK/7/vzrOtzSNxI/ATb0OG0jXV+hNVuedzDL2U40BBtc8+UyVosJrV9UmRx
-# duqw4kY+Z0BZSYUKDFiZYqq74TiQp+qZ4/EYoJYUHLM3B3WwB9grvwZBmtC1cL9N
-# vD1gV4xuGNNFOJLBBA==
+# hvcNAQkEMSIEIO06pm23+ihC5fnHMKN2EH6jSCJfRdJRVhr/3hAK4SWwMA0GCSqG
+# SIb3DQEBAQUABIIBgCNlGd7sRD+vCnqDlzv6dCQDxxk70JUEQNKO5NB4lMpNcQJG
+# ZEC0dZf4gGScfeeHC63Ep1rEf+smgqDCnc26KFzPoIJJC0Ob71Yhd+y/ZjBOxAj9
+# VYxIuJWDLRUDm8Z1W+uCQx8c2lS+7tqub92AGP5m33gfn5CVaWwksqGWdZW4bDkd
+# GBh30veRCdV6Z0ka2++5hF3RQ+bc/Ngt99TNCjTCNS6clfLUHAayLPyvkEGkstGq
+# coTbRXUHbxeLdqSNO4DyqY+ZubB6cp/qe5ihkIQGbDyv7u+D3A2aU2pZKBJ57x8G
+# K9AUsPum0kGGOTkaPtu1kr2RV1AXX2mkNU9+BCR8pjaoID1eE7F02clhWb2oXG83
+# ObgykxKMTh2GabWyJe5vEXi6VD07wWwNxgn9Crm/DJGwsfss2WhhX8wvsEU9jEfa
+# N5cXSgGbnW5zHpzdryRxkhldAoSV9sLqdod5M0aPgJlOEJbOmgRe4CM69019qLWU
+# ScWWrbL3gVxJAwwz+A==
 # SIG # End signature block
