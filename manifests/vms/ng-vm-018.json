@@ -21,7 +21,7 @@
     "imageRef": "debian-12.12-amd64-netinst",
     "firmwareProfileRef": "linux-gen2",
     "compute": { "processors": 2, "memory": { "mode": "dynamic", "minimumMiB": 2048, "startupMiB": 2048, "maximumMiB": 4096 } },
-    "storage": { "profileRef": "lab-ephemeral-d", "osDiskGiB": 40 },
+    "storage": { "profileRef": "lab-ephemeral-f", "osDiskGiB": 40 },
     "network": { "profileRef": "business-apps" },
     "bootstrapProfileRef": "debian12-disposable-canary",
     "recoveryProfileRef": "none-canary",

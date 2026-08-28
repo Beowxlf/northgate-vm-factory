@@ -110,7 +110,7 @@ function Get-NorthGateCreateOnlyFixedCatalog {
     $windows = 'd141f6030fed50f75e2b03e1eb2e53646c4b21e5386047cb860af5223f102a32'
     $kali = 'd32f929dacc48134a31461a09f2160d13ad1d26b820cee920446813ca979b39b'
     $fleet = @(
-        New-NgcorFleetEntry 'NG-VM-018' 'NG-DEB-CAN01' 'canary' 2 2048 2048 4096 40 'debian-12.12.0-amd64-netinst' $debian 704643072 'linux-gen2' 'volume-d' 'business-apps' 150 'debian12-disposable-canary' 'none-canary' 'disposable-canary-keyonly-admin'
+        New-NgcorFleetEntry 'NG-VM-018' 'NG-DEB-CAN01' 'canary' 2 2048 2048 4096 40 'debian-12.12.0-amd64-netinst' $debian 704643072 'linux-gen2' 'volume-f' 'business-apps' 150 'debian12-disposable-canary' 'none-canary' 'disposable-canary-keyonly-admin'
         New-NgcorFleetEntry 'NG-VM-010' 'NG-CANARY-01' 'canary' 2 4096 4096 8192 80 'windows-11-25h2-english-x64' $windows 7736125440 'windows-gen2' 'volume-f' 'users-workstations' 110 'windows11-disposable-canary' 'none-canary' 'windows-disposable-canary'
         New-NgcorFleetEntry 'NG-VM-014' 'NG-MAIL-EXT01' 'persistent' 2 2048 2048 4096 40 'debian-12.12.0-amd64-netinst' $debian 704643072 'linux-gen2' 'volume-d' 'external-mail' 240 'debian12-mail-external' 'bronze' 'linux-server-keyonly-admin'
         New-NgcorFleetEntry 'NG-VM-013' 'NG-MAIL-INT01' 'persistent' 2 2048 4096 8192 80 'debian-12.12.0-amd64-netinst' $debian 704643072 'linux-gen2' 'volume-d' 'mail-internal' 120 'debian12-mail-internal' 'silver' 'linux-server-keyonly-admin'
@@ -446,3 +446,47 @@ Export-ModuleMember -Function @(
     'Get-NorthGateCreateOnlyFixedCatalog',
     'Invoke-NorthGateCreateOnlyServiceRequest'
 )
+
+# SIG # Begin signature block
+# MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
+# BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDisLbod3kcAMR1
+# iIe17WLIVjqMy+4O0+0VdPL8Bd0c7aCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
+# TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
+# MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
+# RmFjdG9yeSBSZWxlYXNlIFNpZ25lciAyMDI2LTA4LTIxIHYyMIIBojANBgkqhkiG
+# 9w0BAQEFAAOCAY8AMIIBigKCAYEAuK2RPh+kwyLvYhpQmiHvsROwEKzmIdyEc6WV
+# b1N80dzFqV4o16F7MTsoC1Xbo3VdbDurlCWifItnM+UTZ7B6xP8TLmPGRys7sGa/
+# QQOm77wKKQ7OdjJlqSSXz4+efiUwoMEkhyP3YkL8G7VvS7EcKCVaspPX8ghvtCYe
+# rOQQYWVFOV9EuvajfvnFPna0Y4Y4qMJAxZZEtfMVKtLejdftGHra9pZm/Vi3OiIx
+# At/lfqeqK1vYu96Uyh4LhSoxSaev2EOpsznHtTIwY3KNC9dpwlogX2FYa0l1zH1k
+# Kk0n/AjTYgR0mxQXMP89640xScVCb+rmY8SNG5w/YZB9uQnkTY5Zkh8z5dfHH8HM
+# Fvibww5+B8nEBiMe/1RrUzpf1qOyuwyCphrAMRl2NbWR/yzdjCvUBaLbbmkVW20f
+# U3X2CTd144vt2iLfCco+WEIuXaRy6g1vQxu1bYtOHuO5GwobWUCN4CVvhILf+VVt
+# hPvyDnvdRZEyaJ2wmI3xWE0+QJY9AgMBAAGjVzBVMA4GA1UdDwEB/wQEAwIHgDAM
+# BgNVHRMBAf8EAjAAMBYGA1UdJQEB/wQMMAoGCCsGAQUFBwMDMB0GA1UdDgQWBBRb
+# WaTBPZZW7QhHiKCc/W2Z3DB9oTANBgkqhkiG9w0BAQsFAAOCAYEAaNP8lBhUC94L
+# AUcORggLbH+yuwZ92dK4vhUVrqukaQKL0CpTouv88GOJtrocGo09vyZ1Y7T+ieZ2
+# SKKMwmM+efwt+cDQ0b4HDIWYfswSQdfd/HATQX5PNSmC6uEYi6cf/yd31aHkySrN
+# W2gfy82zjixp/SP/k9KmpbE+I5f8wppCZ4+ePk5/g+f7gb7a9+g66Ywua2apF76N
+# gQB0LPaz0SXwWZ4QS4w/X4TUSDnluz9uHzX2NZ4oNAzT1tR7tBF7Ntu+8mEw2mot
+# BcI7pQEu6CDLNGl1rSwPswnZDUWOcnImdqW3IDab4XUmN5my5pB3iLmojG2UOVXr
+# SWVYZkiHWI5RGHNDBmdnbDXxK2Xy4uJMLiVEqws8QosKSTUTSAL5B3KM1/HWwQzv
+# X2fiwRK2cIfTIJ34Dtlp0lewhzvauoSuVZkYxQ/43QfYxed20zWo44UnRTrScDdC
+# 9UmREbQDcZjjpb04T4zAXLHmS9e0k1IwA7vXMRcs4x7Uiq5diaQdMYICgjCCAn4C
+# AQEwUDA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0gRmFjdG9yeSBSZWxlYXNlIFNp
+# Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
+# AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
+# CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
+# hvcNAQkEMSIEIBoV919lSAI1wl03+TA9faE21VbLENkoGQNJ5LZV2A/LMA0GCSqG
+# SIb3DQEBAQUABIIBgA5A2hcy5zrFTie7gyXkOFkg8OmV7QNBxQO4K4OIfFbwes19
+# 09HXoWvpg0aHtPGjavz1o+TJaN7ujF4KpBxL2+c/EZNmqBR6S7W3mp0ZB0GYTamz
+# LxHMPGNA+/u9jXFuGmtWQN2mGA7b/LW98RwvyyF8q5kFLGs39LQF38kV84+BHKse
+# DLHCFb2LMlh0gKZEFZn87iQNIulyCdURDNJEo9qJpgbu3U7R/nz1K5S5uimUt3r5
+# /q0lmZEBnXlPDgifSnDGszZ8tk35Uzl9oXBLsb3FI6l2qmzFAAkTPQJ2gKSiX9n+
+# DHUXaNl3nZ20+BGyK7XKQn1Kri2FS0H8Hp5JBDlTSJfamt/WNAGpAmXbFEQ9Wqm1
+# mXc3+nGupgLSKw84AXSc2Xzg9Ify5BGyX/XeLtAAlYlHQnhD1gePhRdjfebKqAiZ
+# 9+QBOr0HTKldjDAQZfocYaCY0qDU/0CgOss47yOb8nj1tXTx0Cf/X0S3NPAqSpCx
+# G+V27wBBI/ty/P9tew==
+# SIG # End signature block

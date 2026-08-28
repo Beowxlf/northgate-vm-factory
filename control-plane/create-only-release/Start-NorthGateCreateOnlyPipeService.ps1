@@ -160,7 +160,40 @@ if ((ConvertTo-NorthGateCreateOnlyCanonicalJson $policy) -cne $policyRaw -or
     $policy.serviceName -cne 'NorthGateCreateOnly' -or
     $policy.serviceHostSignerCertificateSha256 -cne $installed.releaseSignerCertificateSha256 -or
     $policy.backendPolicySha256 -cne $installed.backendPolicySha256 -or
-    $policy.dataBundleSha256 -cne $installed.dataBundleSha256 -or
+    $policy.dataBundleSha256 -cne $installed.dataBundleSha256) {
+    throw 'NGCOR-INSTALLED-POLICY-INVALID'
+}
+$policyProperties = @($policy.PSObject.Properties.Name | Sort-Object)
+$expectedPolicyProperties = @(
+    'applyEnabled','backendPolicySha256','canaryStage','dataBundleSha256','executableActions',
+    'initialActivationSha256','pipeName','releaseId','releaseManifestSha256','schema',
+    'serviceHostSignerCertificateSha256','serviceIdentitySid','serviceName','sshIdentitySid'
+)
+if (($policyProperties -join '|') -cne (($expectedPolicyProperties | Sort-Object) -join '|')) {
+    throw 'NGCOR-INSTALLED-POLICY-INVALID'
+}
+$activationStatus = $null
+if ([bool]$policy.applyEnabled) {
+    if ((@($policy.executableActions) -join '|') -cne 'Create' -or
+        $policy.canaryStage -cne 'debian-canary' -or
+        $policy.initialActivationSha256 -cnotmatch '^[a-f0-9]{64}$') {
+        throw 'NGCOR-INSTALLED-POLICY-INVALID'
+    }
+    try {
+        $activationStatus = & $deployment {
+            param($Context,$Installed,$Manifest,$Authorization,$AuthorizationSha256,$Policy)
+            Test-NgcdInitialActivationState $Context $Installed $Manifest $Authorization `
+                $AuthorizationSha256 $Policy
+        } $runtimeContext $installed $manifest $authorization `
+            ([string]$installed.deploymentAuthorizationSha256) $policy
+    }
+    catch { throw 'NGCOR-INITIAL-ACTIVATION-STATE-INVALID' }
+    if ($activationStatus.status -cne 'verified' -or
+        $activationStatus.activationSha256 -cne $policy.initialActivationSha256) {
+        throw 'NGCOR-INITIAL-ACTIVATION-STATE-INVALID'
+    }
+}
+elseif ($policy.initialActivationSha256 -cne '' -or
     $policy.applyEnabled -ne [bool]$authorization.initialPolicy.applyEnabled -or
     (@($policy.executableActions) -join '|') -cne (@($authorization.initialPolicy.executableActions) -join '|') -or
     $policy.canaryStage -cne [string]$authorization.initialPolicy.canaryStage) {
@@ -186,7 +219,7 @@ $null = & $deployment {
     Test-NgcdDetachedCms $Bytes $SignaturePath $Pin
 } $serviceHostBytes $serviceHostCmsPath ([string]$installed.releaseSignerCertificateSha256)
 $service = Get-Service -Name 'NorthGateCreateOnly' -ErrorAction Stop
-$expectedStartType = if ([bool]$policy.applyEnabled) { 'Automatic' } else { 'Manual' }
+$expectedStartType = if ([bool]$policy.applyEnabled) { 'Automatic' } else { 'Disabled' }
 try { $currentHostPath = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName }
 catch { throw 'NGCOR-SERVICE-HOST-PATH-UNVERIFIABLE' }
 if ([IO.Path]::GetFullPath($currentHostPath) -cne [IO.Path]::GetFullPath($serviceHostPath) -or
@@ -308,8 +341,8 @@ while (-not $serviceStopEvent.WaitOne(0)) {
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBUyrR0u/H003ye
-# BoZlTlHkVlwBMfYjvfjGzFWTMs7eJ6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCC1bEyBT+5q5GSL
+# Vvh98N/5I9o6y00iwt2R4l9o/kxGQqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -337,14 +370,14 @@ while (-not $serviceStopEvent.WaitOne(0)) {
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEINGxm7QUPmVuPiGKOIL6i4asYjPCb0qVoIqazSizXYT4MA0GCSqG
-# SIb3DQEBAQUABIIBgBsbbvGCLwShK5LykdzcW5/yK5S18/FezEPeRK5bxOK60bLT
-# dtzSlscQ3f7TMiBAa1h6ZYNvM4K4KlmtKf15qqbmfKYWRys+S+hxBjolvyPpfp5/
-# Nz+VCSXCyKEKmYnvUk3GoYOvZvippFSl2edHfvQeoVW0NKq6+PFHQece79/GbOgx
-# L53ed+hiQHLjvgZhxeI7JB+AE+fQvMWErLmPodk5iZt+5UaZwV1HBhFAWgG5Of6s
-# b1kKgsZK3CTUq5ckRk0LHjFhf0gpnvrM4UQF8aG+Bc1AFH58wp7QNhEUOGbCOgGk
-# 97OVyzG/CUwaK4wX5Q+ufr4af/113Y6FeI2saDFOBUf8aOS3GDfZHOnd+eWg10ZT
-# SyHFMGpv4n4GBnVZtpp38GD2Qge9yOHuYDCn5WLbT8S64kMet2P5Zf3J4SLYoKx+
-# Q6vx3ADpJKwJDfPgiWP29USejX45cBsFg5e6NSU79r0y3ZPxp0Qqxw5/bc+6z5hd
-# L+6dkdDyr9xbhEqQjA==
+# hvcNAQkEMSIEIEU4RtGwgSj0c6YPa4VzSXmUUssNmQhmBSGx2+Oxut8sMA0GCSqG
+# SIb3DQEBAQUABIIBgJXHDmhT99+pFUmATD9PSU5MvfZVIGXl3bbF8YIgRd/iACBY
+# +xLZVU0UlLpxTBdcQ18UZ2wT1aad7dEzeTrrIykTSGml8QUK4Rz6Hyaa1/M6Bpab
+# InvKgXP8uX6oAME3M2WssR3NgYYkskWKq8QYzuzv9rn1RdWVxG2kktVkgeCyTn/U
+# K8jLkr/2QsA/7h89g1nvwShrjFEzZGZyLlokMpiCnchA+uYloEVNG+bUyHGPyUJM
+# znoOC23eqcTqx+AN5Q+xZjF7LDfHWmmxHWNXKszKJU6JNsoFWVNizrObHbJXBWJE
+# vj6b1JXQnErQRlmhpWF68c2mMmF3hY38TUzaQI2q1G7lVdHj6ztI8DHF/cbzZrl+
+# sjHxXPsEBk4N9b51RltLCyXoC+zNkpeMwBWf6pW0P1PbfUQqzDRNYsxHkL18B/Ls
+# Lb/8Tk2q0KwdCD1opablup+LC0Xm9hDAhIzeRZ3OXyzyIuG/rIIeyECrH/VaR/xH
+# treKFy09TGGfd8e+Hw==
 # SIG # End signature block

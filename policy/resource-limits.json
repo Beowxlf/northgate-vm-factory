@@ -2,10 +2,10 @@
   "$schema": "../schemas/resource-policy.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "ResourcePolicy",
-  "policyVersion": "2026.08.03.1",
+  "policyVersion": "2026.08.28.1",
   "status": "approved",
   "applyEnabled": true,
-  "hostReserveMemoryMiB": 49152,
+  "hostReserveMemoryMiB": 32768,
   "minimumVolumeFreeGiB": 100,
   "minimumVolumeFreePercent": 15,
   "perVm": {

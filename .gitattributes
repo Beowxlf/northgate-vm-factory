@@ -24,6 +24,7 @@ control-plane/create-only-release/backend/NorthGate.VMFactory.CreateOnlyBackend.
 control-plane/create-only-release/Invoke-NorthGateCreateOnlyForcedCommand.ps1 -text
 control-plane/create-only-release/Start-NorthGateCreateOnlyPipeService.ps1 -text
 control-plane/create-only-release/Install-NorthGateCreateOnlyRelease.ps1 -text
+control-plane/create-only-release/Enable-NorthGateCreateOnlyInitialActivation.ps1 -text
 control-plane/create-only-release/New-NorthGateCreateOnlyApproval.ps1 -text
 control-plane/create-only-release/New-NorthGateCreateOnlyRolloutPromotion.ps1 -text
 control-plane/create-only-release/Rollback-NorthGateCreateOnlyRelease.ps1 -text

@@ -122,7 +122,7 @@
       "maximumMemoryMiB": 8192,
       "osDiskGiB": 80
     },
-    "policyHostReserveMemoryMiB": 49152,
+    "policyHostReserveMemoryMiB": 32768,
     "configuredMaximumReductionMiB": 14336,
     "reserveMarginMiBAtLastRead": 5888,
     "assessmentState": "clear-at-last-read-reduced-maxima",
@@ -169,7 +169,7 @@
         "startupMiB": 2048,
         "maximumMiB": 4096
       },
-      "storageProfileRef": "lab-ephemeral-d",
+      "storageProfileRef": "lab-ephemeral-f",
       "osDiskGiB": 40,
       "networkProfileRef": "business-apps",
       "bootstrapProfileRef": "debian12-disposable-canary",

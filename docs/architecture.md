@@ -54,7 +54,7 @@ Source-restricted public-key authentication plus the server-enforced forced comm
 - The host-side installed policy is authoritative for storage roots, switch identity/fingerprint, image artifacts, firmware, capacity, and action allowlists. Git catalogs can narrow but never widen it.
 - A repository policy with `applyEnabled: true` is release input only. If the matching installed policy, active-release record, constrained identity, or registry is absent, create-only apply is disabled regardless of Git state.
 - Host-executed PowerShell is Authenticode-signed with SHA-256 by the pinned release signer and must validate under the host execution policy. Detached CMS signatures bind the package and executable provenance but do not replace Authenticode enforcement.
-- Initial installed authority is copied from the signed host authorization. Backend-policy presence cannot change `initialPolicy.applyEnabled=false`, add an action, or start the disabled service.
+- Initial installed authority is copied from the signed host authorization. Backend-policy presence cannot change `initialPolicy.applyEnabled=false`, add an action, or start the disabled service. A later Debian planning activation requires the installed-only helper, a native human administrator, the pinned non-exportable approval signer, a short-lived canonical record bound to readiness evidence and the exact release tuple, plus HMAC-protected host registration. The service revalidates that record on every start.
 - A proposed image or profile is design inventory only. `promotedOnly: true` means a standard manifest may resolve only an active promoted image even when the image catalog also carries a pinned proposed candidate awaiting artifact and boot evidence.
 
 ## Failure behavior

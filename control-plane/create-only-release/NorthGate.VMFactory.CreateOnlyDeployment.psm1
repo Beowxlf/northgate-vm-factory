@@ -10,6 +10,8 @@ $script:BackupReceiptSchema = 'northgate/create-only-backup-receipt/v1'
 $script:PointerSchema = 'northgate/create-only-current-release/v1'
 $script:InstalledReleaseSchema = 'northgate/create-only-installed-release/v1'
 $script:PolicySchema = 'northgate/create-only-installed-policy/v1'
+$script:InitialActivationSchema = 'northgate/create-only-initial-activation/v1'
+$script:InitialActivationRecordSchema = 'northgate/create-only-initial-activation-record/v1'
 $script:DeploymentLockName = 'Global\NorthGate.VMFactory.CreateOnly.Deployment.v1'
 $script:ServiceName = 'NorthGateCreateOnly'
 $script:ServiceAccount = 'NT SERVICE\NorthGateCreateOnly'
@@ -1708,10 +1710,355 @@ function New-NgcdInstalledPolicy {
         serviceHostSignerCertificateSha256 = [string]$Authorization.identity.releaseSignerCertificateSha256
         backendPolicySha256 = $BackendPolicySha256
         dataBundleSha256 = $DataBundleSha256
+        initialActivationSha256 = ''
         applyEnabled = [bool]$Authorization.initialPolicy.applyEnabled
         executableActions = [object[]]@($Authorization.initialPolicy.executableActions)
         canaryStage = [string]$Authorization.initialPolicy.canaryStage
     }
+}
+
+function ConvertFrom-NgcdStrictUtcTimestamp {
+    param([string]$Value,[string]$Code)
+    $parsed = [DateTimeOffset]::MinValue
+    $style = [Globalization.DateTimeStyles]::AssumeUniversal -bor
+        [Globalization.DateTimeStyles]::AdjustToUniversal
+    if ($Value -cnotmatch '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' -or
+        -not [DateTimeOffset]::TryParseExact(
+            $Value,"yyyy-MM-dd'T'HH:mm:ss'Z'",[Globalization.CultureInfo]::InvariantCulture,
+            $style,[ref]$parsed
+        )) { Stop-Ngcd $Code }
+    $parsed
+}
+
+function Get-NgcdInitialActivationCurrentPath {
+    param([object]$Context)
+    Join-Path (Join-Path $Context.StateRoot 'initial-activation') 'current.json'
+}
+
+function Test-NgcdDetachedCmsBytes {
+    param([byte[]]$ContentBytes,[byte[]]$SignatureBytes,[string]$ExpectedSignerSha256)
+    if ($ContentBytes.Length -le 0 -or $ContentBytes.Length -gt 1048576 -or
+        $SignatureBytes.Length -le 0 -or $SignatureBytes.Length -gt 1048576) {
+        Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-SIGNATURE-INVALID'
+    }
+    try { Add-Type -AssemblyName System.Security -ErrorAction Stop }
+    catch { Add-Type -AssemblyName System.Security.Cryptography.Pkcs -ErrorAction Stop }
+    try {
+        $content = New-Object System.Security.Cryptography.Pkcs.ContentInfo(,$ContentBytes)
+        $cms = New-Object System.Security.Cryptography.Pkcs.SignedCms($content,$true)
+        $cms.Decode($SignatureBytes)
+        if (-not $cms.Detached -or $cms.SignerInfos.Count -ne 1 -or
+            $cms.SignerInfos[0].DigestAlgorithm.Value -cne '2.16.840.1.101.3.4.2.1') {
+            Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-SIGNATURE-INVALID'
+        }
+        $cms.CheckSignature($true)
+        $certificate = $cms.SignerInfos[0].Certificate
+        $null = Test-NgcdCertificatePin $certificate $ExpectedSignerSha256
+        $rsa = [Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey(
+            $certificate
+        )
+        try {
+            if ($null -eq $rsa -or $rsa.KeySize -lt 3072) {
+                Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-SIGNATURE-INVALID'
+            }
+        }
+        finally { if ($null -ne $rsa) { $rsa.Dispose() } }
+        [pscustomobject][ordered]@{
+            signerCertificateSha256 = $ExpectedSignerSha256
+            signatureSha256 = Get-NgcdSha256Bytes $SignatureBytes
+        }
+    }
+    catch {
+        if ($_.Exception.Message -cmatch '^NGCOR-') { throw }
+        Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-SIGNATURE-INVALID'
+    }
+}
+
+function New-NgcdCurrentUserApprovalSignature {
+    param([byte[]]$ContentBytes,[string]$ExpectedSignerSha256)
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+    if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) -or
+        $identity.User.Value -in @('S-1-5-18','S-1-5-19','S-1-5-20')) {
+        Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-ADMIN-IDENTITY-REQUIRED'
+    }
+    $matches = @(Get-ChildItem -LiteralPath Cert:\CurrentUser\My | Where-Object {
+        $_.HasPrivateKey -and (Get-NgcdSha256Bytes $_.RawData) -ceq $ExpectedSignerSha256
+    })
+    if ($matches.Count -ne 1) { Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-SIGNING-KEY-UNAVAILABLE' }
+    $certificate = $matches[0]
+    $null = Test-NgcdCertificatePin $certificate $ExpectedSignerSha256
+    $rsa = [Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($certificate)
+    try {
+        if ($null -eq $rsa -or $rsa.KeySize -lt 3072) {
+            Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-SIGNING-KEY-INVALID'
+        }
+        if ($rsa -is [Security.Cryptography.RSACng]) {
+            $forbidden = [Security.Cryptography.CngExportPolicies]::AllowExport -bor
+                [Security.Cryptography.CngExportPolicies]::AllowPlaintextExport
+            if (($rsa.Key.ExportPolicy -band $forbidden) -ne 0) {
+                Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-SIGNING-KEY-EXPORTABLE'
+            }
+        }
+        elseif ($rsa -is [Security.Cryptography.RSACryptoServiceProvider]) {
+            if ($rsa.CspKeyContainerInfo.Exportable) {
+                Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-SIGNING-KEY-EXPORTABLE'
+            }
+        }
+        else { Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-SIGNING-KEY-INVALID' }
+        try { Add-Type -AssemblyName System.Security -ErrorAction Stop }
+        catch { Add-Type -AssemblyName System.Security.Cryptography.Pkcs -ErrorAction Stop }
+        $content = New-Object System.Security.Cryptography.Pkcs.ContentInfo(,$ContentBytes)
+        $cms = New-Object System.Security.Cryptography.Pkcs.SignedCms($content,$true)
+        $signer = New-Object System.Security.Cryptography.Pkcs.CmsSigner($certificate)
+        $signer.IncludeOption = [Security.Cryptography.X509Certificates.X509IncludeOption]::EndCertOnly
+        $signer.DigestAlgorithm = New-Object Security.Cryptography.Oid(
+            '2.16.840.1.101.3.4.2.1','SHA256'
+        )
+        $cms.ComputeSignature($signer,$true)
+        $signature = $cms.Encode()
+        $null = Test-NgcdDetachedCmsBytes $ContentBytes $signature $ExpectedSignerSha256
+        return ,$signature
+    }
+    finally { if ($null -ne $rsa) { $rsa.Dispose() } }
+}
+
+function Assert-NgcdInitialActivationContract {
+    param(
+        [object]$Activation,[object]$Installed,[object]$Manifest,[object]$Authorization,
+        [string]$AuthorizationSha256,[AllowEmptyString()][string]$RegisteredAtUtc=''
+    )
+    $code = 'NGCOR-INITIAL-ACTIVATION-CONTRACT-INVALID'
+    Assert-NgcdExactProperties $Activation @(
+        'schema','activationId','changeId','authorizationSha256','releaseManifestSha256',
+        'backendPolicySha256','dataBundleSha256','repository','fromStage','toStage',
+        'applyEnabled','executableActions','readinessEvidenceSha256','issuedAtUtc','expiresAtUtc',
+        'approverSid','nonce'
+    ) $code
+    Assert-NgcdExactProperties $Activation.repository @('identity','commit','tree') $code
+    if ($Activation.schema -cne $script:InitialActivationSchema -or
+        $Activation.activationId -cnotmatch '^ngactivate-[a-f0-9]{64}$' -or
+        $Activation.changeId -cnotmatch '^NG-CHG-[0-9]{8}-[A-Z0-9-]{3,32}$' -or
+        $Activation.authorizationSha256 -cne $AuthorizationSha256 -or
+        $Activation.releaseManifestSha256 -cne $Installed.releaseManifestSha256 -or
+        $Activation.backendPolicySha256 -cne $Installed.backendPolicySha256 -or
+        $Activation.dataBundleSha256 -cne $Installed.dataBundleSha256 -or
+        $Activation.repository.identity -cne 'Beowxlf/northgate-vm-factory' -or
+        $Activation.repository.commit -cne $Installed.repositoryCommit -or
+        $Activation.repository.tree -cne $Installed.repositoryTree -or
+        $Activation.repository.commit -cne $Manifest.repository.commit -or
+        $Activation.repository.tree -cne $Manifest.repository.tree -or
+        $Activation.fromStage -cne 'disabled' -or $Activation.toStage -cne 'debian-canary' -or
+        $Activation.applyEnabled -ne $true -or
+        (@($Activation.executableActions) -join '|') -cne 'Create' -or
+        $Activation.readinessEvidenceSha256 -cnotmatch '^[a-f0-9]{64}$' -or
+        $Activation.readinessEvidenceSha256 -ceq ('0' * 64) -or
+        $Activation.approverSid -cnotmatch '^S-1-[0-9-]+$' -or
+        $Activation.approverSid -in @('S-1-5-18','S-1-5-19','S-1-5-20') -or
+        $Activation.nonce -cnotmatch '^[a-f0-9]{64}$' -or
+        $Authorization.initialPolicy.applyEnabled -ne $false -or
+        @($Authorization.initialPolicy.executableActions).Count -ne 0 -or
+        $Authorization.initialPolicy.canaryStage -cne 'disabled') { Stop-Ngcd $code }
+    $issued = ConvertFrom-NgcdStrictUtcTimestamp $Activation.issuedAtUtc $code
+    $expires = ConvertFrom-NgcdStrictUtcTimestamp $Activation.expiresAtUtc $code
+    if ($expires -le $issued -or ($expires - $issued).TotalSeconds -gt 300) { Stop-Ngcd $code }
+    if (-not [string]::IsNullOrEmpty($RegisteredAtUtc)) {
+        $registered = ConvertFrom-NgcdStrictUtcTimestamp $RegisteredAtUtc $code
+        if ($registered -lt $issued -or $registered -gt $expires) { Stop-Ngcd $code }
+    }
+    $true
+}
+
+function Test-NgcdInitialActivationState {
+    param(
+        [object]$Context,[object]$Installed,[object]$Manifest,[object]$Authorization,
+        [string]$AuthorizationSha256,[object]$Policy
+    )
+    $record = Read-NgcdProtectedRecord (Get-NgcdInitialActivationCurrentPath $Context) `
+        $Context.MacKey 'NGCOR-INITIAL-ACTIVATION-STATE-INVALID'
+    Assert-NgcdExactProperties $record @(
+        'schema','activation','activationSha256','detachedCmsSignatureBase64',
+        'detachedCmsSignatureSha256','signerCertificateSha256','registeredAtUtc'
+    ) 'NGCOR-INITIAL-ACTIVATION-STATE-INVALID'
+    if ($record.schema -cne $script:InitialActivationRecordSchema -or
+        $record.activationSha256 -cnotmatch '^[a-f0-9]{64}$' -or
+        $record.detachedCmsSignatureSha256 -cnotmatch '^[a-f0-9]{64}$' -or
+        $record.signerCertificateSha256 -cne $Authorization.identity.approvalSignerCertificateSha256) {
+        Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-STATE-INVALID'
+    }
+    $null = Assert-NgcdInitialActivationContract $record.activation $Installed $Manifest $Authorization `
+        $AuthorizationSha256 ([string]$record.registeredAtUtc)
+    $activationBytes = [Text.Encoding]::UTF8.GetBytes(
+        (ConvertTo-NorthGateCreateOnlyCanonicalJson $record.activation)
+    )
+    if ((Get-NgcdSha256Bytes $activationBytes) -cne $record.activationSha256 -or
+        $Policy.initialActivationSha256 -cne $record.activationSha256 -or
+        $Policy.applyEnabled -ne $true -or
+        (@($Policy.executableActions) -join '|') -cne 'Create' -or
+        $Policy.canaryStage -cne 'debian-canary') {
+        Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-STATE-INVALID'
+    }
+    try { $signatureBytes = [Convert]::FromBase64String([string]$record.detachedCmsSignatureBase64) }
+    catch { Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-STATE-INVALID' }
+    $signatureEvidence = Test-NgcdDetachedCmsBytes $activationBytes $signatureBytes `
+        ([string]$Authorization.identity.approvalSignerCertificateSha256)
+    if ($signatureEvidence.signatureSha256 -cne $record.detachedCmsSignatureSha256) {
+        Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-STATE-INVALID'
+    }
+    [pscustomobject][ordered]@{
+        status = 'verified'; activationId = [string]$record.activation.activationId
+        activationSha256 = [string]$record.activationSha256
+        registeredAtUtc = [string]$record.registeredAtUtc
+    }
+}
+
+function Invoke-NorthGateCreateOnlyInitialActivationTransaction {
+    [CmdletBinding(SupportsShouldProcess,ConfirmImpact='High')]
+    param(
+        [Parameter(Mandatory)][object]$Context,
+        [Parameter(Mandatory)][object]$Installed,
+        [Parameter(Mandatory)][object]$Manifest,
+        [Parameter(Mandatory)][object]$Authorization,
+        [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$AuthorizationSha256,
+        [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$ReadinessEvidenceSha256,
+        [Parameter(Mandatory)][ValidatePattern('^NG-CHG-[0-9]{8}-[A-Z0-9-]{3,32}$')][string]$ChangeId,
+        [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$ApprovalCertificateSha256,
+        [Parameter(Mandatory)][ValidateRange(30,300)][int]$LifetimeSeconds
+    )
+    Assert-NgcdContext $Context
+    if ($Context.Mode -cne 'Production') { Stop-Ngcd 'NGCOR-DEPLOYMENT-PRODUCTION-CONTEXT-REQUIRED' }
+    if ($ApprovalCertificateSha256 -cne $Authorization.identity.approvalSignerCertificateSha256 -or
+        $ReadinessEvidenceSha256 -ceq ('0' * 64)) {
+        Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-BINDING-MISMATCH'
+    }
+    if (-not $PSCmdlet.ShouldProcess([string]$Authorization.host.hostId,
+        'Activate the installed create-only service for Debian planning')) {
+        Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-CONFIRMATION-REQUIRED'
+    }
+    $lock = Enter-NgcdDeploymentLock $Context.LockName
+    $disabledPolicyBytes = $null
+    $destinationRoot = Join-Path $Context.ReleaseParent ([string]$Manifest.releaseId)
+    $serviceHostPath = Join-Path $destinationRoot ([string]$Context.ServiceHostFileName)
+    try {
+        $verified = Test-NorthGateCreateOnlyInstalledRelease $Context $Manifest $Authorization $AuthorizationSha256
+        if ($verified.status -cne 'verified' -or $verified.releaseRoot -cne $destinationRoot -or
+            $Installed.releaseId -cne $Manifest.releaseId -or
+            $Installed.releaseManifestSha256 -cne $Authorization.releaseManifestSha256 -or
+            $Installed.deploymentAuthorizationSha256 -cne $AuthorizationSha256) {
+            Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-BINDING-MISMATCH'
+        }
+        $disabledPolicyBytes = Read-NgcdExclusiveBytes $Context.PolicyPath 1048576 `
+            'NGCOR-INITIAL-ACTIVATION-POLICY-INVALID'
+        try {
+            $disabledPolicy = (ConvertFrom-NorthGateCreateOnlyCanonicalJsonBytes `
+                -Bytes $disabledPolicyBytes -MaximumBytes 1048576).Value
+        }
+        catch { Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-POLICY-INVALID' }
+        Assert-NgcdExactProperties $disabledPolicy @(
+            'schema','releaseId','releaseManifestSha256','pipeName','sshIdentitySid',
+            'serviceIdentitySid','serviceName','serviceHostSignerCertificateSha256',
+            'backendPolicySha256','dataBundleSha256','initialActivationSha256',
+            'applyEnabled','executableActions','canaryStage'
+        ) 'NGCOR-INITIAL-ACTIVATION-POLICY-INVALID'
+        if ((ConvertTo-NorthGateCreateOnlyCanonicalJson $disabledPolicy) -cne
+                ([Text.Encoding]::UTF8.GetString($disabledPolicyBytes)) -or
+            $disabledPolicy.releaseId -cne $Installed.releaseId -or
+            $disabledPolicy.releaseManifestSha256 -cne $Installed.releaseManifestSha256 -or
+            $disabledPolicy.backendPolicySha256 -cne $Installed.backendPolicySha256 -or
+            $disabledPolicy.dataBundleSha256 -cne $Installed.dataBundleSha256 -or
+            $disabledPolicy.initialActivationSha256 -cne '' -or
+            $disabledPolicy.applyEnabled -ne $false -or
+            @($disabledPolicy.executableActions).Count -ne 0 -or
+            $disabledPolicy.canaryStage -cne 'disabled') {
+            Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-POLICY-INVALID'
+        }
+        $service = Get-CimInstance -ClassName Win32_Service -Filter ("Name='" + $script:ServiceName + "'") `
+            -ErrorAction Stop
+        if ($service.State -cne 'Stopped' -or $service.StartMode -cne 'Disabled') {
+            Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-SERVICE-NOT-DISABLED'
+        }
+        $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+        $issued = [DateTimeOffset]::UtcNow
+        $activation = [pscustomobject][ordered]@{
+            schema = $script:InitialActivationSchema
+            activationId = 'ngactivate-' + (New-NgcdRandomHex 32)
+            changeId = $ChangeId
+            authorizationSha256 = $AuthorizationSha256
+            releaseManifestSha256 = [string]$Installed.releaseManifestSha256
+            backendPolicySha256 = [string]$Installed.backendPolicySha256
+            dataBundleSha256 = [string]$Installed.dataBundleSha256
+            repository = [pscustomobject][ordered]@{
+                identity = 'Beowxlf/northgate-vm-factory'
+                commit = [string]$Installed.repositoryCommit
+                tree = [string]$Installed.repositoryTree
+            }
+            fromStage = 'disabled'; toStage = 'debian-canary'; applyEnabled = $true
+            executableActions = [object[]]@('Create')
+            readinessEvidenceSha256 = $ReadinessEvidenceSha256
+            issuedAtUtc = $issued.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")
+            expiresAtUtc = $issued.AddSeconds($LifetimeSeconds).UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")
+            approverSid = [string]$identity.User.Value
+            nonce = New-NgcdRandomHex 32
+        }
+        $null = Assert-NgcdInitialActivationContract $activation $Installed $Manifest $Authorization `
+            $AuthorizationSha256
+        $activationBytes = [Text.Encoding]::UTF8.GetBytes(
+            (ConvertTo-NorthGateCreateOnlyCanonicalJson $activation)
+        )
+        $signatureBytes = New-NgcdCurrentUserApprovalSignature $activationBytes $ApprovalCertificateSha256
+        $activationSha256 = Get-NgcdSha256Bytes $activationBytes
+        $registeredAtUtc = Get-NgcdUtcTimestamp
+        $null = Assert-NgcdInitialActivationContract $activation $Installed $Manifest $Authorization `
+            $AuthorizationSha256 $registeredAtUtc
+        $activationRoot = Set-NgcdProtectedDirectoryAcl (Join-Path $Context.StateRoot 'initial-activation') `
+            ([string]$Authorization.identity.serviceIdentitySid) `
+            ([string]$Authorization.identity.sshIdentitySid) $false `
+            ([Security.AccessControl.FileSystemRights]::ReadAndExecute)
+        $record = [pscustomobject][ordered]@{
+            schema = $script:InitialActivationRecordSchema
+            activation = $activation
+            activationSha256 = $activationSha256
+            detachedCmsSignatureBase64 = [Convert]::ToBase64String($signatureBytes)
+            detachedCmsSignatureSha256 = Get-NgcdSha256Bytes $signatureBytes
+            signerCertificateSha256 = $ApprovalCertificateSha256
+            registeredAtUtc = $registeredAtUtc
+        }
+        Write-NgcdProtectedRecord (Join-Path $activationRoot 'current.json') $record $Context.MacKey
+        $activePolicy = New-NgcdInstalledPolicy $Authorization $Installed.releaseId `
+            $Installed.releaseManifestSha256 $Installed.backendPolicySha256 $Installed.dataBundleSha256
+        $activePolicy.initialActivationSha256 = $activationSha256
+        $activePolicy.applyEnabled = $true
+        $activePolicy.executableActions = [object[]]@('Create')
+        $activePolicy.canaryStage = 'debian-canary'
+        Write-NgcdAtomicCanonicalJson $Context.PolicyPath $activePolicy
+        $null = Set-NgcdWindowsService $serviceHostPath $destinationRoot `
+            ([string]$Authorization.identity.serviceIdentitySid) `
+            ([string]$Authorization.identity.sshIdentitySid) $true
+        $validated = Test-NgcdInitialActivationState $Context $Installed $Manifest $Authorization `
+            $AuthorizationSha256 $activePolicy
+        [pscustomobject][ordered]@{
+            status = 'activated-for-planning'; activationId = [string]$validated.activationId
+            activationSha256 = [string]$validated.activationSha256
+            canaryStage = 'debian-canary'; executableActions = [object[]]@('Create')
+        }
+    }
+    catch {
+        $failureCode = [string]$_.Exception.Message
+        if ($failureCode -cnotmatch '^NGCOR-[A-Z0-9-]{1,96}$') {
+            $failureCode = 'NGCOR-INITIAL-ACTIVATION-FAILED'
+        }
+        if ($null -ne $disabledPolicyBytes) {
+            try {
+                Write-NgcdAtomicBytes $Context.PolicyPath $disabledPolicyBytes
+                $null = Set-NgcdWindowsService $serviceHostPath $destinationRoot `
+                    ([string]$Authorization.identity.serviceIdentitySid) `
+                    ([string]$Authorization.identity.sshIdentitySid) $false
+            }
+            catch { Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-OUTCOME-UNKNOWN' }
+        }
+        Stop-Ngcd $failureCode
+    }
+    finally { Exit-NgcdDeploymentLock $lock }
 }
 
 function New-NgcdManagedSshConfiguration {
@@ -1864,6 +2211,7 @@ function Test-NorthGateCreateOnlyInstalledRelease {
 
 Export-ModuleMember -Function @(
     'Invoke-NorthGateCreateOnlyInstallTransaction',
+    'Invoke-NorthGateCreateOnlyInitialActivationTransaction',
     'Invoke-NorthGateCreateOnlyRollbackTransaction',
     'Test-NorthGateCreateOnlyInstalledRelease'
 )
@@ -1871,8 +2219,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAC2M2lzO4RWeW9
-# nxJPzA0mYJmcv6F2y7Y5R+6XnppiKKCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCANAGjcY41ctD6K
+# PqLWbLK+yAyhBjb5GndMD99hyWqeEaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -1900,14 +2248,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIBmo+YUUK5ORVPtOReGoV05MspwBn1KZMyToCwTYzZcdMA0GCSqG
-# SIb3DQEBAQUABIIBgByz7019ekGmgxTFbeKot8wZexOkUmqgpADnz/aweL/SV0nJ
-# 83NjRKz9qSNv3E6cIW5D5VNFP15j+OetBW/mWx+giWA6GjQ9WMBHvD4SAfvdo2NK
-# lD/zbpTMez6m2SBQy+99mkviU6JrTrJ2EMNDLzPEE6C//U3gfgebReY14g8SQTuj
-# QGOWIwQdbcs4j2K1yYoLLYEaDuMV8t7+oScpaKGol1PMdYOG2HAqKTAFzciQ3bkl
-# r57EFtxN8vfXFFtEQ0LL/8JwZytrvGJ7qc4gfPZVhitoDWKzeQtQGQW5NagCodhV
-# 7z5d2brgMnTt4IsvFhqIgpN+iEPcfAjXvVFoM8jmmJRZHYkHezZldDcDiD9Kcq4V
-# 1M6qERGvZ+gNnxVPEwxLL+qezb/SAAte1Hr77XuacRl8uI4l0oi2kmNVVM30mLei
-# a/JHN9Vgxxa1yLcwwanbwNrgVnxcgPin2Sx8U7ENVR1eQYvz2ENuUCLr3SPfsnd0
-# doLR4w0bLBBNgIlzXA==
+# hvcNAQkEMSIEIJ1D/0ed/j3ZF1M5t68J5/kkMNZrLxDVzPmQix5Nyg3yMA0GCSqG
+# SIb3DQEBAQUABIIBgEV2bvd5CY0h4eMoiXnxceIAkO5vWigvIhkcTf1ieiq4XRC2
+# jAwhSFWRuZbqzSw2dPJkwVepagP9FWZ0OzquitMDni8dr9P0GFHD51j2xEDL/8/h
+# 8wlSgrUGPjmpY2t3j+T8lc+VFoGxoLhvzba1vEs0YNkid/I//TGamOSCh8c/obP0
+# uHcMyLBj0+4qRicmYRYg8ksXVKlLxfKgoXR6h0vYkwWGx+kbFyxYMdlGEBATAfct
+# Jlw2hsgMBQKhNEr/LDY9gAUsfRLChesSpe1iNn1NYsSwnhtqMBUZixSXvSeuzryt
+# yy7H9mrvPXjiH8t6kISGupsAC8XVvTUp2L/KZLy7OutdR4eMOym7XqATsmRfpoVb
+# juKKdNvgAwcRUnCGT6Dx3Nrqc7Fr9xZs/aEAFQ1UnE42tvRnIciWDk4li7L3mPSD
+# 6vdwwGpQIT5hAyO79o56e4p8GBYKtoEy/zE/Nr7kVwAWEV1UsjyfYPXAj483H6E2
+# MtJ7ClAQDov5waC4jw==
 # SIG # End signature block
