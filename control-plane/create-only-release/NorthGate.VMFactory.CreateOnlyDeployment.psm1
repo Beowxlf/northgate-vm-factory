@@ -1373,6 +1373,7 @@ function Invoke-NgcdFileInstallTransaction {
             releaseSignerCertificateSha256 = [string]$Authorization.identity.releaseSignerCertificateSha256
             serviceIdentitySid = [string]$Authorization.identity.serviceIdentitySid
             sshIdentitySid = [string]$Authorization.identity.sshIdentitySid
+            serviceName = $script:ServiceName
             serviceHostFileName = [string]$Context.ServiceHostFileName
             installedAtUtc = Get-NgcdUtcTimestamp
         }
@@ -1870,8 +1871,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCP2r+4rQFrDAt7
-# E7l4xPlX3GMy8rZNzZGDDW3WVjaFWqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAC2M2lzO4RWeW9
+# nxJPzA0mYJmcv6F2y7Y5R+6XnppiKKCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -1899,14 +1900,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIO06pm23+ihC5fnHMKN2EH6jSCJfRdJRVhr/3hAK4SWwMA0GCSqG
-# SIb3DQEBAQUABIIBgCNlGd7sRD+vCnqDlzv6dCQDxxk70JUEQNKO5NB4lMpNcQJG
-# ZEC0dZf4gGScfeeHC63Ep1rEf+smgqDCnc26KFzPoIJJC0Ob71Yhd+y/ZjBOxAj9
-# VYxIuJWDLRUDm8Z1W+uCQx8c2lS+7tqub92AGP5m33gfn5CVaWwksqGWdZW4bDkd
-# GBh30veRCdV6Z0ka2++5hF3RQ+bc/Ngt99TNCjTCNS6clfLUHAayLPyvkEGkstGq
-# coTbRXUHbxeLdqSNO4DyqY+ZubB6cp/qe5ihkIQGbDyv7u+D3A2aU2pZKBJ57x8G
-# K9AUsPum0kGGOTkaPtu1kr2RV1AXX2mkNU9+BCR8pjaoID1eE7F02clhWb2oXG83
-# ObgykxKMTh2GabWyJe5vEXi6VD07wWwNxgn9Crm/DJGwsfss2WhhX8wvsEU9jEfa
-# N5cXSgGbnW5zHpzdryRxkhldAoSV9sLqdod5M0aPgJlOEJbOmgRe4CM69019qLWU
-# ScWWrbL3gVxJAwwz+A==
+# hvcNAQkEMSIEIBmo+YUUK5ORVPtOReGoV05MspwBn1KZMyToCwTYzZcdMA0GCSqG
+# SIb3DQEBAQUABIIBgByz7019ekGmgxTFbeKot8wZexOkUmqgpADnz/aweL/SV0nJ
+# 83NjRKz9qSNv3E6cIW5D5VNFP15j+OetBW/mWx+giWA6GjQ9WMBHvD4SAfvdo2NK
+# lD/zbpTMez6m2SBQy+99mkviU6JrTrJ2EMNDLzPEE6C//U3gfgebReY14g8SQTuj
+# QGOWIwQdbcs4j2K1yYoLLYEaDuMV8t7+oScpaKGol1PMdYOG2HAqKTAFzciQ3bkl
+# r57EFtxN8vfXFFtEQ0LL/8JwZytrvGJ7qc4gfPZVhitoDWKzeQtQGQW5NagCodhV
+# 7z5d2brgMnTt4IsvFhqIgpN+iEPcfAjXvVFoM8jmmJRZHYkHezZldDcDiD9Kcq4V
+# 1M6qERGvZ+gNnxVPEwxLL+qezb/SAAte1Hr77XuacRl8uI4l0oi2kmNVVM30mLei
+# a/JHN9Vgxxa1yLcwwanbwNrgVnxcgPin2Sx8U7ENVR1eQYvz2ENuUCLr3SPfsnd0
+# doLR4w0bLBBNgIlzXA==
 # SIG # End signature block
