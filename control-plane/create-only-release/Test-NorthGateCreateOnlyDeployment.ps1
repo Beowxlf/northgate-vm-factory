@@ -402,6 +402,19 @@ try {
     }
     finally { [IO.File]::WriteAllBytes($tamperedFile, $originalBytes) }
 
+    $runtimeBackendRoot = Join-Path (Join-Path $context.StateRoot 'backend') `
+        ([string]$fixture.Manifest.releaseId)
+    $null = [IO.Directory]::CreateDirectory($runtimeBackendRoot)
+    [IO.File]::WriteAllText((Join-Path $runtimeBackendRoot 'state-key.dpapi'),
+        'runtime-state-must-be-recoverable', (New-Object Text.UTF8Encoding($false)))
+    & $deployment {
+        param($Context,$TransactionId,$BackendRoot)
+        $path = Join-Path $Context.TransactionsRoot ($TransactionId + '.json')
+        $journal = Read-NgcdJournal $Context $path
+        $journal.paths.backendStateRoot = $BackendRoot
+        Write-NgcdProtectedRecord $path $journal $Context.MacKey
+    } $context $result.transactionId $runtimeBackendRoot
+
     Assert-NgcdTestThrows {
         & $deployment {
             param($Context,$TransactionId,$ReleaseId,$ManifestHash)
@@ -429,6 +442,11 @@ try {
     Assert-NgcdTest (-not (Test-Path -LiteralPath $result.releaseRoot) -and
         (Test-Path -LiteralPath $rollback.quarantinedReleaseRoot -PathType Container)) `
         'Rollback quarantines release code instead of deleting it.'
+    Assert-NgcdTest (-not (Test-Path -LiteralPath $runtimeBackendRoot) -and
+        (Test-Path -LiteralPath $rollback.quarantinedBackendStateRoot -PathType Container) -and
+        [IO.File]::ReadAllText((Join-Path $rollback.quarantinedBackendStateRoot 'state-key.dpapi')) `
+            -ceq 'runtime-state-must-be-recoverable') `
+        'Rollback quarantines release-bound backend state so the same release can be reinstalled.'
 
     $retryRoot = Join-Path $testRoot 'rollback-retry'
     $retryKey = New-Object byte[] 32
@@ -560,12 +578,11 @@ finally {
     Remove-Module NorthGate.VMFactory.CreateOnlyDeployment -Force -ErrorAction SilentlyContinue
     if (Test-Path -LiteralPath $testRoot) { Remove-Item -LiteralPath $testRoot -Recurse -Force }
 }
-
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAAlKio3xJpnJ9Z
-# Hda+4PMe00/c9STbxrR0E7HgccHggqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDKMmwmFnaj3aNL
+# UFAJI8O/RX7EhgY6Nj9w31Kde/O2Y6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -593,14 +610,14 @@ finally {
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIADtOZ18+zzAuR7oRBHaDsyNhq+KN5jI5y/UryREULcqMA0GCSqG
-# SIb3DQEBAQUABIIBgFMIAby4xQz3RP50TbJb9rJgwst5juNwqQqRcZEM3fmAM2Bq
-# dzwGOVPY6pLKW3aqmGKc3MttJEx4bPCoRunP61iWE1LcpwHgkTG9DTfrsfXMhXt5
-# PNVJX8y26O4eI0xG/rjx7fflDrhuwoWenlPSuhe2W+fcgZcGk7+zcZQA1n5EQO45
-# Uq6XnXoxALCafvcIM54Q4EfF4ZwX/IOxJSREx+CEVC7zMN0XYXDgCEewt8Dj9o3c
-# wdbtU2WqPyw3iEDrmaRI/M2dXuYDVbqYBtyQEOiHqq0JRxWD/QzPNxeODfNHJmmf
-# NE5mtq7htS5T/Yfs0Tv1mqXQxG2znkbYdvazjD3GCK22pRwdjiUSpAdLcqaVpo4W
-# PeeFch7Esi32GYxpJQ6UtObgyAy1cwS3Aa7qpcpAvHvbCDc1Eqc+owFR8kBZsYTp
-# z7WMWlbEEw37wH3bWyKsJqQ0UucsmkKbNwTsfdkvcGV+ZX4Vyu/J0IStSaWPtxv4
-# buT/2/qFb2WuGXilwQ==
+# hvcNAQkEMSIEIHt7qUlH8MznJkI6jtqTycvaDO569ZrPHPiUYCvE3Y5rMA0GCSqG
+# SIb3DQEBAQUABIIBgJlQzPxQgnNPpu+LfLG5pGX0TIBlljeHxjrixfs3iHfFoZJw
+# CaH0erCoPc/VdPx+EfWP4Cjdbcpk+X35+OchxsDWYSgKHOM+SgSxE8U4joNfo5wp
+# pjeSrFKORaRZXO5AmNx83jJpTq3aKzqZecEcDw/u4WM8zAfuswxQkL7O9LvsXKff
+# Cf6hw6GkcvMwHY3u3An/Q5OhHqKmgUS5quBMirqRL4HpkmT5GKIrkLzkZyI6hryd
+# 3YxXTXj4QC3rOxjbqwXfDCIJYGfef0Pwc+gKEYYvFbkngqywMTZB1yopCayLuudT
+# XxfWF6oVYiaA/eQElQUv6SZcgpG2Bw+oiJA9CD4Ypfl/0yA9fITUncpa9bs47xZr
+# xoJtjDGtAmeKAjlguyk0CJLiOhyoPa+119IuKsASnqGpCRF0itvP/+SZp4xcCvUK
+# dubF/vSrCvUfk+GVRFKjdLwdi/OFgQkM9Ee75A0JaAz55tBv+LiXn7bZZQ4vtSPW
+# wKJG7f+dNZ9Vh6Zg/w==
 # SIG # End signature block

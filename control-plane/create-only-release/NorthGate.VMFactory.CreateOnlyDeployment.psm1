@@ -1512,10 +1512,18 @@ function Invoke-NgcdFileRollbackTransaction {
         Restore-NgcdBackup $Context ([string]$journal.paths.backupRoot) $journal.binding
         $quarantine = Move-NgcdDirectoryToQuarantine $Context ([string]$journal.paths.destinationRoot) `
             $TransactionId 'rollback'
+        $backendQuarantine = ''
+        if ($journal.paths.PSObject.Properties['backendStateRoot'] -and
+            -not [string]::IsNullOrEmpty([string]$journal.paths.backendStateRoot)) {
+            $backendQuarantine = Move-NgcdDirectoryToQuarantine $Context `
+                ([string]$journal.paths.backendStateRoot) $TransactionId 'backend'
+        }
         $rolledBack = Set-NgcdJournalPhase $Context $journalPath 'RollbackPending' 'RolledBack'
         [pscustomobject][ordered]@{
             status = 'rolled-back'; transactionId = $TransactionId; phase = [string]$rolledBack.phase
-            quarantinedReleaseRoot = $quarantine; durableStatePreserved = $true
+            quarantinedReleaseRoot = $quarantine
+            quarantinedBackendStateRoot = $backendQuarantine
+            durableStatePreserved = $true
         }
     }
     catch { throw }
@@ -2219,8 +2227,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCANAGjcY41ctD6K
-# PqLWbLK+yAyhBjb5GndMD99hyWqeEaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAG8LpkNdT6znO1
+# H2QPWS4Eu8MH02EK1QD7501aHeESSaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -2248,14 +2256,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIJ1D/0ed/j3ZF1M5t68J5/kkMNZrLxDVzPmQix5Nyg3yMA0GCSqG
-# SIb3DQEBAQUABIIBgEV2bvd5CY0h4eMoiXnxceIAkO5vWigvIhkcTf1ieiq4XRC2
-# jAwhSFWRuZbqzSw2dPJkwVepagP9FWZ0OzquitMDni8dr9P0GFHD51j2xEDL/8/h
-# 8wlSgrUGPjmpY2t3j+T8lc+VFoGxoLhvzba1vEs0YNkid/I//TGamOSCh8c/obP0
-# uHcMyLBj0+4qRicmYRYg8ksXVKlLxfKgoXR6h0vYkwWGx+kbFyxYMdlGEBATAfct
-# Jlw2hsgMBQKhNEr/LDY9gAUsfRLChesSpe1iNn1NYsSwnhtqMBUZixSXvSeuzryt
-# yy7H9mrvPXjiH8t6kISGupsAC8XVvTUp2L/KZLy7OutdR4eMOym7XqATsmRfpoVb
-# juKKdNvgAwcRUnCGT6Dx3Nrqc7Fr9xZs/aEAFQ1UnE42tvRnIciWDk4li7L3mPSD
-# 6vdwwGpQIT5hAyO79o56e4p8GBYKtoEy/zE/Nr7kVwAWEV1UsjyfYPXAj483H6E2
-# MtJ7ClAQDov5waC4jw==
+# hvcNAQkEMSIEIGSvKt3KJJw2EdsX7J6isIKCozfi7RUHxc1GXTh+UBbdMA0GCSqG
+# SIb3DQEBAQUABIIBgHWrNirojy9ZOc8G6ukcS0q0rfLcV131UhGSa5NXbOc4+aVv
+# Nrw/gd2nrGCHpX/fJ3KCaHIytIrtlmmxgDxaK/8eDALDU+U00Ej1qCt/FBRRr3ow
+# sH2r/7okxQzHBoDUIPyu7OY3k9vbD8BUfsGPf6P55yfktf3Jws+/3qOeQA30PbkJ
+# ZjlHSY6Hc0O1iE/pat9KngWoAqCszPnPfRREv/EaZtgLza0shnBJD55hLQCvyAJJ
+# Y2sjX14MZsLPRRkDO+B1y3NT1BD91fDWYKG1sbdcu0Fqn+pk7+LToRyfiIGYxo7r
+# lBYZV3FqxnB3YpwkFNruQPlPJuyGatUk5208U/bISzmT3EUF+78JBgRlgP6MgKv1
+# mAEpvE+KaRrnUkjqVIWRR2AZTWXaLat2o4y5cEJB41JRaEty/s2ogxzJFfA7kebR
+# TBflHjpZ3QGH3YiKeexVOxn2xe/8Ae9FMcE4vr17hDKGSmFroWtZwh3UDrCGtf4r
+# IGUetfAGMqJmzZRr1w==
 # SIG # End signature block
