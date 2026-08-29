@@ -36,6 +36,10 @@ systemctl enable nftables.service >/dev/null 2>&1 || true
 systemctl enable northgate-bootstrap-firewall.service
 /usr/local/libexec/northgate-role-hook "$role_hook"
 
+# Debian Installer runs late_command inside /target before the normal boot-time
+# tmpfiles lifecycle has created sshd's volatile privilege-separation path.
+# Create it explicitly so configuration validation is deterministic in chroot.
+install -d -m 0755 /run/sshd
 sshd -t
 printf '%s\n' 'status=ready' 'authentication=publickey-only' "source=$management_source" "expires=$expiry" > /etc/northgate/bootstrap/status
 chmod 0600 /etc/northgate/bootstrap/status

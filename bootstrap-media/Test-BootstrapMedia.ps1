@@ -85,9 +85,11 @@ try {
     $linuxRoot = Join-Path $testRoot 'debian-canary-bundle\payload'
     $preseed = [IO.File]::ReadAllText((Join-Path $linuxRoot 'preseed.cfg'))
     $sshLinux = [IO.File]::ReadAllText((Join-Path $linuxRoot 'northgate\90-northgate-bootstrap.conf'))
+    $lateCommand = [IO.File]::ReadAllText((Join-Path $linuxRoot 'northgate\late-command.sh'))
     Assert-True ($preseed -match 'passwd/user-password-crypted password !' -and $preseed -notmatch 'passwd/user-password password') 'Linux password is locked, not embedded'
     Assert-True ($sshLinux -match 'AuthenticationMethods publickey' -and $sshLinux -match 'AllowUsers northgate-bootstrap@10\.10\.100\.11' -and $sshLinux -match 'PasswordAuthentication no') 'Linux SSH is public-key-only and source restricted'
     Assert-True (([IO.File]::ReadAllText((Join-Path $linuxRoot 'northgate\northgate-bootstrap.nft'))) -match 'ip saddr 10\.10\.100\.11 tcp dport 22 accept') 'Linux firewall source restriction'
+    Assert-True ($lateCommand -match 'install -d -m 0755 /run/sshd\s+sshd -t') 'Linux installer creates sshd volatile runtime state before chroot validation'
 
     $windowsScripts = Join-Path $testRoot 'windows-canary-bundle\payload\sources\$OEM$\$$\Setup\Scripts'
     $unattend = [IO.File]::ReadAllText((Join-Path $testRoot 'windows-canary-bundle\payload\autounattend.xml'))

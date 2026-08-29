@@ -237,6 +237,15 @@ try {
         @($authorization.bootstrapMedia|Where-Object sourceImageId -ceq 'debian-12.12-amd64-netinst').Count-eq5 -and
         @($authorization.bootstrapMedia|Where-Object sourceImageId -ceq 'windows-11-25h2-english-x64').Count-eq6 -and
         @($authorization.bootstrapMedia|Where-Object sourceImageId -ceq 'kali-2026.2-installer-netinst-amd64').Count-eq1) 'Authorization binds one complete asset-specific derivative ISO for each of the twelve systems.'
+    $reusedMediaAuthorization=Copy-NgcbTestObject $authorization
+    foreach($media in @($reusedMediaAuthorization.bootstrapMedia)){
+        $media.builderReleaseSha256='9'*64;$media.sourceCommit='a'*40;$media.sourceTree='b'*40
+    }
+    & $module { param($a,$r,$h) Assert-NgcbHostAuthorization $a $r $h } $reusedMediaAuthorization $release $authorizationHash
+    Assert-NgcbTest $true 'A newly signed host authorization may reuse one internally consistent, hash-pinned immutable media lineage from an earlier software release.'
+    $mixedMediaAuthorization=Copy-NgcbTestObject $reusedMediaAuthorization
+    $mixedMediaAuthorization.bootstrapMedia[0].sourceCommit='c'*40
+    Assert-NgcbThrows { & $module { param($a,$r,$h) Assert-NgcbHostAuthorization $a $r $h } $mixedMediaAuthorization $release $authorizationHash } '^NGCB-AUTHORIZATION-BOOTSTRAP-MEDIA-INVALID$' 'One authorization cannot mix bootstrap media source lineages.'
     $baseOnlyAuthorization=Copy-NgcbTestObject $authorization
     $baseOnlyAuthorization.bootstrapMedia[0].path=$baseOnlyAuthorization.images[0].path
     Assert-NgcbThrows { & $module { param($a,$r,$h) Assert-NgcbHostAuthorization $a $r $h } $baseOnlyAuthorization $release $authorizationHash } '^NGCB-AUTHORIZATION-BOOTSTRAP-MEDIA-INVALID$' 'Interactive base media cannot masquerade as asset-specific unattended media.'

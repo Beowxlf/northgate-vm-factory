@@ -617,6 +617,9 @@ function Assert-NgcbHostAuthorization {
     $provenanceHashes = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     $bundleManifestHashes = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     $payloadHashes = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    $builderReleaseHashes = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    $sourceCommits = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    $sourceTrees = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     foreach ($media in @($Authorization.bootstrapMedia)) {
         Assert-NgcbExactProperties $media @(
             'assetId','mediaId','mode','path','sha256','sizeBytes','sourceImageId','sourceImageSha256',
@@ -638,8 +641,9 @@ function Assert-NgcbHostAuthorization {
             $media.mode -cne 'asset-bound-derivative-iso' -or $media.sourceImageId -cne $expectedSourceImageId -or
             $sourceImage.Count -ne 1 -or $media.sourceImageSha256 -cne $sourceImage[0].sha256 -or
             $media.builderId -cne 'northgate-unattended-media-v1' -or
-            $media.builderReleaseSha256 -cne $Authorization.releaseManifestSha256 -or
-            $media.sourceCommit -cne $Authorization.repository.commit -or $media.sourceTree -cne $Authorization.repository.tree -or
+            $media.builderReleaseSha256 -cnotmatch '^[a-f0-9]{64}$' -or $media.builderReleaseSha256 -ceq ('0' * 64) -or
+            $media.sourceCommit -cnotmatch '^[a-f0-9]{40}$' -or $media.sourceCommit -ceq ('0' * 40) -or
+            $media.sourceTree -cnotmatch '^[a-f0-9]{40}$' -or $media.sourceTree -ceq ('0' * 40) -or
             $media.sha256 -cnotmatch '^[a-f0-9]{64}$' -or $media.provenanceSha256 -cnotmatch '^[a-f0-9]{64}$' -or
             $media.bundleManifestSha256 -cnotmatch '^[a-f0-9]{64}$' -or $media.recipeSha256 -cnotmatch '^[a-f0-9]{64}$' -or
             $media.unattendedPayloadSha256 -cnotmatch '^[a-f0-9]{64}$' -or [int64]$media.sizeBytes -lt 1 -or
@@ -652,8 +656,14 @@ function Assert-NgcbHostAuthorization {
             -not $payloadHashes.Add([string]$media.unattendedPayloadSha256)) {
             Throw-NgcbError 'NGCB-AUTHORIZATION-BOOTSTRAP-MEDIA-INVALID'
         }
+        $null = $builderReleaseHashes.Add([string]$media.builderReleaseSha256)
+        $null = $sourceCommits.Add([string]$media.sourceCommit)
+        $null = $sourceTrees.Add([string]$media.sourceTree)
     }
-    if ($bundleManifestHashes.Count -ne 12) { Throw-NgcbError 'NGCB-AUTHORIZATION-BOOTSTRAP-MEDIA-INVALID' }
+    if ($bundleManifestHashes.Count -ne 12 -or $builderReleaseHashes.Count -ne 1 -or
+        $sourceCommits.Count -ne 1 -or $sourceTrees.Count -ne 1) {
+        Throw-NgcbError 'NGCB-AUTHORIZATION-BOOTSTRAP-MEDIA-INVALID'
+    }
 }
 
 function Assert-NgcbRolloutPolicy {
@@ -4119,8 +4129,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDPox0aUUnizDGO
-# UNk4HfsjhcPasbr27RZlTgdDNBZ7x6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBIK1eIrL8Pvu4l
+# 2TNrRO4f5OuiYqL0jhUedSx/ETu83KCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -4148,14 +4158,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIALSQ9P334/CsamAZR6tbR1YDfu6nAlv61zLewbAaA9uMA0GCSqG
-# SIb3DQEBAQUABIIBgKVyTKcd4DhMKt4Zj0E8cM12BBebYdNkl0JLEKOq+5nGkdpX
-# 1EN/qLFF7eKU3L6jP0SrsF8ej3kt/1jm22WzxX32bKwrtym8M+S5hfRZncKtUjfd
-# Ug+TrsUYpEZ5O9xTDxb1r/4c8N06Bjv6mzuGl9qrTqfiunD3h1Tj+OXIuBKcD02u
-# rQ1dAfgJ/lzampMQJz5XprA35T9Hm+6oJSuluGhrY51IWm3DACxd2rY5JUuvDHk7
-# XFODRfQmkLTCja5zm4xhmJHN8JSqQDsQ2I8fwD9MRHSTsIvt9L8KEz5dUoc1WHYG
-# 368cEg9eNbgqz2a8Pnh7gruVgMuAER8RTwkd2M56aqhjvP7lq4loCaZNSifCHroi
-# c1ztPg9re3Y82IUtZ4E9CMTZTy9kpfDFxlfpHDdAvjbtA979wBpo7dtELyUm9n/c
-# QwUw4efRKlfhWk4XVGVGJkUt61q0/R849PJZh7jaKYgmaBzCh14dm7xxKZ8oh+Hw
-# N7M4VPZwZ3346AY00A==
+# hvcNAQkEMSIEIF9+6mJ9i+h96RPvHoU2PwLhq37tf8Pv5aTvf/r2cwdfMA0GCSqG
+# SIb3DQEBAQUABIIBgJokiqJ00uT8SdXUPRRVVaaHFwuetTBDtYmoXUmyZKRz0iTG
+# 8afYzgbIEDLMAGSCRLnEVvqg0zoWB8Fc4Dh5xUddIWC6ghd/8SW4RHTXxeDre9BP
+# 3uKMSZSiWJuQW7a4K8gapXj+lk597zAXxeqx/Ay/T1xocgowTiY/yFpU+SLSHxYd
+# 053GMaXOazS7kd3bs+BLJSoJxaCfIHZihxpe+bhSV1/PBNwW01BxjYgALfwKZ4XC
+# rrzChZgzuJ9f0DPmDt3TC3qoA1LAgyqALFFZ4wWr9FXLVG/KvWAV0ylojcdY//hY
+# 09Tgjfhrg+yHfbloGjKTPFC7FcxsHG/FLh8oIXpsBDRCDdsJQP6/YAtBXaIEoKHQ
+# TwmkPcy6gAOq79LWuhz6U5wJZRKDT0UJ0/Fs8tnazKyoYbiAgMMrF+uMKXC/Buv0
+# XhFaImyVtpZ1M2EWWvICLsDKgScMKK6QPSUbafk/b6GzZSF9YQ+QZPXa7tYkqPL+
+# Vv8gP+dtoIysFtEVRQ==
 # SIG # End signature block

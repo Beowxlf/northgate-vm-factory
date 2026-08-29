@@ -392,7 +392,7 @@ if ($authorization.bootstrapMedia -isnot [System.Array] -or @($authorization.boo
 Assert-NgcorExactStringSet @($authorization.bootstrapMedia.assetId) $expectedFleetAssets `
     'NGCOR-AUTHORIZATION-BOOTSTRAP-MEDIA-SCOPE-INVALID'
 $mediaIds=@();$mediaPaths=@();$mediaHashes=@();$provenancePaths=@();$provenanceHashes=@()
-$bundleManifestHashes=@();$payloadHashes=@()
+$bundleManifestHashes=@();$payloadHashes=@();$builderReleaseHashes=@();$sourceCommits=@();$sourceTrees=@()
 foreach($media in @($authorization.bootstrapMedia)) {
     Assert-NgcorExactProperties $media @(
         'assetId','mediaId','mode','path','sha256','sizeBytes','sourceImageId','sourceImageSha256',
@@ -414,8 +414,10 @@ foreach($media in @($authorization.bootstrapMedia)) {
         $media.sourceImageId -cne $expectedSource -or $source.Count -ne 1 -or
         $media.sourceImageSha256 -cne $source[0].sha256 -or
         $media.builderId -cne 'northgate-unattended-media-v1' -or
-        $media.builderReleaseSha256 -cne $ExpectedReleaseManifestSha256 -or
-        $media.sourceCommit -cne $ExpectedCommit -or $media.sourceTree -cne $ExpectedTree -or
+        $media.builderReleaseSha256 -cnotmatch '^[a-f0-9]{64}$' -or
+        $media.builderReleaseSha256 -ceq ('0'*64) -or
+        $media.sourceCommit -cnotmatch '^[a-f0-9]{40}$' -or $media.sourceCommit -ceq ('0'*40) -or
+        $media.sourceTree -cnotmatch '^[a-f0-9]{40}$' -or $media.sourceTree -ceq ('0'*40) -or
         $media.sha256 -cnotmatch '^[a-f0-9]{64}$' -or $media.sha256 -ceq ('0'*64) -or
         $media.provenanceSha256 -cnotmatch '^[a-f0-9]{64}$' -or
         $media.provenanceSha256 -ceq ('0'*64) -or
@@ -432,13 +434,19 @@ foreach($media in @($authorization.bootstrapMedia)) {
     $provenancePaths+=$provenancePath;$provenanceHashes+=[string]$media.provenanceSha256
     $bundleManifestHashes+=[string]$media.bundleManifestSha256
     $payloadHashes+=[string]$media.unattendedPayloadSha256
+    $builderReleaseHashes+=[string]$media.builderReleaseSha256
+    $sourceCommits+=[string]$media.sourceCommit
+    $sourceTrees+=[string]$media.sourceTree
 }
 if(@($mediaIds|Sort-Object -Unique).Count-ne12-or @($mediaPaths|Sort-Object -Unique).Count-ne12-or
    @($mediaHashes|Sort-Object -Unique).Count-ne12-or
    @($provenancePaths|Sort-Object -Unique).Count-ne12-or
    @($provenanceHashes|Sort-Object -Unique).Count-ne12-or
    @($bundleManifestHashes|Sort-Object -Unique).Count-ne12-or
-   @($payloadHashes|Sort-Object -Unique).Count-ne12){
+   @($payloadHashes|Sort-Object -Unique).Count-ne12-or
+   @($builderReleaseHashes|Sort-Object -Unique).Count-ne1-or
+   @($sourceCommits|Sort-Object -Unique).Count-ne1-or
+   @($sourceTrees|Sort-Object -Unique).Count-ne1){
     Stop-NgcorAuthorization 'NGCOR-AUTHORIZATION-BOOTSTRAP-MEDIA-COLLISION'
 }
 
@@ -528,8 +536,8 @@ finally { $algorithm.Dispose() }
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCD+G66ea6GCAgJI
-# iVy38254/CQtLadBOqIfJPGFDBFNmaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCY/D0c+04EY2Lz
+# NBQzSeVDupxBb9sNMZBX4XiLF7sB8aCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -557,14 +565,14 @@ finally { $algorithm.Dispose() }
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEINAbrak1sWMIAX6mAnK/+UlbrBWAWxJwEzhXWcjpnrFvMA0GCSqG
-# SIb3DQEBAQUABIIBgKwUiZsXhy1GJxFVpry0Q3bU7O2cAPZw16pdDZXYzvbBQw3N
-# WQbcuzAcGtT00adly3mQu3YWVidjZXpoZXmik34DAI5ClcJOZfRoc6Jc6PsV/+Y9
-# 8yigwqRI8WMvFb5qkhkHsiOc70L8G0glxrfA9D1zj3Tps4y8C3lYkT67xtsUp6Ir
-# Q7hijlik4y2xXIg1NJl/0F1VdPgwtPUsKrS6UYK5Ii1nHNeNSr63nE1htKu0xAu9
-# euiTBj8OiNomZNBKucoOv2K0LjR7Vowbo8VenX/IrWapEsjn+xvYnI5GgZJzCOHF
-# 0VFNHDA/WP0ir2tM0t1BTJuJGLYahHuE81E8CBzph2Y/0y/w3WsaEBhVEwHeom9i
-# Dv3kfT8OVnj+AM4uvLt8Ch9aEyPTbAU4F3EpRpF2HWAhRcBvXYTu217B8v8gsDbB
-# 4PJkdVPmgQLDevtbsPS4WXQM9HQKDLHsCJUHZJTAwNLySPHq6AE2FWLTR5YOQHmg
-# ZkPAV0rzlQt4XDDn1w==
+# hvcNAQkEMSIEIE92ziMwj0ca2cbH6lUedvjyUDABqhPwfCFAVkfTNNK4MA0GCSqG
+# SIb3DQEBAQUABIIBgF172s53T/Q4gKphcWibNiUaFdzHHOBrZMvrx5MPlSpptUAg
+# ols15EMDtaLM9zKyaIcpXt+fPg13eW7LgYlJYemUg7C2FZo7xWvOMGNFpBErCF9o
+# 1QuNuy/+1uiiYggUrdCKb/4+BpOHB8QHp8UD62bsY5l5V8i/Z1xNYSXTlLGvKIzB
+# iRrmvFPBuEJ1H5M9fBqQjYRP6cOSyfl8elGfrhIGgmAilfrv5C5ghUmrwCJIhmt5
+# +T2ufBTMKq++NbegeaKemVoC9tw/3V1fdPJd5AmL4NjCCptnmrKVvOmc+S2suR8R
+# 1bb6THVA9M+GYFBBYVegV8d4zF71juj/b/Nst7NtIZgfqLJajAM3LCWHGhKf05GJ
+# sHD1npgLAqJt4BzxcdnOVR6msMdL048Jz7KjX2ibwCjV113L5RcCDI/pPLNncN/9
+# HzL1lHdn3QWYNzQ4h5jKbxXdN6SHELxoUQnzeBP6cuEjkO0EfwuzvZfwnNtYsKD0
+# G50YdUfg//k/Ak6P3g==
 # SIG # End signature block
