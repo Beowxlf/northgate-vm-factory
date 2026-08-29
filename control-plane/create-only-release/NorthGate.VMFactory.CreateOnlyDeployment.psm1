@@ -1687,7 +1687,10 @@ function Set-NgcdWindowsService {
     $null = Invoke-NgcdSc @('description',$script:ServiceName,'NorthGate create-only VM Factory control service')
     $null = Invoke-NgcdSc @('failure',$script:ServiceName,'reset=','86400','actions=','restart/5000/restart/15000/restart/60000')
     $null = Invoke-NgcdSc @('failureflag',$script:ServiceName,'1')
-    $null = Invoke-NgcdSc @('sidtype',$script:ServiceName,'restricted')
+    # Hyper-V's management provider performs additional local authorization checks.
+    # Keep the dedicated virtual service identity, but do not apply a restricted
+    # service token that prevents its explicitly granted Hyper-V operator rights.
+    $null = Invoke-NgcdSc @('sidtype',$script:ServiceName,'unrestricted')
     $null = Set-NgcdServiceQueryIdentity $ExpectedSshSid
     if ($InstallEnabled) {
         $null = Invoke-NgcdSc @('start',$script:ServiceName)
@@ -2231,8 +2234,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCD5KE9WPOa7OBgl
-# FQucAgebIk1aohcKwECAjw4eXhcPgaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCC3mp0hfu8kA8++
+# 1vBJeF2sEWm1YSBexQFDHrqkkQfZhaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -2260,14 +2263,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIKqCAWWn1wbUG+DF8AGuwR1LvrdAcldJNPj/raM84GrMMA0GCSqG
-# SIb3DQEBAQUABIIBgK4aL4S7Vh+EHgxOoo0ybhHIQEaUgWbA8O4CJgMZrSF2oZym
-# ARvfWo+enFr9il+Ir+KoBKCWr3PbzitOW0O/xmSlE4FuB2TGMSqFbBxDl2iqF7mP
-# vJ1LX490MsnMGa+H1vDpKw40gZ4dzZEzBLV/w7+7ntwBDWi2lbFnAPyOs+RK2P8x
-# ZZjMVd4qyIw2D9Y7tOJj9pioHrJz5eykKqqxRAx6V382R0EZYh/jZDcVsApNBQsL
-# a2RwqGbNtfzvoOvUdKqj6UBa0PUQ0efo+kXy/zmhEwim086cDYgK4iO3TnMVeAiz
-# uhNxRGGmw6GkdAZ97yv3JgpKcRIzhMOrtCicTHjKbhKV1baA8uyLx/+yOwezBcne
-# 20AHN77tu1BhuaQlNN0uy4MB/ja8MmKOHWSP5Hdg3s/G4kGdVKs0qNPAvNJlYCBs
-# zyfeIZCILJqob2Xq2tynzovjYzGGrKRBbL0xIGdamIwlV/c3yNN3daxUfaRsig++
-# p4rE1s6RtnHUqxQAkQ==
+# hvcNAQkEMSIEIKKa5FXVWGXRHyfQaGF2ClV7xNbVxuirYiVl15V57e7uMA0GCSqG
+# SIb3DQEBAQUABIIBgIJ3acqVxbMjlMdAn9vFHIc9nACEsObpG4tbtus0MFezYPu1
+# 0zfwxnE5sp1W0fUlNN4s5OXzJ/WN0XkkcaLkO2RIGlvCAUV2T5dJUsDNrXZzwf9u
+# DtXrMSz+lSoRTG8GEGjwKqAnMvSuvcrhTB60ZdgRuJXmYfK7zCu0JXwN+dCxcDJV
+# GgIS8aSc1XbZ3VexNU405jtJdiNd+z7bxZvipWJAr6lBfXWoZRbvxcx/9umuNoGF
+# mmo9C8T9DllVnGYPc+NgwQAQykmlDZ5KiJOxWTUmU2vfdiQ5RKvNGrXLK285oLng
+# zU0RijMenq0O5vlU1QMGyDYK2EubIde8iBoImR9xLkGzNDlMZqIwj/W8oliv+O1j
+# loeLhsCTe/4LBpNorokrsQGG2J+GDdv6XVpnOg9Flck6vq6M4Ujg7nKH/iDykmlg
+# 3rreuwGs9iXoiH+uWlGr33YhiK+OnBp5Ta57K4R7GM6z9oIT4MqG0pgJImh36n2H
+# 3s7H1vlEN5+THah5qg==
 # SIG # End signature block
