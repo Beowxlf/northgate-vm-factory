@@ -359,19 +359,30 @@ function Assert-NgcbNoReparseAncestor {
     return $full
 }
 
+function Test-NgcbAclMutationRights {
+    param([Parameter(Mandatory)][Security.AccessControl.FileSystemRights]$Rights)
+    # Use only atomic mutation bits. Composite rights such as FullControl and
+    # Modify include Synchronize and read bits, so OR-ing those composites into
+    # this mask would incorrectly classify ReadAndExecute as writable.
+    $writeMask = [Security.AccessControl.FileSystemRights]::WriteData -bor
+        [Security.AccessControl.FileSystemRights]::AppendData -bor
+        [Security.AccessControl.FileSystemRights]::WriteExtendedAttributes -bor
+        [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor
+        [Security.AccessControl.FileSystemRights]::WriteAttributes -bor
+        [Security.AccessControl.FileSystemRights]::Delete -bor
+        [Security.AccessControl.FileSystemRights]::ChangePermissions -bor
+        [Security.AccessControl.FileSystemRights]::TakeOwnership
+    ($Rights -band $writeMask) -ne 0
+}
+
 function Assert-NgcbRestrictedAcl {
     param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$ServiceSid)
     try { $acl = Get-Acl -LiteralPath $Path -ErrorAction Stop }
     catch { Throw-NgcbError 'NGCB-ACL-UNREADABLE' }
     $allowedWriters = @('S-1-5-18','S-1-5-32-544',$ServiceSid)
-    $writeMask = [Security.AccessControl.FileSystemRights]::Write -bor
-        [Security.AccessControl.FileSystemRights]::Modify -bor
-        [Security.AccessControl.FileSystemRights]::FullControl -bor
-        [Security.AccessControl.FileSystemRights]::CreateFiles -bor
-        [Security.AccessControl.FileSystemRights]::Delete
     foreach ($rule in @($acl.Access)) {
         if ($rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
-            ($rule.FileSystemRights -band $writeMask) -ne 0) {
+            (Test-NgcbAclMutationRights $rule.FileSystemRights)) {
             try { $sid = $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value }
             catch { Throw-NgcbError 'NGCB-ACL-IDENTITY-UNRESOLVED' }
             if ($sid -notin $allowedWriters) { Throw-NgcbError 'NGCB-ACL-UNAUTHORIZED-WRITER' }
@@ -3650,8 +3661,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBERQpK4W9TsxxB
-# wkhZqfRRgxIWR+i6Vj5wrWnCgUWCraCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCD4WPN2ns9FK07J
+# hzf8wo0liKCoDOKMy+vr0mcBdic7CqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -3679,14 +3690,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIDlKFBatfFrEH9s1+VEMihQ7dKfWPmSiLBavo4cBsF+hMA0GCSqG
-# SIb3DQEBAQUABIIBgElLYtmoDeQaYRj1DxNtnMi5F85RNRXN6kZtSdbhkzBZuvVN
-# BZqRNFXczYl8+xXNHphWtCyxIFBsnjFdyZSQre2d7gek+wvAmpyOwAf0umnGQGrV
-# H+uUBL+jmXBfOCCxdLB3wu1diCyvWOLgNF91y6S5BuwOu8u/0+yijgNifgnVhQp6
-# ic53dd+P/EV7WhzMIQyT54xRrPkTaxxVlCdADqszprTm9VizpW3secU/Uodbuby3
-# iUEhuJ8UKo3lnUOAfuBwfpFhLOMsz+PKY8QTzuVI3cwrPlVH9YlfhXi7ucOQany6
-# kKdj9dLtx9/s3ktmxOGIuhcxAIWxsTDFe/fEKnvr4Oe2Oo3eZH3eCsLgxBMKqm4+
-# 7NzzBVPob6G0IJP9zvg13EZ70kiZIBzwE4GwS7OvyyYDEcnltDDjSm+WwY/GavaB
-# SetdXL5aJVCwH0LKdoWdJz6g0MGZG+ThaLmk/713YwT+twQBH5DH4pa/caMxKS0N
-# ayA5fEvCtGLHbAnEBg==
+# hvcNAQkEMSIEIH2ucB3P66RWwm808L22f2ovonXlggoZ1L87+9/llV3sMA0GCSqG
+# SIb3DQEBAQUABIIBgEYn2oClnsxZqdi1eE7xNU+11fgf7vvvcCQBKHHGU5iC2wtH
+# bHi8rF/mfksL01xwl98hQT+sRbZLMUABoQ1WBa+hzPt9GLrTWFyh+4Z64c5btxVv
+# XQm5ZaAZ5TdUiLy3EAdamhaMuHv0XC1fn/mEciSJfHncLx2t/YK3a1cAwUMppa4d
+# 9YtQpj3iuhlzi39yNoej4smCHBExfgfFrDLNXo2ZxipJKehJMHjOsq7zlfqu/aTV
+# PjqOybID0Jtwl+W/6PMxQzsA3ygIW7Im+baLDurAdAdloBMSQhjj3vNQOe1UibfS
+# DWACbpl7UpY7elkfhTY480cssMe3Dw2uqUzxcdugl56KPcZD0PDazWF7sHzF9whY
+# wFqpqbLJvTN9OWaBZg7PgHdMv0gelxjBCRiSLD8jhjRkpoIW5ByM+oMzbqpJmFtY
+# LHONy/yz7/J4XKu6r9KZLut/oXWo291P4nc10Ze3vrrjSZn8rbXYcsDSLbb8v/34
+# nNcYN/7Masiu3Qz0IA==
 # SIG # End signature block

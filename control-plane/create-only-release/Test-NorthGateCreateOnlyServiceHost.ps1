@@ -97,8 +97,9 @@ try {
     Assert-NgchTest ($serviceScript -notmatch 'Get-CimInstance -ClassName Win32_Service' -and
         $serviceScript -match '\$expectedStartType = if \(\[bool\]\$policy\.applyEnabled\) \{ ''Automatic'' \} else \{ ''Disabled'' \}' -and
         $serviceScript -match '\[System\.Diagnostics\.Process\]::GetCurrentProcess\(\)\.MainModule\.FileName' -and
-        $serviceScript -match '\$service\.StartType -cne \$expectedStartType') `
-        'Least-privilege service startup verifies its current host path and disabled-or-automatic posture without WMI.'
+        $serviceScript -match '\$service\.StartType -cne \$expectedStartType' -and
+        $serviceScript -match '\$service\.Status -notin @\(''StartPending'',''Running''\)') `
+        'Least-privilege startup accepts the SCM StartPending race while verifying its host path and disabled-or-automatic posture without WMI.'
     Assert-NgchTest ($serviceScript -match 'Test-NgcdInitialActivationState' -and
         $serviceScript -match 'initialActivationSha256' -and
         $serviceScript -match 'NGCOR-INITIAL-ACTIVATION-STATE-INVALID') `
@@ -285,12 +286,11 @@ try {
 finally {
     if (Test-Path -LiteralPath $testRoot) { Remove-Item -LiteralPath $testRoot -Recurse -Force }
 }
-
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAmiodKUp6sXHNg
-# HOEo4LHq5iX6DMmSsUsllKG/62psF6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCB7Xm6lT8SwjMFt
+# jHEiTmXK4HMYYq2o7gKEb4K7Eg1qeqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -318,14 +318,14 @@ finally {
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIDKrTma4ieqRW5JwXPZCY05jGQju5AJ8r4Furz870pkiMA0GCSqG
-# SIb3DQEBAQUABIIBgI7waSoxLlL7XtTvWsTwjT7C3p1PDGyCLz3n3I1Bae+LNZlp
-# 4TyNmNWxVX4YYo64vCL2Y00dL+kCzv2ot7M3VLROjxz0zMlu9MhpNw0pOy6EhJyo
-# /sW9xcD25tnipABw6QDok9vIV64IR5TTAGNFLFNQzgmWCAB/0HExXSgrgB40n+6b
-# B3/VO3EFoD1KbfJSHSwgTmotT4FyEeVUiJX1kPYWMawGMQ+CkifjLcUxRGnHB31q
-# DACA3NzQX8utRU1IKHpAilYI7nHKKMVV0MyimZF7PQG1RHaMY/3+rdj7kGp00p9O
-# dbe8AfNiThOJJdWwwvggQB9W8djllGDv75lJe5o6/J3mrj0oi/vB3G3OAqn2/gQW
-# 66W9j1o0WjdbNaa0URnwyR0WGrHrxhG4lztiMOPzo4M4bU+fQvf4Q8wh6F5a07SS
-# QAn4Wq4quIPninqrx4MuWy2WiSCjXrKzwwjja4oZsBq8Ob+ND1HbHg50RTuNvX28
-# HRYnPQBdoGAI0xbU6g==
+# hvcNAQkEMSIEIOZAYGZ0VR46sFp9p+yldDTIQRG30zukrasqjYniNqSoMA0GCSqG
+# SIb3DQEBAQUABIIBgI34FW9u2hNBtZcS8KAFdgn9i/ZJ10ANi9gIYfoHSvukOD7B
+# osUE7azDUvEh9YDXHjjU0dm/XLAPWxrt6CDIxROQpRkicEgE2taNmTcS0arNM5Zi
+# ukuovK/eCdfXS6eYE9rd5iAgyYp9HR7R15zOheopxyFkHiYYQvBvh8nE3GS1Ayd6
+# LBWYi0SXyNIhnrFvzqMlbTpJNvfRkKmZludCysRTZgBWru7DFSZIAH9956htanjA
+# lfm9mKIHJ1Nzc16YBOMmVNAA9dyYKkP+GRvE0Mq3DKKVsF9KkBa+I0gLIFH4JP6b
+# 543f3PVGyLCIhagflLi0bxxaI8fxXyIApM6GW+wf6x3yj+yJ62vXCq4gDfBypee0
+# 11BxZ6lxxEAPfZsVvyuAyuobOewNRkH/R3OO/3yryUvAu3rYB8aA0ZwrimwjD6/7
+# NzTrYUXKmFLVwFNwP2Pm9PKBN/J5cyu8n9hVYQ+txYgkEy7cLH6UaZgYYIMd+Soa
+# cxYOZdRbXwXGa4jAWg==
 # SIG # End signature block
