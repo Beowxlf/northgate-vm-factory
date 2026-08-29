@@ -316,7 +316,7 @@ Assert-NgcorTest ($forcedSource -match 'Read-NgcorStandardInput 1 2000' -and $fo
 Assert-NgcorTest ($forcedSource -match 'function Read-NgcorStandardInput[\s\S]{0,1800}\$bytes = \$memory\.ToArray\(\)[\s\S]{0,80}return ,\$bytes') `
     'Empty standard input is preserved as a scalar byte array across the PowerShell function boundary.'
 Assert-NgcorTest ($forcedSource -match '\$maximumPlanBytes \+ 1' -and $forcedSource -match 'ConvertFrom-NorthGateCreateOnlyPlanRequestBytes') 'Plan stdin is bounded and strictly parsed before forwarding.'
-Assert-NgcorTest ($forcedSource -match '\$responseHeaderTimeoutMilliseconds = 60000' -and
+Assert-NgcorTest ($forcedSource -match '\$responseHeaderTimeoutMilliseconds = 300000' -and
     $forcedSource -match 'Read-NgcorPipeExact \$pipe 4 \$responseHeaderTimeoutMilliseconds') `
     'Plan and status responses have a bounded timeout long enough for the validated host snapshot.'
 Assert-NgcorTest ($forcedSource -match 'function Get-NgcorForcedSafeErrorCode' -and
@@ -1012,11 +1012,12 @@ $null = & (Join-Path $root 'Test-NorthGateCreateOnlyService.ps1')
 $null = & (Join-Path $root 'Test-NorthGateCreateOnlyDeployment.ps1')
 
 Write-Output "PASS: $script:Assertions assertions"
+
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCeRuFWi68auOlH
-# geuwDGF8HVhaxD/7Q2lKiWIF/GDpH6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDv1Vf7SJK4sc3e
+# B9cW37o2IXVWxUbMcBfBsFZyK/1SIqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -1044,14 +1045,14 @@ Write-Output "PASS: $script:Assertions assertions"
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEII64+qCqivgpzN/8/5X8zP3YIgdPUo/JCzzmMNuuHLRvMA0GCSqG
-# SIb3DQEBAQUABIIBgLP1b8JjmIPL1sw3CKR+yL0dDJ9rAEOiqzuAG/xixkIwKgXZ
-# SptBkwAh126nFCREMdI2VFYedh532F4mRrNyfM+uFIGsdO9AcgpMiAHgu6ZhTwbL
-# ZhHLJ4uyq5MdzLDP2CArs9gAlnTpli725ywCwcXSkRgcr5S6TBaMbdQ5lLN1IdJI
-# L46bX8931+wVz8ztLvV84YIEm2t21T2PaTT2DB7nvB2p2KidN0ZDQ8gdYfHQXXC8
-# +VxvZ+1J4yJb+eA3KwUW2Lz2reExMYQFya2ViArdb2KM17gueDWyFzd1YwhDyfDn
-# x84aMRf+xCJR7XzXTZgZTSa5mO2q6MLAIMSewmALFcyuRiJOy2OXixhUnql9waBv
-# GtKQsgKcdcJ783fj65dNe1ZgQOOHCowHtT/1iZN9tFh6i9kTvZfO8Fhr0rYonWn0
-# GGU+Mvx2IrAtH3Hs9daUtoRQPtB0lMZYT5yqHFA9xWvgl9ccdb7ibKRSf05TSij1
-# 0bbn1RjRQ3Xcu9cPXg==
+# hvcNAQkEMSIEICne5Bi+o6ACljMArc079W+BM4d5AjNUWvmyCxPbdcPcMA0GCSqG
+# SIb3DQEBAQUABIIBgGCH5UEniAZ27DjecRvVswhpSFAbQgHM5az96LMCH79oO02U
+# TiEgOZH4UImWUC1/M2HkYtZMUV0UjZ0PJzNQv25TZA68wwOztE44Xjn/X0GvqYY1
+# NX/xRcDcPbJoIcHYmUOEj8SdtLkpYI81Q/Zg28RdMI6os0ZJ0gmSeBD3VgAeKdzZ
+# E4bapY9uYYHs8teuDQt+9D/z5KGAY+PRNNapsXx0R5fuGMONXwL33bbELmcQQsmM
+# 0VkCLYulBZREhiTBpwpzR1+T26JUBWea3UG5iuFh+MnTw9DCGITuaw2ArZZUjTZ3
+# 7irk0GY/ROvGCHXyrt05cMpjPk8rzffMWeJuUVXL3HPXcH00+x8tfphpAgjL8XAd
+# ym4e9LymytfGGBlfY2LouPaiv00gQwSBmKKVHNpFVKdkUDg7NA+2Y0IF3VFQPHSO
+# xmkAxCsNjg8Yulat0pY9skqSfND/N80Q27U9ApajneuSAe3yeVTmwEpKNa0lFaeY
+# GANx3mwQxlF6FccmIw==
 # SIG # End signature block
