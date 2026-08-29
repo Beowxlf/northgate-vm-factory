@@ -114,6 +114,12 @@ try {
         $serviceScript.IndexOf('if ([bool]$policy.applyEnabled)') -lt
         $serviceScript.IndexOf('$backendContext = New-NorthGateCreateOnlyBackendContext')) `
         'Disabled status startup does not initialize the mutation-capable backend.'
+    $contextIndex = $serviceScript.IndexOf('$backendContext = New-NorthGateCreateOnlyBackendContext')
+    $recoveryIndex = $serviceScript.IndexOf('Invoke-NorthGateCreateOnlyCrashRecovery -Context $backendContext')
+    $listenIndex = $serviceScript.IndexOf('while (-not $serviceStopEvent.WaitOne(0))')
+    Assert-NgchTest ($contextIndex -ge 0 -and $recoveryIndex -gt $contextIndex -and
+        $listenIndex -gt $recoveryIndex) `
+        'Active startup completes authenticated crash recovery before accepting pipe requests.'
 
     $null = [System.IO.Directory]::CreateDirectory($testRoot)
     $firstRoot = Join-Path $testRoot 'first'
@@ -286,11 +292,12 @@ try {
 finally {
     if (Test-Path -LiteralPath $testRoot) { Remove-Item -LiteralPath $testRoot -Recurse -Force }
 }
+
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCB7Xm6lT8SwjMFt
-# jHEiTmXK4HMYYq2o7gKEb4K7Eg1qeqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBKqCE0W/Xu633v
+# Mv8ezeF3qmhY6KcJAT0uwYYp8b10NqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -318,14 +325,14 @@ finally {
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIOZAYGZ0VR46sFp9p+yldDTIQRG30zukrasqjYniNqSoMA0GCSqG
-# SIb3DQEBAQUABIIBgI34FW9u2hNBtZcS8KAFdgn9i/ZJ10ANi9gIYfoHSvukOD7B
-# osUE7azDUvEh9YDXHjjU0dm/XLAPWxrt6CDIxROQpRkicEgE2taNmTcS0arNM5Zi
-# ukuovK/eCdfXS6eYE9rd5iAgyYp9HR7R15zOheopxyFkHiYYQvBvh8nE3GS1Ayd6
-# LBWYi0SXyNIhnrFvzqMlbTpJNvfRkKmZludCysRTZgBWru7DFSZIAH9956htanjA
-# lfm9mKIHJ1Nzc16YBOMmVNAA9dyYKkP+GRvE0Mq3DKKVsF9KkBa+I0gLIFH4JP6b
-# 543f3PVGyLCIhagflLi0bxxaI8fxXyIApM6GW+wf6x3yj+yJ62vXCq4gDfBypee0
-# 11BxZ6lxxEAPfZsVvyuAyuobOewNRkH/R3OO/3yryUvAu3rYB8aA0ZwrimwjD6/7
-# NzTrYUXKmFLVwFNwP2Pm9PKBN/J5cyu8n9hVYQ+txYgkEy7cLH6UaZgYYIMd+Soa
-# cxYOZdRbXwXGa4jAWg==
+# hvcNAQkEMSIEIFvE1X26SSXPwXpL3YNDKw3C1cQqLV/pbx82T53dBYVVMA0GCSqG
+# SIb3DQEBAQUABIIBgDec5QzuAfq74aZcf60G+jCrOFMJ0ZUQFnXFpTdLmrsjAt69
+# G9EQZeXg5lNFOUld/qPispQ6N2OEX96uouSqqzg9gcpLypft9CzIUeQs9NywEZEA
+# qgIQNFOB8weRCQVWI3z/pyCr5soSacDjhH6o2/lVOC5jfs1Y0LFh9HfuNy7KjkOA
+# PuTFrL2vrqD454aGISNDXRUr/ERMtQc4/0QItBrK+xhfbOtf71kCFH2kiPRiFZic
+# 3QzrN3yBL8awRehu5pjQsCDSbn9j05eNKCU1xGwaTixa08SpFDi+DqtoVJCQCu0i
+# +MvPb+X1bWOlih874NII5IH/vB0zp+iStzIxT/+K6bkXAL4LhuUpNysJqVhqa9qd
+# uubXBoERdWJdHOL7p6SScDFKsFLHyqJyqIsKyiOTqlaZxbRWCPZKNURq02vn4L1A
+# G+ds2ri+jK6h0vtmnqLGYUurqQq9Vrg2P78KG3rIoXuwfzfHgs1ySzpgJHLZZNOR
+# huyDPy60tTJFoFZ9EA==
 # SIG # End signature block

@@ -249,6 +249,10 @@ if ([bool]$policy.applyEnabled) {
         -DataBundlePath $dataBundlePath `
         -DataBundleSignaturePath $dataBundleSignaturePath `
         -ExpectedDataBundleSha256 ([string]$installed.dataBundleSha256)
+    # Recover only authenticated, incomplete transactions before accepting a new
+    # request. The backend re-observes Hyper-V, never retries creation, and releases
+    # an identity only when it proves that no transaction-owned artifact exists.
+    $null = Invoke-NorthGateCreateOnlyCrashRecovery -Context $backendContext
 }
 
 $sshSid = New-Object System.Security.Principal.SecurityIdentifier([string]$policy.sshIdentitySid)
@@ -342,8 +346,8 @@ while (-not $serviceStopEvent.WaitOne(0)) {
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAgryw/SP2aiG9D
-# HoUoqc1FwHyPBjytc1mhP03YZlpd9qCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBcF4pu13uLCgYv
+# pqVKRbpshbYek4c17aZMraktNStDiqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -371,14 +375,14 @@ while (-not $serviceStopEvent.WaitOne(0)) {
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIGI09TEHrCAljtQSdGEZezpGXVUxMnknLy8chJmTZGn1MA0GCSqG
-# SIb3DQEBAQUABIIBgJ1zpcMHACBVXqEwIDFDuPvaRto+AN1clrJwj7BTS9ZPcCxz
-# oUUgsphzg50i09d54+8mMvGZu1tDZmSnnP5WcM6QEQZFgO9oKivTPwBfBezHul39
-# s1URV0heJ0CF6cWeVlym6DayvO0dTLnKt7r3NDyivUZrySDsnffTdEBmQNdsALTQ
-# mnXls4TjO9scCwPgja+sIXfMkGbJQ29PK+Tjm4sDp5oxqMkB38loFcR7tNYlTXA3
-# reXAnffYim7mpz2ngfqwNkl9ZTOxwFJZDOziedTNoIED/ju11DiPUjVqmSTzWze5
-# I56SeIFj7p9tbb2Y+EmeUJH9dx3PXF4AamXyRgRqscZZiMOpwS71OrYmxZoF7IBP
-# vqCi6VhPPhEZJIqBi/W1NbpVz5j9OK+ERRwMIDKnfLdO/RvhgRLTivAsEWJCCusY
-# 14VwcJJU6e9+MizX2H1Ui0Uo7xm90hUV7n6g8W0Ujd1y2gThB6ytOhcYKzt+WKxq
-# njAh9/w3LNOi0Zb/yg==
+# hvcNAQkEMSIEIEVKxTzDXIUqquq8PKGQ5Y+iQFtrK26Yhp0RwRJUYr2jMA0GCSqG
+# SIb3DQEBAQUABIIBgBOA2ymrPl6TX4kG5XKKsFnJI6o1LssEwym9Aao6pzmUSsRf
+# 7ooXhaDB7no99XZy8vW9Ue/pFi9hghZLuBAJq18MX117TlvPJ/dtX7ZZqeLtQmVY
+# o9jrbZoMG9oBWg9WQl7qW7BlRZIxNb4SB6FzlIEHFdo1RaWTkLoduJgUJWFqfHSt
+# hlwYjcfTmZI2h9iFp5MD03kvvQd6eOoMBtoQW6aewIOT+E9Q2tZLazv0ylmms0g4
+# IVDglGdukDN5Q6GeiJficcx2UhTqmi9Wc12aZ7zxfd/ncbPzf2nFPsdCqoMKLhL6
+# UBHdtI+bsLLajboKKYtzxHJZP2V0+pB54Wy6sy/t1HWr9GoGOk4sYHXWIgLpqxdE
+# IeVPUGvloWel3/2lcM7ztSfQTZU1wNndmI4Yx4ea2IdQQePMThbZf1SUJZqWWgSJ
+# +4nz6u1U8zjZxgon+UB9ALL+2EvxUXlzmgObRs/ZQxlPi1n7Ju02KtwfUlc9u64b
+# 3nZPxUcsECCaKOG8Cg==
 # SIG # End signature block
