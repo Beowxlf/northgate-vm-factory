@@ -137,6 +137,11 @@ allowed only after authenticated crash recovery re-observes no artifacts and
 writes matching `RecoveredNoArtifacts` plan and chained-journal evidence.
 Quarantined and outcome-unknown attempts remain hard identity-reuse blockers.
 
+When the active service starts, it constructs and validates the signed backend
+context, then invokes this recovery before opening the named-pipe request loop.
+Recovery failure prevents the service from accepting plans or applies. Disabled
+startup never constructs the backend and therefore never mutates transaction state.
+
 ## Tests
 
 Run `./Test-CreateOnlyBackend.ps1`. The harness uses an inert in-memory provider,

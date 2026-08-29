@@ -134,10 +134,13 @@ try {
     Assert-NgcsTest (([IO.File]::ReadAllText((Join-Path $root 'Start-NorthGateCreateOnlyPipeService.ps1')) -notmatch
         'CreateOnlyRelease\.psd1|Invoke-NorthGateCreateOnlyServiceRequest') -and
         ([IO.File]::ReadAllText((Join-Path $root 'Start-NorthGateCreateOnlyPipeService.ps1')) -match
-        'New-NorthGateCreateOnlyBackendContext')) 'Production service imports and dispatches only the new backend.'
+        'New-NorthGateCreateOnlyBackendContext') -and
+        ([IO.File]::ReadAllText((Join-Path $root 'Start-NorthGateCreateOnlyPipeService.ps1')) -match
+        'Invoke-NorthGateCreateOnlyCrashRecovery -Context \$backendContext')) `
+        'Production service initializes, recovers, and dispatches only the new backend.'
     Write-Output "PASS: $script:Assertions service-dispatch assertions"
 }
 finally {
     Remove-Module $service.Name -Force -ErrorAction SilentlyContinue
-    foreach($name in @('Get-NorthGateCreateOnlyBackendState','New-NorthGateCreateOnlyHostPlan','Get-NorthGateCreateOnlyHostPlan','Register-NorthGateCreateOnlyApproval','Get-NorthGateCreateOnlyRolloutPromotionContext','Register-NorthGateCreateOnlyRolloutPromotion','Invoke-NorthGateCreateOnlyApply','Get-NorthGateCreateOnlyReceipt')){Remove-Item ('Function:\global\'+$name) -Force -ErrorAction SilentlyContinue}
+    foreach($name in @('Get-NorthGateCreateOnlyBackendState','New-NorthGateCreateOnlyHostPlan','Get-NorthGateCreateOnlyHostPlan','Register-NorthGateCreateOnlyApproval','Get-NorthGateCreateOnlyRolloutPromotionContext','Register-NorthGateCreateOnlyRolloutPromotion','Invoke-NorthGateCreateOnlyApply','Get-NorthGateCreateOnlyReceipt','Invoke-NorthGateCreateOnlyCrashRecovery')){Remove-Item ('Function:\global\'+$name) -Force -ErrorAction SilentlyContinue}
 }

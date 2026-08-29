@@ -110,6 +110,13 @@ records the monotonic sequence without changing the base policy or moving its le
 and receipts. At most one nonterminal transaction may exist, and persistent assets are
 admitted only in the serialized order above.
 
+On each active service start, the signed backend re-observes and finalizes incomplete
+transactions before accepting any request. It never retries creation or deletes an
+artifact: an exactly owned partial VM is quarantined, uncertain ownership stays
+blocked, and an expired reservation is released only after authenticated evidence
+proves that no transaction-owned artifact exists. Disabled startup does not run this
+recovery path.
+
 ## Host deployment authorization
 
 Host paths and identities are not Git defaults. A separate admin-controlled process
