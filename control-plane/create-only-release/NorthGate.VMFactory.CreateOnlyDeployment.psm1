@@ -1782,7 +1782,7 @@ function Test-NgcdDetachedCmsBytes {
     }
 }
 
-function New-NgcdCurrentUserApprovalSignature {
+function New-NgcdAdministratorApprovalSignature {
     param([byte[]]$ContentBytes,[string]$ExpectedSignerSha256)
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($identity)
@@ -1790,9 +1790,13 @@ function New-NgcdCurrentUserApprovalSignature {
         $identity.User.Value -in @('S-1-5-18','S-1-5-19','S-1-5-20')) {
         Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-ADMIN-IDENTITY-REQUIRED'
     }
-    $matches = @(Get-ChildItem -LiteralPath Cert:\CurrentUser\My | Where-Object {
-        $_.HasPrivateKey -and (Get-NgcdSha256Bytes $_.RawData) -ceq $ExpectedSignerSha256
-    })
+    $matches = @(
+        foreach ($storePath in @('Cert:\CurrentUser\My','Cert:\LocalMachine\My')) {
+            Get-ChildItem -LiteralPath $storePath | Where-Object {
+                $_.HasPrivateKey -and (Get-NgcdSha256Bytes $_.RawData) -ceq $ExpectedSignerSha256
+            }
+        }
+    )
     if ($matches.Count -ne 1) { Stop-Ngcd 'NGCOR-INITIAL-ACTIVATION-SIGNING-KEY-UNAVAILABLE' }
     $certificate = $matches[0]
     $null = Test-NgcdCertificatePin $certificate $ExpectedSignerSha256
@@ -2013,7 +2017,7 @@ function Invoke-NorthGateCreateOnlyInitialActivationTransaction {
         $activationBytes = [Text.Encoding]::UTF8.GetBytes(
             (ConvertTo-NorthGateCreateOnlyCanonicalJson $activation)
         )
-        $signatureBytes = New-NgcdCurrentUserApprovalSignature $activationBytes $ApprovalCertificateSha256
+        $signatureBytes = New-NgcdAdministratorApprovalSignature $activationBytes $ApprovalCertificateSha256
         $activationSha256 = Get-NgcdSha256Bytes $activationBytes
         $registeredAtUtc = Get-NgcdUtcTimestamp
         $null = Assert-NgcdInitialActivationContract $activation $Installed $Manifest $Authorization `
@@ -2227,8 +2231,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAG8LpkNdT6znO1
-# H2QPWS4Eu8MH02EK1QD7501aHeESSaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCD5KE9WPOa7OBgl
+# FQucAgebIk1aohcKwECAjw4eXhcPgaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -2256,14 +2260,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIGSvKt3KJJw2EdsX7J6isIKCozfi7RUHxc1GXTh+UBbdMA0GCSqG
-# SIb3DQEBAQUABIIBgHWrNirojy9ZOc8G6ukcS0q0rfLcV131UhGSa5NXbOc4+aVv
-# Nrw/gd2nrGCHpX/fJ3KCaHIytIrtlmmxgDxaK/8eDALDU+U00Ej1qCt/FBRRr3ow
-# sH2r/7okxQzHBoDUIPyu7OY3k9vbD8BUfsGPf6P55yfktf3Jws+/3qOeQA30PbkJ
-# ZjlHSY6Hc0O1iE/pat9KngWoAqCszPnPfRREv/EaZtgLza0shnBJD55hLQCvyAJJ
-# Y2sjX14MZsLPRRkDO+B1y3NT1BD91fDWYKG1sbdcu0Fqn+pk7+LToRyfiIGYxo7r
-# lBYZV3FqxnB3YpwkFNruQPlPJuyGatUk5208U/bISzmT3EUF+78JBgRlgP6MgKv1
-# mAEpvE+KaRrnUkjqVIWRR2AZTWXaLat2o4y5cEJB41JRaEty/s2ogxzJFfA7kebR
-# TBflHjpZ3QGH3YiKeexVOxn2xe/8Ae9FMcE4vr17hDKGSmFroWtZwh3UDrCGtf4r
-# IGUetfAGMqJmzZRr1w==
+# hvcNAQkEMSIEIKqCAWWn1wbUG+DF8AGuwR1LvrdAcldJNPj/raM84GrMMA0GCSqG
+# SIb3DQEBAQUABIIBgK4aL4S7Vh+EHgxOoo0ybhHIQEaUgWbA8O4CJgMZrSF2oZym
+# ARvfWo+enFr9il+Ir+KoBKCWr3PbzitOW0O/xmSlE4FuB2TGMSqFbBxDl2iqF7mP
+# vJ1LX490MsnMGa+H1vDpKw40gZ4dzZEzBLV/w7+7ntwBDWi2lbFnAPyOs+RK2P8x
+# ZZjMVd4qyIw2D9Y7tOJj9pioHrJz5eykKqqxRAx6V382R0EZYh/jZDcVsApNBQsL
+# a2RwqGbNtfzvoOvUdKqj6UBa0PUQ0efo+kXy/zmhEwim086cDYgK4iO3TnMVeAiz
+# uhNxRGGmw6GkdAZ97yv3JgpKcRIzhMOrtCicTHjKbhKV1baA8uyLx/+yOwezBcne
+# 20AHN77tu1BhuaQlNN0uy4MB/ja8MmKOHWSP5Hdg3s/G4kGdVKs0qNPAvNJlYCBs
+# zyfeIZCILJqob2Xq2tynzovjYzGGrKRBbL0xIGdamIwlV/c3yNN3daxUfaRsig++
+# p4rE1s6RtnHUqxQAkQ==
 # SIG # End signature block

@@ -247,10 +247,13 @@ try {
         $disabledInstalledPolicy.backendPolicySha256 -ceq ('b' * 64)) `
         'An active signed backend bundle cannot override the host authorization initialPolicy=false gate.'
     Assert-NgcdTest ($source -match 'function Invoke-NorthGateCreateOnlyInitialActivationTransaction' -and
-        $source -match 'New-NgcdCurrentUserApprovalSignature' -and
+        $source -match 'New-NgcdAdministratorApprovalSignature' -and
+        $source -match [regex]::Escape("Cert:\CurrentUser\My") -and
+        $source -match [regex]::Escape("Cert:\LocalMachine\My") -and
+        $source -match 'NGCOR-INITIAL-ACTIVATION-ADMIN-IDENTITY-REQUIRED' -and
         $source -match 'Test-NgcdInitialActivationState' -and
         $source -match 'NGCOR-INITIAL-ACTIVATION-OUTCOME-UNKNOWN') `
-        'Initial activation is an approval-signed, installed-release-bound transaction with fail-closed recovery.'
+        'Initial activation is a native-administrator-only, approval-signed, installed-release-bound transaction with fail-closed recovery and pinned CurrentUser or LocalMachine key storage.'
     $activationInstalled = [pscustomobject]@{
         releaseId = 'ngcor-activation-contract-test'
         releaseManifestSha256 = '1' * 64
