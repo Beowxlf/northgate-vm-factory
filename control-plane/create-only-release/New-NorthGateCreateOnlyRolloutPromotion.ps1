@@ -146,11 +146,18 @@ function Invoke-NgcrPipeRequest {
 
 function Get-NgcrApprovalCertificate {
     param([string]$ExpectedSha256)
-    $matches = @(Get-ChildItem -LiteralPath Cert:\CurrentUser\My | Where-Object {
-        (Get-NgcrSha256Hex $_.RawData) -ceq $ExpectedSha256
-    })
-    if ($matches.Count -ne 1) { Stop-Ngcr 'NGCOR-ROLLOUT-CERTIFICATE-NOT-FOUND' }
-    $certificate = $matches[0]
+    $matches = @()
+    foreach ($storePath in @('Cert:\CurrentUser\My','Cert:\LocalMachine\My')) {
+        foreach ($candidate in @(Get-ChildItem -LiteralPath $storePath -ErrorAction SilentlyContinue)) {
+            if ((Get-NgcrSha256Hex $candidate.RawData) -ceq $ExpectedSha256) {
+                $matches += [pscustomobject]@{ StorePath = $storePath; Certificate = $candidate }
+            }
+        }
+    }
+    $usable = @($matches | Where-Object { $_.Certificate.HasPrivateKey })
+    $unique = @($usable | Group-Object { $_.Certificate.Thumbprint.ToUpperInvariant() })
+    if ($unique.Count -ne 1) { Stop-Ngcr 'NGCOR-ROLLOUT-CERTIFICATE-NOT-FOUND' }
+    $certificate = $usable[0].Certificate
     $now = [DateTimeOffset]::UtcNow
     if (-not $certificate.HasPrivateKey -or $now -lt $certificate.NotBefore.ToUniversalTime() -or
         $now -gt $certificate.NotAfter.ToUniversalTime()) {
@@ -387,8 +394,8 @@ finally { $keyMaterial.Rsa.Dispose() }
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCSE/gYbWdaoqYf
-# W39MRElFWjO9Iz+jYTWwL6C7yTeMdqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCpffIUZObox2gw
+# ZyhhBLzwOvclUirVD30lW6JxfZaxdqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -416,14 +423,14 @@ finally { $keyMaterial.Rsa.Dispose() }
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIAzCKv0VKe8laAVJSAEGXFTBZA2tMJ6N4ztL16cXzh0kMA0GCSqG
-# SIb3DQEBAQUABIIBgB/ljZzX0tr0MHCUf2agHhY+Hqa8F671sNtTgV0WHzHFRknb
-# +jbp8Uea0QMfbe4LzkENTFLxjPyUupn0FrtLXQypa8FOtVYutGspbaXfgDeQmTPA
-# Co1keIVJPD7IzCM6GpWoKnZkPO9Hz/pOr2MfCjpYR3Ht+VLYiZiyeMMKT9OHpZUP
-# 8jv/uViyuMIZWMDaFO8jom/6lACgGzXfG1W7j0Qmundq8fYhNF9lRX0Rkkk55+l6
-# qp0ZCiCsxvDz5aORqWxghpHs5ZQd6Nq75n5aqS3GC91OxLnGr7a20ShlK+sp8gEv
-# UcBXnwawBFmYTQQvNfFaLt/x/InEi2ZSHqy8wGiW6Ib8NClGpvAuJOJHsswAdHZ9
-# HHTRx5YgCxRaaUKGR/nGbdV+TfQSKmFH9wwzKb1yGmBgSm21ne0oJOfCbEYKbAMw
-# Gw+/rbaHNi4Uik7+hHMap5qgGcTMwRoochWiwDzs2iYL3hzXJPgRPsJef2BRaqTM
-# r/1acAQaW4DmWwUVUg==
+# hvcNAQkEMSIEIOB3JpYdeYk4gzyl1k6wXxgeezIzxtYk5Lly7FlXW0/DMA0GCSqG
+# SIb3DQEBAQUABIIBgBxvTV3X1j6L3dmvAbgPggz/DtiGFUIFUs3D1Fw5lf0IXlRT
+# iZdRE/yf8nVuZmDJGwYXJFxhTJuMW0Aa0YglqaMd3h1SHLwxUWRdMTr7VPvl5CUC
+# 3Y8FhwOOdwo5ChUrZlsVU5FOBL2Vc1Fj0AAiJoqYLLjKbibgXYcrEY4DqU8Yt/Ri
+# iI6ox3skwwej3PY5axLV1UqsDzX3xkrjjAwb1+O7zLN27w/29xbtuPCcGf3l9u7p
+# kos7fiSNC4ilYy4EmUhyZNDWQS2qJeSk19LDQZ0fb5XG7DcweCrenQ45WCYeAIya
+# mpGsRnMGdZU1+8Ig8dl3LHv3mZLqFU9iOo5cQSMzWVSHhoe6PyVhmDdeMJ7LNanh
+# C3ApszhjX+483uf5P4LuHrahcsHfq3XwAJZBbCqjEWGhoamjeMDZ6/KyVfXNzlLI
+# KInLcnVh/0cbgSNxZGDT5pf9MccKxi0UVrBvJrZg+XcVQkt9XntLHp230ctaP/bf
+# 826O1hKKo08A9ZIagA==
 # SIG # End signature block

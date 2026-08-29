@@ -15,6 +15,7 @@
         'Register-NorthGateCreateOnlyRolloutPromotion',
         'Register-NorthGateCreateOnlyApproval',
         'Invoke-NorthGateCreateOnlyApply',
+        'Invoke-NorthGateCreateOnlyReceiptReconciliation',
         'Get-NorthGateCreateOnlyReceipt',
         'Invoke-NorthGateCreateOnlyCrashRecovery'
     )
@@ -27,8 +28,8 @@
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBJDYqbLgS42czC
-# P1xhmfyMPB9S6pMR9QPFXyIWkzqSqaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAUDsLkjjcwnpct
+# XhgIA9rvBeT7RSIkroux820k3vUciaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -56,14 +57,14 @@
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIC9dmFwIA6mc8vQBzfXlBR78fHxSHpxyU87U5PFv+XMIMA0GCSqG
-# SIb3DQEBAQUABIIBgHEVQyg+rRhRpID6GcJdeqptskKNs+C2Gb9vWVAeFJxyo4ak
-# YRAPsVKqqajooh/CB7/DbyojaPMmlFor8qnb9fKqlfcHzBpHETwy4NGlnn9orYyL
-# oEYAEePLYLGoRGuX4B2lHsIHcO9eai3S7OfMuZw5vdjxm5kXuPCxP53EjAoqrnSz
-# FXiJOiRaS0yU7AZzTVNK5XdhjvtD3EhkiXXXgyB721Nl9sLM0HoT6uaOxMm0VSHl
-# 0dyvaebJqXWzX5vX9IL7W+SUvBTSEDhKfySko+GySMXeeBVc5YwEBHthrMdOpxJV
-# ka9byomCa6oHxtlo8uCy2wNzCvbVExISqpPTt70plXocJz9iihxwWzsZ1+QWL9Lb
-# frrP6MHo9qavlV+qpIbAsfkOHuyTSBg0Z5UzJCMrbFEBAXxn9EDuiFqS9UADdeoa
-# ijTU1uy45vWyDzYAuE2pbuumoFcFfxfQA9YgeBgOHCJZqx/zFDiYJy8x3cjofC8v
-# nDgUmSaaxmCdWpQEhA==
+# hvcNAQkEMSIEIK5Ni2vAmrsfPA3bW1qOkb0qndsuSYuoYexPg5JKitE7MA0GCSqG
+# SIb3DQEBAQUABIIBgBnKbxsTwWlO0EAY+wHaFnDCkEspiofcu75n67yIgdRw0DQq
+# A5KKsmB+5iExBlcFFC3eOdGY9koATzg/fRgtrCy0DkLOki+OuXT+fO+UAn8FOoQM
+# nbbIKed9C1cUBII3ihUGFCJ54uSXFpamIeuJrjpEOPAgxfPSTLbBt6oqVRhMPnAD
+# 3XGH+OlnMyNN6OeSP+btyflOCeXtbXt/wjN06C43c/s3nIkvwSrMWqjy/RU/jdn4
+# +jbntphYlTOwHewNbffL27tPwSZlEQ+X1clIwyU3BOcvpGAjxUAkI+KyYG82iX1N
+# dIqfgfeUDnI0pcwNrOTrEMs1EVtE67EP/7fNXJ5yl8KL91YRs614vqq6RgcTGoMK
+# WvxGzzmMxcwfzwutRKwED7lmBpJVgBXJT1kUoTvMNrF4CUxs7kX41vQsKjj/VP0c
+# 8tSmngcwjg09/sWOOdZ6fXVy3T8+bxfGPU+1AU9Wl1BwkKw/oiKFb/9UpIS545QX
+# UEqgBnRsI/L8+rDoYA==
 # SIG # End signature block

@@ -691,7 +691,7 @@ try {
             liveApplyImplemented = $true
             allowedProtocolCommands = @(
                 'status','plan','approval-context','approve',
-                'rollout-context','promote-rollout','apply','receipt'
+                'rollout-context','promote-rollout','apply','receipt','reconcile-receipt'
             )
         }
         files = $fileRecords

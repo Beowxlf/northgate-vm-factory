@@ -129,11 +129,12 @@ Assert-NgcorTest ($bundleLimitParsed.Value.probe -ceq 'module-scope') `
 
 foreach ($command in @('status','plan','rollout-context','promote-rollout',
         ('approval-context ngp-' + ('a' * 64)),('approve ngp-' + ('b' * 64)),
-        ('apply ngp-' + ('a' * 64)),('receipt ngp-' + ('0' * 64)))) {
+        ('apply ngp-' + ('a' * 64)),('receipt ngp-' + ('0' * 64)),
+        ('reconcile-receipt ngp-' + ('1' * 64)))) {
     $parsed = ConvertFrom-NorthGateCreateOnlyCommand $command
     Assert-NgcorTest ($parsed.operation -in @(
             'status','plan','rollout-context','promote-rollout',
-            'approval-context','approve','apply','receipt'
+            'approval-context','approve','apply','receipt','reconcile-receipt'
         )) `
         "Accepted exact command $command"
 }
@@ -297,6 +298,8 @@ $forcedSource = [IO.File]::ReadAllText((Join-Path $root 'Invoke-NorthGateCreateO
 $serviceSource = [IO.File]::ReadAllText((Join-Path $root 'Start-NorthGateCreateOnlyPipeService.ps1'))
 $serviceHostSource = [IO.File]::ReadAllText((Join-Path $root 'NorthGate.CreateOnly.ServiceHost.cs'))
 $deploymentSource = [IO.File]::ReadAllText((Join-Path $root 'NorthGate.VMFactory.CreateOnlyDeployment.psm1'))
+$installerSource = [IO.File]::ReadAllText((Join-Path $root 'Install-NorthGateCreateOnlyRelease.ps1'))
+$backendSource = [IO.File]::ReadAllText((Join-Path $root 'backend\NorthGate.VMFactory.CreateOnlyBackend.psm1'))
 Assert-NgcorTest ($forcedSource -cnotmatch '(?i)Invoke-Expression|ScriptBlock::Create|EncodedCommand|New-VM|Hyper-V|CreateOnlyRelease\.psd1') 'Forced handler has no privileged module or evaluation primitive.'
 Assert-NgcorTest ($forcedSource.IndexOf('ConvertFrom-NorthGateCreateOnlyCommand $originalCommand') -lt
     $forcedSource.IndexOf('New-Object System.IO.Pipes.NamedPipeClientStream')) `
@@ -328,6 +331,17 @@ Assert-NgcorTest ($serviceSource -cnotmatch 'S-1-5-2|CreateNewInstance') 'Pipe A
 Assert-NgcorTest ($serviceSource -match 'ReadAsync' -and $serviceSource -match 'PIPE-READ-TIMEOUT') 'Service frame reads are bounded and asynchronous.'
 Assert-NgcorTest ($deploymentSource.Contains("@('sidtype',`$script:ServiceName,'unrestricted')")) `
     'The dedicated service SID remains enabled without a restricted token that blocks Hyper-V provider authorization.'
+Assert-NgcorTest ($deploymentSource -match 'function Set-NgcdReceiptSignerKeyAccess' -and
+    $deploymentSource -match 'FileSystemRights\]::Read' -and
+    $deploymentSource -match 'NGCOR-DEPLOYMENT-RECEIPT-KEY-ACCESS-EXCESSIVE' -and
+    $deploymentSource -match 'receiptSignerPrivateKeyAcl' -and
+    $deploymentSource -match 'function Invoke-NgcdFileInstallTransaction[\s\S]{0,16000}New-NgcdJournal[\s\S]{0,2000}Set-NgcdReceiptSignerKeyAccess' -and
+    $installerSource -cnotmatch 'Set-NgcdReceiptSignerKeyAccess') `
+    'Installation journals the prior key ACL before granting and verifying read-only access for the fixed service SID.'
+Assert-NgcorTest ($backendSource -match 'function Test-NgcbReceiptSignerCapability' -and
+    $backendSource -match 'northgate/create-only-receipt-signing-probe/v1' -and
+    $backendSource -match 'function Invoke-NorthGateCreateOnlyReceiptReconciliation') `
+    'Service startup proves receipt signing and exposes a dedicated receipt-only reconciliation transaction.'
 
 $runtimeFiles = Get-ChildItem -LiteralPath $root -File | Where-Object { $_.Extension -in @('.ps1','.psm1') }
 foreach ($file in $runtimeFiles) {
@@ -556,7 +570,7 @@ try {
         -not $manifest.packageSemantics.installInitiallyEnabled -and
         $manifest.packageSemantics.liveApplyImplemented -and
         (@($manifest.packageSemantics.allowedProtocolCommands) -join '|') -ceq
-            'status|plan|approval-context|approve|rollout-context|promote-rollout|apply|receipt') `
+            'status|plan|approval-context|approve|rollout-context|promote-rollout|apply|receipt|reconcile-receipt') `
         'Manifest declares the production implementation while installation remains separately gated.'
     $expectedPackageFiles = @(
         'NorthGate.VMFactory.CreateOnlyProtocol.psd1',

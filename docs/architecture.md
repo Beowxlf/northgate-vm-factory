@@ -43,6 +43,7 @@ Source-restricted public-key authentication plus the server-enforced forced comm
 9. The installed executor submits only the approved plan ID using a dedicated application identity. The host lock covers every routine mutating operation.
 10. The host re-reads the relevant state, rejects any mismatch, resolves opaque policy identifiers, and invokes allowlisted Hyper-V operations.
 11. A signed receipt records the change ID, repository/commit, plan, actor, operations, and before/after hashes. A separate collector anchors it in Operation-SeeSaw.
+12. If VM creation and ledger binding succeeded but receipt signing failed, the host may execute only the explicit `reconcile-receipt <planId>` recovery operation. It validates the original signed plan/release anchors, consumed approval, bound ledger, exact VM readback, and evidence-pending journal before signing the missing receipt. It never creates, adopts, updates, restarts, or deletes a VM.
 
 ## Identity and authority
 
@@ -70,6 +71,7 @@ Source-restricted public-key authentication plus the server-enforced forced comm
 - **Partial new-VM failure:** quarantine only artifacts carrying the matching change/asset identity.
 - **Existing-VM change failure:** preserve before-state and require a new reviewed rollback plan.
 - **Missing or renamed manifest:** report drift only; never infer deletion.
+- **Receipt signing failure:** mark the transaction `AppliedEvidencePending`; do not replay VM creation. Repair signer access, validate exact historical anchors and live VM state, then use the idempotent receipt-reconciliation operation.
 - **Evidence export failure:** mark evidence reconciliation pending; do not falsely claim Hyper-V rollback.
 
 ## Separation rules
@@ -89,3 +91,4 @@ Source-restricted public-key authentication plus the server-enforced forced comm
 - Destructive reconciliation, automatic replacement, adoption, decommission, or purge.
 - Automatic virtual-switch, firewall, host-feature, or storage-root changes.
 - Guest configuration beyond a referenced, versioned bootstrap profile.
+

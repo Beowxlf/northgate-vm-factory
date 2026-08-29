@@ -103,7 +103,8 @@ function Invoke-NorthGateCreateOnlyBackendServiceRequest {
     param(
         [Parameter(Mandatory)][object]$Context,
         [Parameter(Mandatory)][ValidateSet(
-            'status','plan','approval-context','approve','rollout-context','promote-rollout','apply','receipt'
+            'status','plan','approval-context','approve','rollout-context','promote-rollout','apply','receipt',
+            'reconcile-receipt'
         )][string]$Operation,
         [AllowEmptyString()][string]$PlanId = '',
         [Parameter(Mandatory)][AllowEmptyCollection()][byte[]]$BodyBytes,
@@ -159,6 +160,11 @@ function Invoke-NorthGateCreateOnlyBackendServiceRequest {
                 Assert-NgcsEmptyBody $BodyBytes
                 return Get-NorthGateCreateOnlyReceipt -Context $Context -PlanId $PlanId
             }
+            'reconcile-receipt' {
+                Assert-NgcsSshActor $ActorSid $SshIdentitySid
+                Assert-NgcsEmptyBody $BodyBytes
+                return Invoke-NorthGateCreateOnlyReceiptReconciliation -Context $Context -PlanId $PlanId
+            }
         }
     }
     catch {
@@ -176,8 +182,8 @@ Export-ModuleMember -Function 'Invoke-NorthGateCreateOnlyBackendServiceRequest'
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCD8Q3HJ4WOwc605
-# UAX4FrFb+WnxYHPcwMZT9Yxe9+aT/6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBzCtsA8kD6fRNm
+# Yr9on7Yl9MDsvy6m9+nUyd3wPxDbZKCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -205,14 +211,14 @@ Export-ModuleMember -Function 'Invoke-NorthGateCreateOnlyBackendServiceRequest'
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIPdbR5x/DKSvYSVX7VqY74s5JAkRtRjv/pgR8ew1REkyMA0GCSqG
-# SIb3DQEBAQUABIIBgFXqD+dkw5Z+k9RiG1e223iEvApOIkN+L7E+XRCSSr4cGSL0
-# UjIJSMIopCUPUreXNqSc3aagaXGXwdU2YhhtlTZSXTUOL4ug71L6b1O4MZw2JG/D
-# WAv5lrGwQ2MIBmMl6volPqa4353SK3M+VqxgVZ2uIgUnB3R1MWULemsrpN7bfEQR
-# c1zXHEx33tB8gvt9vJV8iWfquJ3oH7lsoRBWCHObCNTDfF29NsRO2cIRI+IGReLs
-# 1L0Y4xztbI6rGTiA6gr8aURX0UyM9d3Xzuit7HxcGwjp+b4abcCmFsFS/3w2fhT5
-# tAZcRQnJkCSrpl7xLS44pw1u/WL4d4IC7GZh1hpWhwW0ZVC540TeDbF92KJB3GPR
-# ikzxGeUFZ9w6PH7PStjDuQZ5Q1/HaeDxaa/wSz1nKtQibM5CJdWXjgOhXLr7jVDc
-# VzGkH1FRDbvAyr7WrBNcsTB0cqhiIroLGBzhdfv6fvREL1VZxT+gqVaHM/Xbxlhn
-# EfA5LCUDvPpfdneUlQ==
+# hvcNAQkEMSIEINjyj51NMi5kIhtQfnawS7uscFaE6Mp9mnvxvTXhdpWcMA0GCSqG
+# SIb3DQEBAQUABIIBgEo+lAzclxtlrA+QOeL6N9yw2f/9afxD7R5kirtHqUuI8jH8
+# L16lEYbnj5iGScwoEM3etkzWLcQSzlsgZM5uQILcO194OvJiIapiMt8bRswlqdbl
+# ZFg3ZOFCt6Yj48ZfuDfGhsQ4pdRY6HzqiUl4BEyB4V61K69h2gPSOmIt4UMNx66w
+# u3HIBktTDXqztv6QlizRG7m/kGzQMxRNN+8to+lQwEIBthjcUIjuTW4IV6zMRzAi
+# HqMSQA7sKspBfeu5iFBM0NIiQ2rWaCCa6RNdascuagPdx72rzsmnlrygPgoy8CIO
+# MS/b2L1A9hZSHhHVlP59ZDZtHYg21I1QEz7RYtzOZSDe2tMTt+uyZnS7d5ebcwPC
+# gd6eKdY7SEg3pHHH56x/Z8VUxK8nxeH2thMT3CKW253lJCXX3HeFivdiYLPQNEp/
+# 3Tg1L7UTN+LRo58fjyk3QpkNJnmj5ENvbKkijHCrPikuwDG8790WwGfmcrQC04pV
+# V5bjtIVKM90lpf4yGA==
 # SIG # End signature block

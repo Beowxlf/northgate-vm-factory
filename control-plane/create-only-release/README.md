@@ -4,7 +4,8 @@
 
 This directory contains the source implementation of the guarded create-only control
 plane. The installed service routes `status`, `plan`, approval registration, `apply`,
-and `receipt` to the transaction-owned Generation 2 Hyper-V backend. It exposes no
+`receipt`, and bounded `reconcile-receipt` requests to the transaction-owned Generation 2
+Hyper-V backend. It exposes no
 update, replace, adopt, power, delete, guest-command, or general host-command path.
 
 Source readiness is not host activation. The checked-in installer and rollback scripts
@@ -43,6 +44,7 @@ The forced command accepts only these case-sensitive ASCII forms:
 | `plan` | Canonical UTF-8 JSON, maximum 32,768 bytes | Produces one fresh, expiring, authenticated one-asset Create plan. |
 | `apply ngp-<64 lowercase hex>` | Empty | Consumes one exact registered approval and runs the create-only transaction. |
 | `receipt ngp-<64 lowercase hex>` | Empty | Returns the detached-CMS-signed receipt. |
+| `reconcile-receipt ngp-<64 lowercase hex>` | Empty | Re-verifies a previously created VM and completes a receipt-only evidence transaction; it never invokes VM creation. |
 
 Two additional named-pipe operations are available only to a native elevated local
 administrator, not the routine SSH identity: `approval-context ngp-<64 lowercase hex>`
@@ -189,7 +191,17 @@ does not mutate or rely on the Windows trust stores. The transaction stages immu
 runtime data under the versioned release, creates a service-writable backend-state child
 without granting write access to deployment journals, backs up managed configuration,
 activates the native service and confined SSH path, verifies readback, and quarantines
-ambiguous output on recovery.
+ambiguous output on recovery. During installation it grants the fixed virtual service
+identity read-only access to the pinned receipt-signing private key and verifies the ACL
+readback. On active service startup, an in-memory sign-and-verify probe proves the service
+can use that exact non-exportable key before any request is accepted.
+
+Receipt reconciliation searches only authenticated state roots beneath the fixed backend
+state parent, requires one unique plan, revalidates the historical signed release,
+authorization, policy, and data bundle, and requires the consumed approval, bound ledger,
+pending-evidence journal, exact VM identity, storage, firmware, network, and power state to
+agree. It then signs the missing receipt and advances only the evidence state. Existing VM
+configuration is read but never changed, and retries return the same receipt idempotently.
 
 `New-NorthGateCreateOnlyBootstrap.ps1` produces review-required installer and rollback
 copies outside Git with only the two approved public certificate pins substituted. The
