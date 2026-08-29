@@ -119,7 +119,7 @@ $promotionSource = [IO.File]::ReadAllText((Join-Path $root 'New-NorthGateCreateO
 Assert-NgcorTest ($promotionSource.Contains('Get-NgcdExistingProductionContext $Authorization') -and
     -not $promotionSource.Contains('Get-NgcdRuntimeContext $Authorization')) `
     'The named-administrator rollout writer validates installed release state through the administrator-safe production context.'
-Assert-NgcorTest ($promotionSource -match '\$pipeResponseTimeoutMilliseconds = 120000' -and
+Assert-NgcorTest ($promotionSource -match '\$pipeResponseTimeoutMilliseconds = 300000' -and
     $promotionSource -match 'Read-NgcrExact \$pipe 4[\s\S]{0,100}\$pipeResponseTimeoutMilliseconds' -and
     $promotionSource -match 'Read-NgcrExact \$pipe \$responseLength \$pipeResponseTimeoutMilliseconds') `
     'Rollout response reads remain bounded while allowing authenticated historical-state validation.'
@@ -1035,11 +1035,12 @@ $null = & (Join-Path $root 'Test-NorthGateCreateOnlyService.ps1')
 $null = & (Join-Path $root 'Test-NorthGateCreateOnlyDeployment.ps1')
 
 Write-Output "PASS: $script:Assertions assertions"
+
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCANJXJ+2NrupZfj
-# U876KQzMriGbw9yxjdQs4HD83OW2XaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDfeereViN7DK4p
+# rDozi1gEpdtusCtvR1uTH5n40Hzw5KCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -1067,14 +1068,14 @@ Write-Output "PASS: $script:Assertions assertions"
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIIc2Q7PfuXd2aZYKq//94X6Qbjgk600E8SB7PsAc0FUdMA0GCSqG
-# SIb3DQEBAQUABIIBgGEoEls7Wm9u03XzXW3RZJRVGN0w9hjpOUj4xfAP4jLcW/oB
-# QpHi83+fA3e87XUq9SK6Rv8b0QlKfAit4wFNxH6LYkRCpFXCPq/Y8mPFbrtLpjbu
-# L7o+yG/I2/31/Jm7sQntk4lh30gwgNn9SyyMUXv/238ygcikZb4aKtzIfMOIMUsl
-# HTMzBwBzEFXXMNQfwSenkz35f81FnALrst6q7fti2oWL8591jlqKkL0L0vfaHEN3
-# ATl8VWPxxNkSs/Mnc9FC3s4rXsGj2rxrZrYDRCCJ9GiMS7XauKw4KVDHSx6kcIyd
-# pIfvvm8TDaJwqk8vHUUPsZB1w/ldP+jZKWEBkGBxcKx6NasbxvbRdqmF2x7g3opA
-# +LUiw4+JYM9vOgQabPtL2cwxgGW9HecrQ1xq/nriPO6cc1FJSOGUMgeGjcrhDEbc
-# ca51NmnJPe8pvr4azDvuWo0m3cZkesyN3c0DdsnIHIIi/UgUM15vqzw6rdC9c7Vh
-# Gid0xDwvPGn3r02gzQ==
+# hvcNAQkEMSIEIHOp6a9no9nT32J/GEN8d3IOrLk71KQdTix/XWSi6MRQMA0GCSqG
+# SIb3DQEBAQUABIIBgHl6u+XjAUO0+nCvUK4puitiOLkKPgz6ChXIRF7GyvIrgBBO
+# aA/CRI8r38CoPdWAFelxt/I2uIlEuFQeftY6oA69KgNfBu7M++bbPB+PInV/wq88
+# p/kmdxKeNmKx6dd2CPlxU7ff9wVHoHlsanid5t56TWRMO/n9A0SxMExcsXbIGuPG
+# 71sbN/RfG4d2bIdZruGp5eAXR+Ia25u7T+e66xk6X3shr63bx/raxgK+p1F7psUe
+# Y7lNWvx6q1CHW3yB8A9wFaHB9cfZHYqOOdZquk17+u71ovNDJMxRLVbvgu2r6Gie
+# qIM/UU1lrflsIMv9Z82bPGuh33s0VvC10G4Qy9UgYKE5zzik33ag5KDOePfrlg7q
+# v9OSZMQEf2NORt/XiILZ+KmUVthi0Sb+GqvqZ4KkiNv5Rb0iVhftN00TBPjkqJ1N
+# HPLYV/dzTKd56uJXfytWg+flzHftlpvTAaxcRusCssxACbTUjqDbj+wzNgZCg9Tk
+# kTX9fE/MVemqjFO7xw==
 # SIG # End signature block
