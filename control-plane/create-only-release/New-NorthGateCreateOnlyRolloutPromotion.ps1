@@ -12,6 +12,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $pipeName = 'NorthGate.VMFactory.CreateOnly.v1'
 $maximumFrameBytes = 65536
+$pipeResponseTimeoutMilliseconds = 120000
 $exactFleetAssetIds = @(
     'NG-VM-018','NG-VM-010','NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012',
     'NG-VM-019','NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015'
@@ -118,11 +119,12 @@ function Invoke-NgcrPipeRequest {
         Assert-NgcrPipeServerIdentity $pipe $ExpectedServiceHostPath $ExpectedServiceName
         $length = [BitConverter]::GetBytes([int]$bytes.Length)
         $pipe.Write($length,0,4); $pipe.Write($bytes,0,$bytes.Length); $pipe.Flush()
-        $responseLength = [BitConverter]::ToInt32((Read-NgcrExact $pipe 4 10000),0)
+        $responseLength = [BitConverter]::ToInt32((Read-NgcrExact $pipe 4 `
+            $pipeResponseTimeoutMilliseconds),0)
         if ($responseLength -le 0 -or $responseLength -gt $maximumFrameBytes) {
             Stop-Ngcr 'NGCOR-ROLLOUT-PIPE-RESPONSE-SIZE-INVALID'
         }
-        $responseBytes = Read-NgcrExact $pipe $responseLength 10000
+        $responseBytes = Read-NgcrExact $pipe $responseLength $pipeResponseTimeoutMilliseconds
         try {
             $response = (ConvertFrom-NorthGateCreateOnlyCanonicalJsonBytes `
                 -Bytes $responseBytes -MaximumBytes $maximumFrameBytes).Value
@@ -394,8 +396,8 @@ finally { $keyMaterial.Rsa.Dispose() }
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCYiTburD434zOP
-# yKnD+p/1SDDGDtkdFtrtYLfBzCC8d6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCZy9s+PZw/xCig
+# 9tOESK9urt8AmHV+U5qWs/EvV5v3qaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -423,14 +425,14 @@ finally { $keyMaterial.Rsa.Dispose() }
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIK5tT00HjwyZ9jP3mxqYhPW1+e1QRggnHwi5GZ9jWzxYMA0GCSqG
-# SIb3DQEBAQUABIIBgI69HVsel1DSx02/+Js4LAE2M/iUF1ez27+b4k27m6nf0Ydk
-# DG3eAtbrb/+fUsp8UcCZM3C9eYINue6GzPbcG7U1qnBFlOBM+KueA3/tONJz8HJP
-# p8YQDwA1x2RmDWqTPXZUTPoJYLwqWyx99ybJCSbK74qN7B0BzN3lM58WF7EYQt+I
-# kk5RqckUoX0hBLynHA0O12NpAKF3LRjyy62ZiGWXirgNjukaBUhvkM+3e5F8qtXw
-# Pw7oeTIfJ6pAU/ZB3z1Pr0PCirbZe8ACVb8LTZKHCbDlq5qttgkTd1a1+z8HDJ9C
-# u0ln9m4b56Ru0/DxbVZp2ZwWGpyAG5R0v6idsKtlHBcGXWyh/PcGLn9tH2saY1oj
-# zCL2+V0ji32+J26DFLaVI0+jyqUFZ/0964B+yaTFF7QYq7KLlOaHYZNkjme64YUR
-# 2nvZhLGhPyD93ISsQZZgq0bItrtfHaLkRiNm3FEY0pCAn9EKcOIfKmneyMZxWY2a
-# Wf9y7MJIeY45llE8Nw==
+# hvcNAQkEMSIEILnaZrqjTBFTNSDZRDt3nRD0V8UvTLjJqvWhJx4lMPfIMA0GCSqG
+# SIb3DQEBAQUABIIBgCu0Vh2N+zauePVtNbj4w4TUSaPDyWYTk8zx83MSV0ZSJOsC
+# ArMLH5jLy5+KjnEJfWStLYBj3xnmk4T2aXTpuYKYmxNl1YwQQWcmAmfHtx2mL7kJ
+# e0mNKIje31f3gCTBY4tpjQSxGTM9ypQPGzhxqrJGv6NAuCv6Yq1eQ7qL4eTs6gIv
+# 7HbHYN6MhtP0BvGCeMyLWo4LVcRSRhSfIf5hCJ4jjIbYeHdaenYOJEdQpgqFGafj
+# QNcTS0OW9asPYVyo0i9uyk65kmw2uRvijwf3EPNeMiBsVgEo7WZZGshiSk5JpIVj
+# 0ZFN94dAXbjNew+99cnyUVZSK+olodfhZNjRyKvMzDgEFhModjWqp5/i0mIcA2AU
+# qp96ICElvlnSsoN5IurPoFZBbZzh1XhCFJvBFWzGxBIMq6r4GY6OSylry2B10FwF
+# ZfZVC1frY4h6QLhK/Bx8W9ViATcRrWGY0C6+6qO6Nhv8joIUrL93YrhEMYwN+pRT
+# DWWZtp5dQpUGr3e6Ag==
 # SIG # End signature block
