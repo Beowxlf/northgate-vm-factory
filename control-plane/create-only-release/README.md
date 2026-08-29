@@ -49,7 +49,11 @@ administrator, not the routine SSH identity: `approval-context ngp-<64 lowercase
 returns the exact authenticated plan evidence, and `approve ngp-<64 lowercase hex>`
 registers canonical approval bytes plus a detached CMS signature. The service binds
 the embedded approving SID to the impersonated pipe client. The approval certificate
-is a distinct, non-exportable CurrentUser key; approval IDs and nonces are single-use.
+is a distinct, non-exportable key in the approving administrator's CurrentUser store
+or the host LocalMachine store; the pinned raw certificate SHA-256 must match exactly.
+Machine-store placement does not delegate approval to the service: the activation
+helper rejects SYSTEM and service identities and requires the native elevated
+administrator before opening either key store. Approval IDs and nonces are single-use.
 
 `plan` accepts only `assetId`, `changeId`, and the exact repository identity, commit,
 tree, signed release SHA-256, and host allowlist ID. It does not accept paths, switch
