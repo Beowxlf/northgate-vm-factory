@@ -148,6 +148,13 @@ try {
         'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2') 'A missing AdapterId uses only the validated composite Id adapter GUID.'
     Assert-NgcbThrows { & $module { param($a,$v) Get-NgcbAdapterIdentity $a $v } $fallbackAdapter '22222222-2222-2222-2222-222222222222' } `
         '^NGCB-ADAPTER-IDENTITY-INVALID$' 'Composite Id fallback rejects a mismatched VM identity.'
+    $trunkAdapter = [pscustomobject]@{AdapterId='F68B9183-B3CC-4CFF-A01E-51A67D8D4CA4';Id='invalid'}
+    $commaVlan = [pscustomobject]@{OperationMode='Trunk';NativeVlanId=0;AllowedVlanIdList='110,120,130,140,150,160,240,250'}
+    $spaceVlan = [pscustomobject]@{OperationMode='Trunk';NativeVlanId=0;AllowedVlanIdList='110 120 130 140 150 160 240 250'}
+    $commaFingerprint = & $module { param($a,$v) Get-NgcbTrunkFingerprint $a $v '73732b7d-395c-4f0f-8682-3f8e5a8172d2' '97b5591d-27a6-4ab9-86a1-18ce70351466' } $trunkAdapter $commaVlan
+    $spaceFingerprint = & $module { param($a,$v) Get-NgcbTrunkFingerprint $a $v '73732b7d-395c-4f0f-8682-3f8e5a8172d2' '97b5591d-27a6-4ab9-86a1-18ce70351466' } $trunkAdapter $spaceVlan
+    Assert-NgcbTest ($commaFingerprint -ceq $spaceFingerprint) `
+        'Trunk fingerprints normalize the comma-delimited policy form and Hyper-V whitespace-delimited readback identically.'
 
     $approvalPin = Get-NgcbTestCertificateHash $approvalMaterial.Certificate
     $receiptPin = Get-NgcbTestCertificateHash $receiptMaterial.Certificate
@@ -715,12 +722,11 @@ finally {
 }
 
 Write-Output "PASS: $script:Assertions assertions"
-
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCClqNg6CiwnNyag
-# bt2E/j8bthS+9gELk82gq1oXtZzO/qCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCB75PTrtSM8szNq
+# YjhPWHKwt6PdGNzZi8TdrJk2UhRYUaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -748,14 +754,14 @@ Write-Output "PASS: $script:Assertions assertions"
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIGArWagVLAJkG1rgdH7IWU3xjSbRLiHHcKeE6Hmf1P6UMA0GCSqG
-# SIb3DQEBAQUABIIBgKm2+735igMBtstaccHeJlsDXitL7oHuTn4wxYOtvjqv8HGo
-# 876j4mB8fm+YhbMnQGZqLxvsZZOHFKM1YFNztb2bMKmXjwUV+F6N3QZJp31JXjWe
-# pLDvd2p2sC7EMDpKFzT0FlFt+d8DsoQ4zrJEUPW/iZ18BkcF8nMYNw75oUXRQDZe
-# k9KIkhZaq8XlQ4XJhp7hNZJJrCgOxe00kfyw62X/pM3XUTtPoFb7ZoQYLhFjC8h9
-# AlYH+piLNQXVso0PJTi3WkyRIhGnyIGJyukhl6NRI1Z/b7drvmOOIJr9vXq2P+gW
-# 1VE+DF0ZbzYEjvoMJNx1RG9ntYhxBIReSLr6oBB/01j8s/+tA0QOqeFNwnFUVhxR
-# o5X16YsNTKyZztIUW5lD/gkx/6KRJeAvJQdgR+yUgyPjKPciHzSbI03fENOWBlqN
-# Rp4gXuwHNPWVbFGXZr2LI8aYlSXcnrqo0EygXpe7lGt1BC+qnOWxZSMfBXkkjTiz
-# vRziNIdHXn9Utg6Ebw==
+# hvcNAQkEMSIEIFwu2OV2hZQz5PmeJXNz058gtmhuHxmsV/4ROQvXqmoHMA0GCSqG
+# SIb3DQEBAQUABIIBgDDHFdJUP9Cs9yyAdXRozQTXolx7tKlE1X1QhnMoTCYSZeGe
+# qphUE3XS8r8HQr5Cwl0FZgV12uoB5sdnNj2SbY7qrs0lUQjvcxOB1nDVm7pAsux0
+# PmlEKQqWre4SWwuzs42uzcrRIfq6496FTNagukrM+/eXbXW5WXbGBprSoqFrOQBM
+# Lj9lBg4uxxi6TX7fWg4R8pN6+ri1troaJg0vfOvHb6AvSUyOl/mA1ybPD8vEL4hp
+# 9T1Qjhe7gF2nNCL/NZPsXcjH2/bbRLxeNZmAz79PNSEIu2P3MlS133wvYA4RkS1f
+# vOoEV+GVsHenbbDkC9+mH3GSs5r7CB8yfGtpHcBEUgCijbxZjtAP/gl1Dz8f1xbT
+# p3eqUICPxjv7hrCsOnZKlAmSVeGcZoZlylP9p5CkJ5zOuHoQpw++Ozo59qJdlMH4
+# sXNx9Ttf2GmTAjrPdfR/IffHNnQsGsMPxqU2Y6kD1V2DLc1EvP7d3ydlEQbbKsAf
+# QeBdq7q51RvRvPNYjQ==
 # SIG # End signature block
