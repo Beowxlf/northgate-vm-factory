@@ -223,7 +223,8 @@ $expectedStartType = if ([bool]$policy.applyEnabled) { 'Automatic' } else { 'Dis
 try { $currentHostPath = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName }
 catch { throw 'NGCOR-SERVICE-HOST-PATH-UNVERIFIABLE' }
 if ([IO.Path]::GetFullPath($currentHostPath) -cne [IO.Path]::GetFullPath($serviceHostPath) -or
-    [string]$service.StartType -cne $expectedStartType -or [string]$service.Status -cne 'Running') {
+    [string]$service.StartType -cne $expectedStartType -or
+    [string]$service.Status -notin @('StartPending','Running')) {
     throw 'NGCOR-SERVICE-REGISTRATION-MISMATCH'
 }
 
@@ -341,8 +342,8 @@ while (-not $serviceStopEvent.WaitOne(0)) {
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCC1bEyBT+5q5GSL
-# Vvh98N/5I9o6y00iwt2R4l9o/kxGQqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAgryw/SP2aiG9D
+# HoUoqc1FwHyPBjytc1mhP03YZlpd9qCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -370,14 +371,14 @@ while (-not $serviceStopEvent.WaitOne(0)) {
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIEU4RtGwgSj0c6YPa4VzSXmUUssNmQhmBSGx2+Oxut8sMA0GCSqG
-# SIb3DQEBAQUABIIBgJXHDmhT99+pFUmATD9PSU5MvfZVIGXl3bbF8YIgRd/iACBY
-# +xLZVU0UlLpxTBdcQ18UZ2wT1aad7dEzeTrrIykTSGml8QUK4Rz6Hyaa1/M6Bpab
-# InvKgXP8uX6oAME3M2WssR3NgYYkskWKq8QYzuzv9rn1RdWVxG2kktVkgeCyTn/U
-# K8jLkr/2QsA/7h89g1nvwShrjFEzZGZyLlokMpiCnchA+uYloEVNG+bUyHGPyUJM
-# znoOC23eqcTqx+AN5Q+xZjF7LDfHWmmxHWNXKszKJU6JNsoFWVNizrObHbJXBWJE
-# vj6b1JXQnErQRlmhpWF68c2mMmF3hY38TUzaQI2q1G7lVdHj6ztI8DHF/cbzZrl+
-# sjHxXPsEBk4N9b51RltLCyXoC+zNkpeMwBWf6pW0P1PbfUQqzDRNYsxHkL18B/Ls
-# Lb/8Tk2q0KwdCD1opablup+LC0Xm9hDAhIzeRZ3OXyzyIuG/rIIeyECrH/VaR/xH
-# treKFy09TGGfd8e+Hw==
+# hvcNAQkEMSIEIGI09TEHrCAljtQSdGEZezpGXVUxMnknLy8chJmTZGn1MA0GCSqG
+# SIb3DQEBAQUABIIBgJ1zpcMHACBVXqEwIDFDuPvaRto+AN1clrJwj7BTS9ZPcCxz
+# oUUgsphzg50i09d54+8mMvGZu1tDZmSnnP5WcM6QEQZFgO9oKivTPwBfBezHul39
+# s1URV0heJ0CF6cWeVlym6DayvO0dTLnKt7r3NDyivUZrySDsnffTdEBmQNdsALTQ
+# mnXls4TjO9scCwPgja+sIXfMkGbJQ29PK+Tjm4sDp5oxqMkB38loFcR7tNYlTXA3
+# reXAnffYim7mpz2ngfqwNkl9ZTOxwFJZDOziedTNoIED/ju11DiPUjVqmSTzWze5
+# I56SeIFj7p9tbb2Y+EmeUJH9dx3PXF4AamXyRgRqscZZiMOpwS71OrYmxZoF7IBP
+# vqCi6VhPPhEZJIqBi/W1NbpVz5j9OK+ERRwMIDKnfLdO/RvhgRLTivAsEWJCCusY
+# 14VwcJJU6e9+MizX2H1Ui0Uo7xm90hUV7n6g8W0Ujd1y2gThB6ytOhcYKzt+WKxq
+# njAh9/w3LNOi0Zb/yg==
 # SIG # End signature block

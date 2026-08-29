@@ -104,6 +104,38 @@ try {
         '(?i)\bNew-VMSwitch\b','(?i)\bSet-VMSwitch\b','(?i)\bAdd-VMHardDiskDrive\b',
         '(?i)\bMount-VHD\b','(?i)\bInvoke-Expression\b','(?i)\bStart-Process\b'
     )) { Assert-NgcbTest ($source -notmatch $forbidden) "Privileged source excludes $forbidden." }
+    $readOnlyRights = [Security.AccessControl.FileSystemRights]::ReadAndExecute -bor
+        [Security.AccessControl.FileSystemRights]::Synchronize
+    $mutationMask = [Security.AccessControl.FileSystemRights]::WriteData -bor
+        [Security.AccessControl.FileSystemRights]::AppendData -bor
+        [Security.AccessControl.FileSystemRights]::WriteExtendedAttributes -bor
+        [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor
+        [Security.AccessControl.FileSystemRights]::WriteAttributes -bor
+        [Security.AccessControl.FileSystemRights]::Delete -bor
+        [Security.AccessControl.FileSystemRights]::ChangePermissions -bor
+        [Security.AccessControl.FileSystemRights]::TakeOwnership
+    Assert-NgcbTest (($readOnlyRights -band $mutationMask) -eq 0) `
+        'ReadAndExecute plus Synchronize is not misclassified as a writable ACL.'
+    foreach ($writableRights in @(
+        [Security.AccessControl.FileSystemRights]::Write,
+        [Security.AccessControl.FileSystemRights]::Modify,
+        [Security.AccessControl.FileSystemRights]::FullControl
+    )) {
+        Assert-NgcbTest (($writableRights -band $mutationMask) -ne 0) `
+            "Writable ACL $writableRights retains at least one atomic mutation bit."
+    }
+    Assert-NgcbTest ($source -notmatch '\[Security\.AccessControl\.FileSystemRights\]::FullControl -bor\s+\[Security\.AccessControl\.FileSystemRights\]::CreateFiles') `
+        'Restricted ACL validation does not build its writer mask from overlapping composite rights.'
+    Assert-NgcbTest (-not (& $module { param($r) Test-NgcbAclMutationRights $r } $readOnlyRights)) `
+        'The production ACL classifier accepts ReadAndExecute plus Synchronize as non-writable.'
+    foreach ($writableRights in @(
+        [Security.AccessControl.FileSystemRights]::Write,
+        [Security.AccessControl.FileSystemRights]::Modify,
+        [Security.AccessControl.FileSystemRights]::FullControl
+    )) {
+        Assert-NgcbTest (& $module { param($r) Test-NgcbAclMutationRights $r } $writableRights) `
+            "The production ACL classifier rejects writable rights $writableRights."
+    }
     Assert-NgcbTest ($source -match 'Win32_ComputerSystemProduct' -and $source -match '\$hostProducts\[0\]\.UUID' -and $source -notmatch '\$vmHost\.Id') 'Production snapshot binds the supported host to its SMBIOS UUID without assuming a Get-VMHost Id property.'
     Assert-NgcbTest ($source -match 'function Get-NgcbAdapterIdentity' -and
         $source -match 'NGCB-ADAPTER-IDENTITY-INVALID') `
@@ -683,3 +715,47 @@ finally {
 }
 
 Write-Output "PASS: $script:Assertions assertions"
+
+# SIG # Begin signature block
+# MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
+# BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCClqNg6CiwnNyag
+# bt2E/j8bthS+9gELk82gq1oXtZzO/qCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
+# TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
+# MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
+# RmFjdG9yeSBSZWxlYXNlIFNpZ25lciAyMDI2LTA4LTIxIHYyMIIBojANBgkqhkiG
+# 9w0BAQEFAAOCAY8AMIIBigKCAYEAuK2RPh+kwyLvYhpQmiHvsROwEKzmIdyEc6WV
+# b1N80dzFqV4o16F7MTsoC1Xbo3VdbDurlCWifItnM+UTZ7B6xP8TLmPGRys7sGa/
+# QQOm77wKKQ7OdjJlqSSXz4+efiUwoMEkhyP3YkL8G7VvS7EcKCVaspPX8ghvtCYe
+# rOQQYWVFOV9EuvajfvnFPna0Y4Y4qMJAxZZEtfMVKtLejdftGHra9pZm/Vi3OiIx
+# At/lfqeqK1vYu96Uyh4LhSoxSaev2EOpsznHtTIwY3KNC9dpwlogX2FYa0l1zH1k
+# Kk0n/AjTYgR0mxQXMP89640xScVCb+rmY8SNG5w/YZB9uQnkTY5Zkh8z5dfHH8HM
+# Fvibww5+B8nEBiMe/1RrUzpf1qOyuwyCphrAMRl2NbWR/yzdjCvUBaLbbmkVW20f
+# U3X2CTd144vt2iLfCco+WEIuXaRy6g1vQxu1bYtOHuO5GwobWUCN4CVvhILf+VVt
+# hPvyDnvdRZEyaJ2wmI3xWE0+QJY9AgMBAAGjVzBVMA4GA1UdDwEB/wQEAwIHgDAM
+# BgNVHRMBAf8EAjAAMBYGA1UdJQEB/wQMMAoGCCsGAQUFBwMDMB0GA1UdDgQWBBRb
+# WaTBPZZW7QhHiKCc/W2Z3DB9oTANBgkqhkiG9w0BAQsFAAOCAYEAaNP8lBhUC94L
+# AUcORggLbH+yuwZ92dK4vhUVrqukaQKL0CpTouv88GOJtrocGo09vyZ1Y7T+ieZ2
+# SKKMwmM+efwt+cDQ0b4HDIWYfswSQdfd/HATQX5PNSmC6uEYi6cf/yd31aHkySrN
+# W2gfy82zjixp/SP/k9KmpbE+I5f8wppCZ4+ePk5/g+f7gb7a9+g66Ywua2apF76N
+# gQB0LPaz0SXwWZ4QS4w/X4TUSDnluz9uHzX2NZ4oNAzT1tR7tBF7Ntu+8mEw2mot
+# BcI7pQEu6CDLNGl1rSwPswnZDUWOcnImdqW3IDab4XUmN5my5pB3iLmojG2UOVXr
+# SWVYZkiHWI5RGHNDBmdnbDXxK2Xy4uJMLiVEqws8QosKSTUTSAL5B3KM1/HWwQzv
+# X2fiwRK2cIfTIJ34Dtlp0lewhzvauoSuVZkYxQ/43QfYxed20zWo44UnRTrScDdC
+# 9UmREbQDcZjjpb04T4zAXLHmS9e0k1IwA7vXMRcs4x7Uiq5diaQdMYICgjCCAn4C
+# AQEwUDA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0gRmFjdG9yeSBSZWxlYXNlIFNp
+# Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
+# AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
+# CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
+# hvcNAQkEMSIEIGArWagVLAJkG1rgdH7IWU3xjSbRLiHHcKeE6Hmf1P6UMA0GCSqG
+# SIb3DQEBAQUABIIBgKm2+735igMBtstaccHeJlsDXitL7oHuTn4wxYOtvjqv8HGo
+# 876j4mB8fm+YhbMnQGZqLxvsZZOHFKM1YFNztb2bMKmXjwUV+F6N3QZJp31JXjWe
+# pLDvd2p2sC7EMDpKFzT0FlFt+d8DsoQ4zrJEUPW/iZ18BkcF8nMYNw75oUXRQDZe
+# k9KIkhZaq8XlQ4XJhp7hNZJJrCgOxe00kfyw62X/pM3XUTtPoFb7ZoQYLhFjC8h9
+# AlYH+piLNQXVso0PJTi3WkyRIhGnyIGJyukhl6NRI1Z/b7drvmOOIJr9vXq2P+gW
+# 1VE+DF0ZbzYEjvoMJNx1RG9ntYhxBIReSLr6oBB/01j8s/+tA0QOqeFNwnFUVhxR
+# o5X16YsNTKyZztIUW5lD/gkx/6KRJeAvJQdgR+yUgyPjKPciHzSbI03fENOWBlqN
+# Rp4gXuwHNPWVbFGXZr2LI8aYlSXcnrqo0EygXpe7lGt1BC+qnOWxZSMfBXkkjTiz
+# vRziNIdHXn9Utg6Ebw==
+# SIG # End signature block
