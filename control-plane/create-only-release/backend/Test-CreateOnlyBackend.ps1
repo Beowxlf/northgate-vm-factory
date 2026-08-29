@@ -247,6 +247,9 @@ try {
     $expiredAuthorization.issuedAtUtc = Format-NgcbTestUtc ([DateTimeOffset]::UtcNow.AddHours(-2))
     $expiredAuthorization.expiresAtUtc = Format-NgcbTestUtc ([DateTimeOffset]::UtcNow.AddHours(-1))
     Assert-NgcbThrows { & $module { param($a,$r,$h) Assert-NgcbHostAuthorization $a $r $h } $expiredAuthorization $release $authorizationHash } '^NGCB-AUTHORIZATION-EXPIRED$' 'An already expired host authorization is rejected.'
+    & $module { param($a,$r,$h) Assert-NgcbHostAuthorization $a $r $h -AllowExpired } `
+        $expiredAuthorization $release $authorizationHash
+    Assert-NgcbTest $true 'Historical authorization validation accepts expiry only when explicitly requested.'
     $longAuthorization = Copy-NgcbTestObject $authorization
     $longAuthorization.issuedAtUtc = Format-NgcbTestUtc ([DateTimeOffset]::UtcNow.AddMinutes(-1))
     $longAuthorization.expiresAtUtc = Format-NgcbTestUtc ([DateTimeOffset]::UtcNow.AddHours(25))
@@ -741,11 +744,42 @@ try {
         $receiptRecoveryFinal.Record.evidenceState -ceq 'signed-receipt-complete' -and
         @($receiptRecoveryHarness.State.vms).Count -eq $beforeReconciliationVmCount) `
         'Receipt reconciliation re-verifies and signs the existing VM without replaying creation.'
+    $reconciliationJournalRoot=Join-Path $receiptRecoveryHarness.Context.StateRoot `
+        ('journals\NG-VM-018\'+$receiptRecoveryParsed.Plan.reservationId)
+    $reconciliationTail=@(Get-ChildItem -LiteralPath $reconciliationJournalRoot -Filter '*.json' -File |
+        Sort-Object Name)[-1]
+    [IO.File]::Delete($reconciliationTail.FullName)
+    foreach($auditFile in @(Get-ChildItem -LiteralPath `
+            (Join-Path $receiptRecoveryHarness.Context.StateRoot 'audit') -Filter '*.json' -File)){
+        $auditEnvelope=& $module {param($c,$p)Read-NgcbEnvelope $c 'audit-event' $p 'NGCB-AUDIT-CORRUPT'} `
+            $receiptRecoveryHarness.Context $auditFile.FullName
+        if($auditEnvelope.record.event -ceq 'receipt-reconciled' -and
+            $auditEnvelope.record.planId -ceq $receiptRecoveryPlan.planId){
+            [IO.File]::Delete($auditFile.FullName)
+        }
+    }
     $reconciledRetry=Invoke-NorthGateCreateOnlyReceiptReconciliation `
         -Context $receiptRecoveryHarness.Context -PlanId $receiptRecoveryPlan.planId
+    $repairedJournal=& $module {param($c,$a,$r)Read-NgcbLastJournalEvent $c $a $r} `
+        $receiptRecoveryHarness.Context 'NG-VM-018' $receiptRecoveryParsed.Plan.reservationId
+    $repairedAudit=& $module {
+        param($c,$p)
+        Test-NgcbAuditEventExists $c 'receipt-reconciled' 'succeeded' `
+            'NGCB-RECEIPT-RECONCILED' $p 'NG-VM-018'
+    } $receiptRecoveryHarness.Context $receiptRecoveryPlan.planId
     Assert-NgcbTest ($reconciledRetry.receipt.receiptId -ceq $reconciledReceipt.receipt.receiptId -and
+        $repairedJournal.state -ceq 'ReceiptReconciled' -and $repairedAudit -and
         @($receiptRecoveryHarness.State.vms).Count -eq $beforeReconciliationVmCount) `
-        'Receipt reconciliation retry is idempotent and never creates another VM.'
+        'Receipt reconciliation retry independently repairs missing journal and audit tails without creating another VM.'
+    $auditCountBefore=@(Get-ChildItem -LiteralPath `
+        (Join-Path $receiptRecoveryHarness.Context.StateRoot 'audit') -Filter '*.json' -File).Count
+    $null=Invoke-NorthGateCreateOnlyReceiptReconciliation `
+        -Context $receiptRecoveryHarness.Context -PlanId $receiptRecoveryPlan.planId
+    $auditCountAfter=@(Get-ChildItem -LiteralPath `
+        (Join-Path $receiptRecoveryHarness.Context.StateRoot 'audit') -Filter '*.json' -File).Count
+    Assert-NgcbTest ($auditCountAfter -eq $auditCountBefore -and
+        @($receiptRecoveryHarness.State.vms).Count -eq $beforeReconciliationVmCount) `
+        'A completed reconciliation retry does not duplicate audit evidence or VM state.'
 
     $receiptDriftHarness=New-NgcbHarness
     $receiptDriftPlan=New-NorthGateCreateOnlyHostPlan -Context $receiptDriftHarness.Context `

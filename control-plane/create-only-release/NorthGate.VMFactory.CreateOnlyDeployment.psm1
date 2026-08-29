@@ -5,8 +5,9 @@ Import-Module (Join-Path $PSScriptRoot 'NorthGate.VMFactory.CreateOnlyProtocol.p
 
 $script:DeploymentSchema = 'northgate/create-only-deployment-transaction/v1'
 $script:ProtectedRecordSchema = 'northgate/create-only-protected-record/v1'
-$script:BackupSchema = 'northgate/create-only-deployment-backup/v1'
-$script:BackupReceiptSchema = 'northgate/create-only-backup-receipt/v1'
+$script:BackupSchema = 'northgate/create-only-deployment-backup/v2'
+$script:LegacyBackupSchema = 'northgate/create-only-deployment-backup/v1'
+$script:BackupReceiptSchema = 'northgate/create-only-backup-receipt/v2'
 $script:PointerSchema = 'northgate/create-only-current-release/v1'
 $script:InstalledReleaseSchema = 'northgate/create-only-installed-release/v1'
 $script:PolicySchema = 'northgate/create-only-installed-policy/v1'
@@ -821,6 +822,11 @@ function New-NgcdBackup {
             }
         }
     }
+    $receiptSignerKey = if ($Context.Mode -eq 'Production') {
+        Get-NgcdReceiptSignerKeyDescriptor `
+            ([string]$Binding.receiptSignerCertificateSha256) ([string]$Binding.serviceIdentitySid)
+    }
+    else { [pscustomobject]@{ KeyPath = ''; KeyProvider = 'InertTest'; Sddl = '' } }
     $backup = [pscustomobject][ordered]@{
         schema = $script:BackupSchema
         transactionId = $TransactionId
@@ -828,6 +834,14 @@ function New-NgcdBackup {
         binding = $Binding
         targets = [object[]]$records
         serviceConfiguration = Get-NgcdServiceConfiguration $Context
+        receiptSignerKey = [pscustomobject][ordered]@{
+            managed = ($Context.Mode -eq 'Production')
+            signerCertificateSha256 = [string]$Binding.receiptSignerCertificateSha256
+            serviceIdentitySid = [string]$Binding.serviceIdentitySid
+            keyPath = [string]$receiptSignerKey.KeyPath
+            keyProvider = [string]$receiptSignerKey.KeyProvider
+            sddl = [string]$receiptSignerKey.Sddl
+        }
     }
     $recordPath = Join-Path $backupRoot 'backup-record.json'
     Write-NgcdProtectedRecord $recordPath $backup $Context.MacKey
@@ -841,7 +855,10 @@ function New-NgcdBackup {
         hostId = [string]$Binding.hostId
         receiptSignerCertificateSha256 = [string]$Binding.receiptSignerCertificateSha256
         backupRecordSha256 = Get-NgcdSha256Bytes $recordBytes
-        permittedTargets = [object[]]@('currentPointer','installedPolicy','sshdConfig','serviceConfiguration','releaseDirectory')
+        permittedTargets = [object[]]@(
+            'currentPointer','installedPolicy','sshdConfig','serviceConfiguration','releaseDirectory',
+            'receiptSignerPrivateKeyAcl'
+        )
         createdAtUtc = Get-NgcdUtcTimestamp
     }
     $receiptPath = Join-Path $backupRoot 'backup-receipt.json'
@@ -877,9 +894,18 @@ function Restore-NgcdBackup {
     Assert-NgcdContext $Context
     $root = Assert-NgcdPathWithin $BackupRoot $Context.BackupsRoot 'NGCOR-DEPLOYMENT-BACKUP-PATH-INVALID'
     $backup = Read-NgcdProtectedRecord (Join-Path $root 'backup-record.json') $Context.MacKey
-    Assert-NgcdExactProperties $backup @('schema','transactionId','createdAtUtc','binding','targets','serviceConfiguration') `
-        'NGCOR-DEPLOYMENT-BACKUP-INVALID'
-    if ($backup.schema -cne $script:BackupSchema -or
+    if ($backup.schema -ceq $script:BackupSchema) {
+        Assert-NgcdExactProperties $backup @(
+            'schema','transactionId','createdAtUtc','binding','targets','serviceConfiguration','receiptSignerKey'
+        ) 'NGCOR-DEPLOYMENT-BACKUP-INVALID'
+    }
+    elseif ($backup.schema -ceq $script:LegacyBackupSchema) {
+        Assert-NgcdExactProperties $backup @(
+            'schema','transactionId','createdAtUtc','binding','targets','serviceConfiguration'
+        ) 'NGCOR-DEPLOYMENT-BACKUP-INVALID'
+    }
+    else { Stop-Ngcd 'NGCOR-DEPLOYMENT-BACKUP-INVALID' }
+    if (
         (ConvertTo-NorthGateCreateOnlyCanonicalJson -InputObject $backup.binding) -cne
         (ConvertTo-NorthGateCreateOnlyCanonicalJson -InputObject $ExpectedBinding)) {
         Stop-Ngcd 'NGCOR-DEPLOYMENT-BACKUP-BINDING-MISMATCH'
@@ -913,6 +939,34 @@ function Restore-NgcdBackup {
         else { Stop-Ngcd 'NGCOR-DEPLOYMENT-BACKUP-INVALID' }
     }
     Restore-NgcdServiceConfiguration $Context $backup.serviceConfiguration
+    if ($backup.schema -ceq $script:BackupSchema) {
+        Assert-NgcdExactProperties $backup.receiptSignerKey @(
+            'managed','signerCertificateSha256','serviceIdentitySid','keyPath','keyProvider','sddl'
+        ) 'NGCOR-DEPLOYMENT-BACKUP-INVALID'
+        if ($backup.receiptSignerKey.signerCertificateSha256 -cne
+                $ExpectedBinding.receiptSignerCertificateSha256 -or
+            $backup.receiptSignerKey.serviceIdentitySid -cne $ExpectedBinding.serviceIdentitySid -or
+            $backup.receiptSignerKey.managed -isnot [bool]) {
+            Stop-Ngcd 'NGCOR-DEPLOYMENT-BACKUP-INVALID'
+        }
+        if ($backup.receiptSignerKey.managed) {
+            if ($Context.Mode -ne 'Production' -or $backup.receiptSignerKey.sddl -cnotmatch '^O:.{1,8192}$') {
+                Stop-Ngcd 'NGCOR-DEPLOYMENT-BACKUP-INVALID'
+            }
+            $currentKey = Get-NgcdReceiptSignerKeyDescriptor `
+                ([string]$backup.receiptSignerKey.signerCertificateSha256) `
+                ([string]$backup.receiptSignerKey.serviceIdentitySid)
+            if ($currentKey.KeyPath -cne [string]$backup.receiptSignerKey.keyPath -or
+                $currentKey.KeyProvider -cne [string]$backup.receiptSignerKey.keyProvider) {
+                Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-PATH-INVALID'
+            }
+            Set-NgcdFileSddl $currentKey.KeyPath ([string]$backup.receiptSignerKey.sddl)
+        }
+        elseif ($Context.Mode -eq 'Production' -or $backup.receiptSignerKey.keyPath -cne '' -or
+            $backup.receiptSignerKey.keyProvider -cne 'InertTest' -or $backup.receiptSignerKey.sddl -cne '') {
+            Stop-Ngcd 'NGCOR-DEPLOYMENT-BACKUP-INVALID'
+        }
+    }
 }
 
 function Get-NgcdManifestPhysicalRecords {
@@ -1184,6 +1238,7 @@ function New-NgcdBinding {
         repositoryCommit = [string]$Manifest.repository.commit
         repositoryTree = [string]$Manifest.repository.tree
         receiptSignerCertificateSha256 = [string]$Authorization.identity.receiptSignerCertificateSha256
+        serviceIdentitySid = [string]$Authorization.identity.serviceIdentitySid
     }
 }
 
@@ -1338,6 +1393,10 @@ function Invoke-NgcdFileInstallTransaction {
                     $null = Test-NgcdInstalledRuntimeArtifacts $destinationRoot $RuntimeArtifacts
                 }
                 $null = Confirm-NgcdPointer $Context $binding $destinationRoot $transactionId
+                if ($Context.Mode -eq 'Production') {
+                    $null = Test-NgcdReceiptSignerKeyAccess `
+                        ([string]$binding.receiptSignerCertificateSha256) ([string]$binding.serviceIdentitySid)
+                }
                 if (-not (Test-NgcdFixedHexEquals `
                         (Get-NgcdSha256Bytes (Read-NgcdExclusiveBytes $Context.PolicyPath)) `
                         (Get-NgcdSha256Bytes $PolicyBytes)) -or
@@ -1412,6 +1471,10 @@ function Invoke-NgcdFileInstallTransaction {
             backendStateRoot = if($null -eq $RuntimeArtifacts){''}else{[string]$installedFields.backendStateRoot}
         }
         $journal = New-NgcdJournal $Context $transactionId $binding $paths $backup.BackupReceiptSha256
+        if ($Context.Mode -eq 'Production') {
+            $null = Set-NgcdReceiptSignerKeyAccess `
+                ([string]$binding.receiptSignerCertificateSha256) ([string]$binding.serviceIdentitySid)
+        }
         if ($null -ne $RuntimeArtifacts) {
             $backendState = Initialize-NgcdBackendState $Context $Authorization ([string]$Manifest.releaseId) `
                 ([string]$RuntimeArtifacts.stateKeyId)
@@ -1655,7 +1718,7 @@ function Test-NgcdAclMutationRights {
     ($Rights -band $writeMask) -ne 0
 }
 
-function Set-NgcdReceiptSignerKeyAccess {
+function Get-NgcdReceiptSignerKeyDescriptor {
     param(
         [Parameter(Mandatory)][string]$ExpectedSignerSha256,
         [Parameter(Mandatory)][string]$ExpectedServiceSid
@@ -1692,49 +1755,75 @@ function Set-NgcdReceiptSignerKeyAccess {
         }
         try { $acl = Get-Acl -LiteralPath $keyPath -ErrorAction Stop }
         catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-ACL-UNREADABLE' }
-        $sid = New-Object Security.Principal.SecurityIdentifier($ExpectedServiceSid)
-        foreach ($rule in @($acl.Access)) {
-            try { $ruleSid = $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value }
-            catch { continue }
-            if ($ruleSid -ceq $ExpectedServiceSid -and
-                $rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Deny) {
-                Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-ACCESS-DENIED'
-            }
-            if ($ruleSid -ceq $ExpectedServiceSid -and
-                $rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
-                (Test-NgcdAclMutationRights $rule.FileSystemRights)) {
-                Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-ACCESS-EXCESSIVE'
-            }
-        }
-        $readRule = New-Object Security.AccessControl.FileSystemAccessRule(
-            $sid,[Security.AccessControl.FileSystemRights]::Read,
-            [Security.AccessControl.AccessControlType]::Allow
-        )
-        $acl.SetAccessRule($readRule)
-        try { Set-Acl -LiteralPath $keyPath -AclObject $acl -ErrorAction Stop }
-        catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-ACL-WRITE-FAILED' }
-        $readback = Get-Acl -LiteralPath $keyPath -ErrorAction Stop
-        $effective = @($readback.Access | Where-Object {
-            try { $_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -ceq $ExpectedServiceSid }
-            catch { $false }
-        })
-        $allowsRead = @($effective | Where-Object {
-            $_.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
-            ($_.FileSystemRights -band [Security.AccessControl.FileSystemRights]::Read) -ne 0 -and
-            -not (Test-NgcdAclMutationRights $_.FileSystemRights)
-        }).Count -ge 1
-        $denies = @($effective | Where-Object {
-            $_.AccessControlType -eq [Security.AccessControl.AccessControlType]::Deny
-        }).Count
-        if (-not $allowsRead -or $denies -ne 0) {
-            Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-ACL-READBACK-FAILED'
-        }
         [pscustomobject][ordered]@{
-            status = 'verified'; signerCertificateSha256 = $ExpectedSignerSha256
-            serviceIdentitySid = $ExpectedServiceSid; keyProvider = $rsa.GetType().Name
+            KeyPath = $keyPath
+            KeyProvider = $rsa.GetType().Name
+            Sddl = [string]$acl.Sddl
         }
     }
     finally { if ($null -ne $rsa) { $rsa.Dispose() } }
+}
+
+function Test-NgcdReceiptSignerKeyAccess {
+    param(
+        [Parameter(Mandatory)][string]$ExpectedSignerSha256,
+        [Parameter(Mandatory)][string]$ExpectedServiceSid
+    )
+    $descriptor = Get-NgcdReceiptSignerKeyDescriptor $ExpectedSignerSha256 $ExpectedServiceSid
+    try { $acl = Get-Acl -LiteralPath $descriptor.KeyPath -ErrorAction Stop }
+    catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-ACL-UNREADABLE' }
+    $effective = @($acl.Access | Where-Object {
+        try { $_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -ceq $ExpectedServiceSid }
+        catch { $false }
+    })
+    $allowsRead = @($effective | Where-Object {
+        $_.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
+        ($_.FileSystemRights -band [Security.AccessControl.FileSystemRights]::Read) -ne 0 -and
+        -not (Test-NgcdAclMutationRights $_.FileSystemRights)
+    }).Count -ge 1
+    $denies = @($effective | Where-Object {
+        $_.AccessControlType -eq [Security.AccessControl.AccessControlType]::Deny
+    }).Count
+    if (-not $allowsRead -or $denies -ne 0) {
+        Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-ACL-READBACK-FAILED'
+    }
+    return $descriptor
+}
+
+function Set-NgcdReceiptSignerKeyAccess {
+    param(
+        [Parameter(Mandatory)][string]$ExpectedSignerSha256,
+        [Parameter(Mandatory)][string]$ExpectedServiceSid
+    )
+    $descriptor = Get-NgcdReceiptSignerKeyDescriptor $ExpectedSignerSha256 $ExpectedServiceSid
+    try { $acl = Get-Acl -LiteralPath $descriptor.KeyPath -ErrorAction Stop }
+    catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-ACL-UNREADABLE' }
+    $sid = New-Object Security.Principal.SecurityIdentifier($ExpectedServiceSid)
+    foreach ($rule in @($acl.Access)) {
+        try { $ruleSid = $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value }
+        catch { continue }
+        if ($ruleSid -ceq $ExpectedServiceSid -and
+            $rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Deny) {
+            Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-ACCESS-DENIED'
+        }
+        if ($ruleSid -ceq $ExpectedServiceSid -and
+            $rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
+            (Test-NgcdAclMutationRights $rule.FileSystemRights)) {
+            Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-ACCESS-EXCESSIVE'
+        }
+    }
+    $readRule = New-Object Security.AccessControl.FileSystemAccessRule(
+        $sid,[Security.AccessControl.FileSystemRights]::Read,
+        [Security.AccessControl.AccessControlType]::Allow
+    )
+    $acl.SetAccessRule($readRule)
+    try { Set-Acl -LiteralPath $descriptor.KeyPath -AclObject $acl -ErrorAction Stop }
+    catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-ACL-WRITE-FAILED' }
+    $verified = Test-NgcdReceiptSignerKeyAccess $ExpectedSignerSha256 $ExpectedServiceSid
+    [pscustomobject][ordered]@{
+        status = 'verified'; signerCertificateSha256 = $ExpectedSignerSha256
+        serviceIdentitySid = $ExpectedServiceSid; keyProvider = [string]$verified.KeyProvider
+    }
 }
 
 function Invoke-NgcdSc {
@@ -2329,8 +2418,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAlC+mKoseVVAqp
-# teqhYke1k0xFXn8d98lXvk+dwK9f16CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAXeJvcOieI7Lhl
+# K3oKQ12hEkqXuaOtms14X7PC1kfrv6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -2358,14 +2447,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIE0MYt86NPn/zP8i3ISzQFCWjHXsJi3qgPazSomSy1lVMA0GCSqG
-# SIb3DQEBAQUABIIBgD9mMmJIYjoosC5UmRSek5Ls0otc1gjdMl++85cYdHZprldj
-# Hw3UWd1gC5kv86+5UD5HXYEdpNlh2uIwJX5UWq29QwVm29ya3Xl30/FRvyT73ySx
-# 4Zf53UTzjdlWKDpFOpvJF7nZqV8G+sTZfyUNi6TXUQb3dm6KbfkBmWM8JOhqzhsi
-# Hs58u2sw0P+sR3B3/l442qlhw3AMhl1sOXGaMiI8hDOQsYqZUiJj72yADq+H5kZO
-# RJx4j9Rl+fSqGUvWBMlnxwlaVz5o/rpu7CXDFnax+N9Lur/vWQibEcyT4Twj6fpZ
-# DQJE/iizCIxnjm4+gP+MdzLXbwJLWdCqNPklSoR+xLH4F0Des9tS0B+5Y6xA54bS
-# ea0nSZbKfZfXbfEMBB9CG+XYDKBYuCgeqDEqLKAjr0qVVn5oYndsvb4Q2iNe7LS8
-# 8iD2rv4rLgZauvfRUTyrA4HbTzxXQevzdLf551ouKISy5aZ3IrFnH41SBUJ5rQfW
-# QO71YGiHjVRMYuFOIg==
+# hvcNAQkEMSIEIMLn/MzsSTqUZwGjHqmowPEUMJG9gyHxdbgz2REgu/9wMA0GCSqG
+# SIb3DQEBAQUABIIBgJVM+wkdo2YbJ7whnKsBuc4kZa4rm2kuSlA4XxVD1pHhTjL/
+# naAsMFacnkNCh0okrQIt+eZ1ZvwSP5ISmGP90STbVH1Sb8wThmWoW5Wp0ZiugkRn
+# plr1PdvB0qi1F63Nzup8ivY0fcMc7ryGXJxiE1fD37t7F8BF9zpHccJ+ifjxdleS
+# nTHkWdZ0wF1Ut8ADS9LP8lZg8XKtNTv7jniMJoloCNpKzp2fdc36PBj0NZ3DDNQ8
+# u2VSqmtQuSb40lm/K/oC7pbbhsa2IN5TVboHaGyTAhqsB7p2IrZLGOKBDabIfDzC
+# 4/U4fnurMbey35TB+TgcReO1cfN5dymHeNL0nn0D8MH2Iahe1BDhrFKgGCPVfA3I
+# R970sYGNbj9kimuDRJLSqgAJkfvPh8NZZ/ylrto9lcmpKtBf/IUOQ8fO/rgwUDce
+# fos1hV+YGHGbl+KylzHTZi63+DwDuEl6lfCXyzPSjAO2kuLFvKg6a2/OlF71pwsx
+# GVHwp87FiSpbOfRejA==
 # SIG # End signature block

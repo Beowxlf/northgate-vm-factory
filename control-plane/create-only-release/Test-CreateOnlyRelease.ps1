@@ -334,8 +334,10 @@ Assert-NgcorTest ($deploymentSource.Contains("@('sidtype',`$script:ServiceName,'
 Assert-NgcorTest ($deploymentSource -match 'function Set-NgcdReceiptSignerKeyAccess' -and
     $deploymentSource -match 'FileSystemRights\]::Read' -and
     $deploymentSource -match 'NGCOR-DEPLOYMENT-RECEIPT-KEY-ACCESS-EXCESSIVE' -and
-    $installerSource -match 'Set-NgcdReceiptSignerKeyAccess') `
-    'Installation grants and verifies only read access to the pinned receipt key for the fixed service SID.'
+    $deploymentSource -match 'receiptSignerPrivateKeyAcl' -and
+    $deploymentSource -match 'function Invoke-NgcdFileInstallTransaction[\s\S]{0,16000}New-NgcdJournal[\s\S]{0,2000}Set-NgcdReceiptSignerKeyAccess' -and
+    $installerSource -cnotmatch 'Set-NgcdReceiptSignerKeyAccess') `
+    'Installation journals the prior key ACL before granting and verifying read-only access for the fixed service SID.'
 Assert-NgcorTest ($backendSource -match 'function Test-NgcbReceiptSignerCapability' -and
     $backendSource -match 'northgate/create-only-receipt-signing-probe/v1' -and
     $backendSource -match 'function Invoke-NorthGateCreateOnlyReceiptReconciliation') `

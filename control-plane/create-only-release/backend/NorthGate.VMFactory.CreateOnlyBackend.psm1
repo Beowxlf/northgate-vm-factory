@@ -99,7 +99,8 @@ function ConvertTo-NgcbUtc {
 function Assert-NgcbAuthorizationTimeCurrent {
     param(
         [Parameter(Mandatory)][object]$Authorization,
-        [DateTimeOffset]$Now = [DateTimeOffset]::UtcNow
+        [DateTimeOffset]$Now = [DateTimeOffset]::UtcNow,
+        [switch]$AllowExpired
     )
     $issued = ConvertTo-NgcbUtc $Authorization.issuedAtUtc 'NGCB-AUTHORIZATION-TIME-INVALID'
     $expires = ConvertTo-NgcbUtc $Authorization.expiresAtUtc 'NGCB-AUTHORIZATION-TIME-INVALID'
@@ -110,7 +111,7 @@ function Assert-NgcbAuthorizationTimeCurrent {
     if ($issued -gt $Now.AddSeconds($script:MaximumClockSkewSeconds)) {
         Throw-NgcbError 'NGCB-AUTHORIZATION-CLOCK-INVALID'
     }
-    if ($expires -le $Now) { Throw-NgcbError 'NGCB-AUTHORIZATION-EXPIRED' }
+    if (-not $AllowExpired -and $expires -le $Now) { Throw-NgcbError 'NGCB-AUTHORIZATION-EXPIRED' }
     return [pscustomobject][ordered]@{ issued = $issued; expires = $expires }
 }
 
@@ -548,7 +549,10 @@ function Assert-NgcbReleaseManifest {
 }
 
 function Assert-NgcbHostAuthorization {
-    param([object]$Authorization, [object]$Release, [string]$AuthorizationSha256)
+    param(
+        [object]$Authorization, [object]$Release, [string]$AuthorizationSha256,
+        [switch]$AllowExpired
+    )
     Assert-NgcbExactProperties $Authorization @(
         'schema','authorizationId','sequence','issuedAtUtc','expiresAtUtc','repository',
         'releaseManifestSha256','host','install','identity','switch','volumes','images','bootstrapMedia',
@@ -564,7 +568,7 @@ function Assert-NgcbHostAuthorization {
         $Authorization.releaseManifestSha256 -cnotmatch '^[a-f0-9]{64}$') {
         Throw-NgcbError 'NGCB-AUTHORIZATION-RELEASE-BINDING-INVALID'
     }
-    $null = Assert-NgcbAuthorizationTimeCurrent $Authorization
+    $null = Assert-NgcbAuthorizationTimeCurrent $Authorization -AllowExpired:$AllowExpired
     Assert-NgcbPattern $Authorization.identity.serviceIdentitySid '^S-1-[0-9-]+$' 'NGCB-AUTHORIZATION-IDENTITY-INVALID'
     foreach ($pinName in @(
         'releaseSignerCertificateSha256','deploymentAuthorizationSignerCertificateSha256',
@@ -743,7 +747,10 @@ function Assert-NgcbRolloutPromotionContract {
 }
 
 function Assert-NgcbBackendPolicy {
-    param([object]$Policy, [object]$Authorization, [string]$AuthorizationSha256, [string]$PolicySha256)
+    param(
+        [object]$Policy, [object]$Authorization, [string]$AuthorizationSha256, [string]$PolicySha256,
+        [switch]$AllowExpired
+    )
     Assert-NgcbExactProperties $Policy @(
         'schema','policyId','policyVersion','authorizationSha256','releaseManifestSha256',
         'hostId','issuedAtUtc','expiresAtUtc','applyEnabled','executableActions','planTtlSeconds',
@@ -770,7 +777,7 @@ function Assert-NgcbBackendPolicy {
     $now = [DateTimeOffset]::UtcNow
     if ($expires -le $issued) { Throw-NgcbError 'NGCB-POLICY-TIME-INVALID' }
     if ($issued -gt $now.AddSeconds($script:MaximumClockSkewSeconds)) { Throw-NgcbError 'NGCB-POLICY-CLOCK-INVALID' }
-    if ($expires -le $now) { Throw-NgcbError 'NGCB-POLICY-EXPIRED' }
+    if (-not $AllowExpired -and $expires -le $now) { Throw-NgcbError 'NGCB-POLICY-EXPIRED' }
     Assert-NgcbExactProperties $Policy.limits @(
         'hostReserveMemoryMiB','hostProcessorReserveCount','maximumVcpuToLogicalRatio','minimumVolumeFreeBytes',
         'minimumVolumeFreePercent','maximumProcessorCount','maximumStartupMemoryMiB',
@@ -871,7 +878,7 @@ function Assert-NgcbBackendPolicy {
 }
 
 function Assert-NgcbDataBundle {
-    param([object]$Bundle, [object]$Release)
+    param([object]$Bundle, [object]$Release, [switch]$AllowExpired)
     Assert-NgcbExactProperties $Bundle @('schema','bundleId','repository','createdAtUtc','expiresAtUtc','files') `
         'NGCB-DATA-BUNDLE-CONTRACT-INVALID'
     Assert-NgcbExactProperties $Bundle.repository @('identity','commit','tree') 'NGCB-DATA-BUNDLE-CONTRACT-INVALID'
@@ -887,7 +894,7 @@ function Assert-NgcbDataBundle {
     $now = [DateTimeOffset]::UtcNow
     if ($expires -le $created) { Throw-NgcbError 'NGCB-DATA-BUNDLE-TIME-INVALID' }
     if ($created -gt $now.AddSeconds($script:MaximumClockSkewSeconds)) { Throw-NgcbError 'NGCB-DATA-BUNDLE-CLOCK-INVALID' }
-    if ($expires -le $now) { Throw-NgcbError 'NGCB-DATA-BUNDLE-EXPIRED' }
+    if (-not $AllowExpired -and $expires -le $now) { Throw-NgcbError 'NGCB-DATA-BUNDLE-EXPIRED' }
     $relativePaths = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
     $sourcePaths = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
     foreach ($entry in @($Bundle.files)) {
@@ -1103,6 +1110,63 @@ function New-NorthGateCreateOnlyBackendContext {
     return $context
 }
 
+function Assert-NgcbHistoricalTransactionValidity {
+    param(
+        [Parameter(Mandatory)][object]$Context,
+        [Parameter(Mandatory)][object]$ParsedPlan,
+        [Parameter(Mandatory)][object]$ApprovalRecord
+    )
+    if ($ParsedPlan.Record.approvalState -cne 'Consumed' -or
+        $ParsedPlan.Record.executionId -cnotmatch '^ngx-[a-f0-9]{64}$' -or
+        $ApprovalRecord.state -cne 'Consumed' -or
+        $ApprovalRecord.executionId -cne $ParsedPlan.Record.executionId -or
+        $ApprovalRecord.consumedAtUtc -cnotmatch
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$') {
+        Throw-NgcbError 'NGCB-RECONCILIATION-HISTORICAL-TIME-INVALID'
+    }
+    $validityAt = ConvertTo-NgcbUtc $ApprovalRecord.consumedAtUtc `
+        'NGCB-RECONCILIATION-HISTORICAL-TIME-INVALID'
+    $windows = @(
+        [pscustomobject]@{
+            issued = ConvertTo-NgcbUtc $Context.Authorization.issuedAtUtc `
+                'NGCB-RECONCILIATION-HISTORICAL-TIME-INVALID'
+            expires = ConvertTo-NgcbUtc $Context.Authorization.expiresAtUtc `
+                'NGCB-RECONCILIATION-HISTORICAL-TIME-INVALID'
+        },
+        [pscustomobject]@{
+            issued = ConvertTo-NgcbUtc $Context.Policy.issuedAtUtc `
+                'NGCB-RECONCILIATION-HISTORICAL-TIME-INVALID'
+            expires = ConvertTo-NgcbUtc $Context.Policy.expiresAtUtc `
+                'NGCB-RECONCILIATION-HISTORICAL-TIME-INVALID'
+        },
+        [pscustomobject]@{
+            issued = ConvertTo-NgcbUtc $Context.DataBundle.createdAtUtc `
+                'NGCB-RECONCILIATION-HISTORICAL-TIME-INVALID'
+            expires = ConvertTo-NgcbUtc $Context.DataBundle.expiresAtUtc `
+                'NGCB-RECONCILIATION-HISTORICAL-TIME-INVALID'
+        },
+        [pscustomobject]@{
+            issued = ConvertTo-NgcbUtc $ParsedPlan.Plan.issuedAtUtc `
+                'NGCB-RECONCILIATION-HISTORICAL-TIME-INVALID'
+            expires = ConvertTo-NgcbUtc $ParsedPlan.Plan.expiresAtUtc `
+                'NGCB-RECONCILIATION-HISTORICAL-TIME-INVALID'
+        },
+        [pscustomobject]@{
+            issued = ConvertTo-NgcbUtc $ApprovalRecord.approval.issuedAtUtc `
+                'NGCB-RECONCILIATION-HISTORICAL-TIME-INVALID'
+            expires = ConvertTo-NgcbUtc $ApprovalRecord.approval.expiresAtUtc `
+                'NGCB-RECONCILIATION-HISTORICAL-TIME-INVALID'
+        }
+    )
+    foreach ($window in $windows) {
+        if ($window.expires -le $window.issued -or
+            $validityAt -lt $window.issued -or $validityAt -ge $window.expires) {
+            Throw-NgcbError 'NGCB-RECONCILIATION-HISTORICAL-TIME-INVALID'
+        }
+    }
+    return $validityAt
+}
+
 function New-NgcbHistoricalContextForPlan {
     param(
         [Parameter(Mandatory)][object]$CurrentContext,
@@ -1176,7 +1240,8 @@ function New-NgcbHistoricalContextForPlan {
         (Read-NgcbSignatureFile (Join-Path $releaseRoot 'deployment-authorization.p7s')) `
         ([string]$installed.deploymentAuthorizationSignerCertificateSha256) `
         'NGCB-RECONCILIATION-AUTHORIZATION-INVALID'
-    Assert-NgcbHostAuthorization $authorizationArtifact.Value $releaseArtifact.Value $authorizationArtifact.Sha256
+    Assert-NgcbHostAuthorization $authorizationArtifact.Value $releaseArtifact.Value `
+        $authorizationArtifact.Sha256 -AllowExpired
     $authorization = $authorizationArtifact.Value
     if ([IO.Path]::GetFullPath([string]$authorization.install.versionedReleaseRoot).TrimEnd('\') -ine
             $releaseRoot.TrimEnd('\') -or
@@ -1196,7 +1261,7 @@ function New-NgcbHistoricalContextForPlan {
         (Read-NgcbSignatureFile (Join-Path $releaseRoot 'backend-policy.p7s')) `
         ([string]$installed.releaseSignerCertificateSha256) 'NGCB-RECONCILIATION-POLICY-INVALID'
     Assert-NgcbBackendPolicy $policyArtifact.Value $authorization $authorizationArtifact.Sha256 `
-        $policyArtifact.Sha256
+        $policyArtifact.Sha256 -AllowExpired
 
     $dataRoot = Assert-NgcbNoReparseAncestor ([string]$installed.backendDataRoot)
     $bundleArtifact = Read-NgcbCanonicalFile (Join-Path $dataRoot 'bundle.json') 10485760 `
@@ -1207,7 +1272,7 @@ function New-NgcbHistoricalContextForPlan {
     $null = Assert-NgcbDetachedCmsSignature $bundleArtifact.Bytes `
         (Read-NgcbSignatureFile (Join-Path $dataRoot 'bundle.p7s')) `
         ([string]$installed.releaseSignerCertificateSha256) 'NGCB-RECONCILIATION-DATA-BUNDLE-INVALID'
-    Assert-NgcbDataBundle $bundleArtifact.Value $releaseArtifact.Value
+    Assert-NgcbDataBundle $bundleArtifact.Value $releaseArtifact.Value -AllowExpired
     if ($bundleArtifact.Value.bundleId -cne $installed.dataBundleId) {
         Throw-NgcbError 'NGCB-RECONCILIATION-DATA-BUNDLE-INVALID'
     }
@@ -1256,6 +1321,9 @@ function New-NgcbHistoricalContextForPlan {
     Assert-NgcbContext $context
     $null = Test-NgcbReceiptSignerCapability $context.ReceiptCertificate `
         ([string]$authorization.identity.receiptSignerCertificateSha256)
+    $historicalPlan = Read-NgcbPlanRecord $context $PlanId
+    $historicalApproval = Read-NgcbApprovalRecord $context $historicalPlan -AllowExpired
+    $null = Assert-NgcbHistoricalTransactionValidity $context $historicalPlan $historicalApproval.Record
     return $context
 }
 
@@ -2376,6 +2444,31 @@ function Write-NgcbAuditEvent {
     }
     $path = Join-Path $Context.StateRoot ('audit\' + $record.eventId + '.json')
     $null = Write-NgcbEnvelope $Context 'audit-event' $record $path -CreateNew
+}
+
+function Test-NgcbAuditEventExists {
+    param(
+        [object]$Context, [string]$Event, [string]$Outcome, [string]$Code,
+        [string]$PlanId, [string]$AssetId
+    )
+    $auditRoot = Join-Path $Context.StateRoot 'audit'
+    foreach ($file in @(Get-ChildItem -LiteralPath $auditRoot -Filter '*.json' -File -ErrorAction Stop)) {
+        $envelope = Read-NgcbEnvelope $Context 'audit-event' $file.FullName 'NGCB-AUDIT-CORRUPT'
+        $record = $envelope.record
+        Assert-NgcbExactProperties $record @(
+            'schema','eventId','recordedAtUtc','event','outcome','reasonCode','planId','assetId','processId'
+        ) 'NGCB-AUDIT-CORRUPT'
+        if ($record.schema -cne 'northgate/create-only-audit-event/v1' -or
+            $record.eventId -cnotmatch '^ngaudit-[a-f0-9]{32}$' -or
+            $file.BaseName -cne $record.eventId -or $record.processId -isnot [int]) {
+            Throw-NgcbError 'NGCB-AUDIT-CORRUPT'
+        }
+        $null = ConvertTo-NgcbUtc $record.recordedAtUtc 'NGCB-AUDIT-CORRUPT'
+        if ($record.event -ceq $Event -and $record.outcome -ceq $Outcome -and
+            $record.reasonCode -ceq $Code -and $record.planId -ceq $PlanId -and
+            $record.assetId -ceq $AssetId) { return $true }
+    }
+    return $false
 }
 
 function Assert-NgcbPlanId {
@@ -3786,18 +3879,29 @@ function Invoke-NorthGateCreateOnlyReceiptReconciliation {
                 $parsedPlan.Record.state = 'Applied'
                 $parsedPlan.Record.evidenceState = 'signed-receipt-complete'
                 Save-NgcbPlanRecord $transactionContext $parsedPlan.Record
-                $last = Read-NgcbLastJournalEvent $transactionContext $assetId $parsedPlan.Plan.reservationId
-                if ($null -eq $last -or $last.state -cne 'ReceiptReconciled') {
-                    $null = Write-NgcbJournalEvent $transactionContext $assetId $parsedPlan.Plan.reservationId `
-                        $PlanId 'ReceiptReconciled' ([string]$receiptEnvelope.record.receipt.operation.vmId) `
-                        'NGCB-RECEIPT-RECONCILED'
-                }
-                Write-NgcbAuditEvent $transactionContext 'receipt-reconciled' 'succeeded' `
-                    'NGCB-RECEIPT-RECONCILED' $PlanId $assetId
             }
             elseif ($parsedPlan.Record.state -cne 'Applied' -or
                 $parsedPlan.Record.evidenceState -cne 'signed-receipt-complete') {
                 Throw-NgcbError 'NGCB-RECONCILIATION-STATE-INVALID'
+            }
+            $receiptVmId = [string]$receiptEnvelope.record.receipt.operation.vmId
+            $last = Read-NgcbLastJournalEvent $transactionContext $assetId $parsedPlan.Plan.reservationId
+            if ($null -ne $last -and $last.planId -ceq $PlanId -and
+                $last.state -ceq 'EvidenceReconciliationPending' -and
+                $last.vmId -ceq $receiptVmId -and
+                $last.detailCode -ceq 'NGCB-RECEIPT-SIGNING-FAILED') {
+                $null = Write-NgcbJournalEvent $transactionContext $assetId $parsedPlan.Plan.reservationId `
+                    $PlanId 'ReceiptReconciled' $receiptVmId 'NGCB-RECEIPT-RECONCILED'
+            }
+            elseif ($null -eq $last -or $last.planId -cne $PlanId -or
+                $last.state -cne 'ReceiptReconciled' -or $last.vmId -cne $receiptVmId -or
+                $last.detailCode -cne 'NGCB-RECEIPT-RECONCILED') {
+                Throw-NgcbError 'NGCB-RECONCILIATION-JOURNAL-INVALID'
+            }
+            if (-not (Test-NgcbAuditEventExists $transactionContext 'receipt-reconciled' 'succeeded' `
+                    'NGCB-RECEIPT-RECONCILED' $PlanId $assetId)) {
+                Write-NgcbAuditEvent $transactionContext 'receipt-reconciled' 'succeeded' `
+                    'NGCB-RECEIPT-RECONCILED' $PlanId $assetId
             }
             return Get-NorthGateCreateOnlyReceipt $transactionContext $PlanId
         }
@@ -4015,8 +4119,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDvA5TPD6ffiz/V
-# Y3YE1BVlXRjs0u2HNH3n8a4G9NJibqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDPox0aUUnizDGO
+# UNk4HfsjhcPasbr27RZlTgdDNBZ7x6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -4044,14 +4148,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEICpLwDg4QTIfYlVlYkftvoTusNawIYBL7tvO9gxs4wB2MA0GCSqG
-# SIb3DQEBAQUABIIBgDFaOfnzZuDN9hlTA9U9KmJxlxsJbpDJ7MNgtYYoLSwSDVr0
-# yy7C9qm3IMonh0O992xoinkb9Uwx9i+m5st204t8zzX7ktsGlOfvjO0SWmFtkxyN
-# 77czyVOX+sF0l1KqsaxjOCaYCljzYTs+C4ZqwqNjeXGnckqOfL7DkA/rnkxP/ksa
-# mPf6QDfWGbk7uXfyazAa8iffo5OGvkCn9CF3Zy/wDH4mieGwDEqaEgWkxA0tlgTy
-# gJlXiyVgBAKHCda8+XXyaj6cQpi/ZD16kY7/j3o30ayyrKTjKVk4rTz8SMozaBtu
-# OCmIXnfxlDn1BMMb//I2OZI9d/53z95CBNgWIqDkEvynNx9xaauTX5nzrk5ia7ss
-# 0MjDVoL14NVtbJYIxmf3B0g0JZb0qeXhbPpQzkrxcdsKm3jjPt6OtNC0o9zWCymQ
-# 6UvoFCkRdH7yl0dhmRUx1ofCeT7OmffdLrS+gaeL06kh/GD2IOXrmDD2ZrJht4vJ
-# NtQzXAZbicfA8FcojQ==
+# hvcNAQkEMSIEIALSQ9P334/CsamAZR6tbR1YDfu6nAlv61zLewbAaA9uMA0GCSqG
+# SIb3DQEBAQUABIIBgKVyTKcd4DhMKt4Zj0E8cM12BBebYdNkl0JLEKOq+5nGkdpX
+# 1EN/qLFF7eKU3L6jP0SrsF8ej3kt/1jm22WzxX32bKwrtym8M+S5hfRZncKtUjfd
+# Ug+TrsUYpEZ5O9xTDxb1r/4c8N06Bjv6mzuGl9qrTqfiunD3h1Tj+OXIuBKcD02u
+# rQ1dAfgJ/lzampMQJz5XprA35T9Hm+6oJSuluGhrY51IWm3DACxd2rY5JUuvDHk7
+# XFODRfQmkLTCja5zm4xhmJHN8JSqQDsQ2I8fwD9MRHSTsIvt9L8KEz5dUoc1WHYG
+# 368cEg9eNbgqz2a8Pnh7gruVgMuAER8RTwkd2M56aqhjvP7lq4loCaZNSifCHroi
+# c1ztPg9re3Y82IUtZ4E9CMTZTy9kpfDFxlfpHDdAvjbtA979wBpo7dtELyUm9n/c
+# QwUw4efRKlfhWk4XVGVGJkUt61q0/R849PJZh7jaKYgmaBzCh14dm7xxKZ8oh+Hw
+# N7M4VPZwZ3346AY00A==
 # SIG # End signature block
