@@ -135,6 +135,12 @@ explicitly bound to one authorized source image by the signed authorization and 
 Only the derivative ISO is attached, as the VM's single DVD; neither its path nor a
 source-image path is accepted from a VM manifest or caller.
 
+Existing hash-pinned bootstrap media may be reused by a later software-only release;
+rebuilding custom media is not required. All twelve media records must share one
+nonzero builder-release/source-commit/source-tree lineage, remain individually bound
+by hash and signed provenance, and match the current repository fleet map for asset,
+name, image, role, VLAN, media ID, and static MAC before a policy can be signed.
+
 The `hyperVHostId` binding is the normalized lowercase SMBIOS UUID returned by
 `Win32_ComputerSystemProduct.UUID`. Windows Server 2022 `Get-VMHost` does not expose an
 `Id` property, and the hosting `Msvm_ComputerSystem.Name` is only the computer name;

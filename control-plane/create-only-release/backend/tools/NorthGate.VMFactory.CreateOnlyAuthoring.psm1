@@ -633,7 +633,8 @@ function New-NorthGateCreateOnlyDataBundle {
 function Read-NgcaRawGitCanonicalDocument {
     param([object]$Boundary,[string]$SourcePath,[string]$Code='NGCA-GIT-DOCUMENT-INVALID')
     $path = $SourcePath.Replace('\','/')
-    if ($path -cnotmatch '^(?:schemas|catalog|policy|manifests)/[A-Za-z0-9._/-]{1,180}\.json$' -or
+    if (($path -cne 'bootstrap-media/catalog/fleet-bootstrap-map.json' -and
+        $path -cnotmatch '^(?:schemas|catalog|policy|manifests)/[A-Za-z0-9._/-]{1,180}\.json$') -or
         $path -match '(?:^|/)\.\.(?:/|$)') { Throw-NgcaError $Code }
     $key = $path.ToUpperInvariant()
     if (-not $Boundary.treeIndex.ContainsKey($key)) { Throw-NgcaError $Code }
@@ -796,6 +797,38 @@ function Assert-NgcaBackendPolicyMapping {
     }
 }
 
+function Assert-NgcaBootstrapPolicyIdentity {
+    param([object]$Mapping,[object]$FleetMap)
+    Assert-NgcaExactProperties $FleetMap @(
+        '$schema','catalogVersion','managementSourceAddress','bootstrapIdentity',
+        'temporaryAccessHours','assets'
+    ) 'NGCA-BOOTSTRAP-FLEET-MAP-CONTRACT-INVALID'
+    if ($FleetMap.'$schema' -cne 'northgate/bootstrap-fleet-map/v1' -or
+        @($FleetMap.assets).Count -ne $script:ExactAssetOrder.Count) {
+        Throw-NgcaError 'NGCA-BOOTSTRAP-FLEET-MAP-CONTRACT-INVALID'
+    }
+    $fleetAssetIds = @($FleetMap.assets | ForEach-Object { [string]$_.assetId })
+    if (@($fleetAssetIds | Select-Object -Unique).Count -ne $script:ExactAssetOrder.Count -or
+        (($fleetAssetIds | Sort-Object) -join '|') -cne (($script:ExactAssetOrder | Sort-Object) -join '|')) {
+        Throw-NgcaError 'NGCA-BOOTSTRAP-FLEET-MAP-SCOPE-INVALID'
+    }
+    foreach ($asset in @($Mapping.allowedAssets)) {
+        $fleetAsset = @($FleetMap.assets | Where-Object { $_.assetId -ceq $asset.assetId })
+        $network = @($Mapping.networkProfiles | Where-Object {
+            $_.profileRef -cin @($asset.allowedNetworkProfileRefs)
+        })
+        if ($fleetAsset.Count -ne 1 -or $network.Count -ne 1 -or
+            $asset.name -cne $fleetAsset[0].name -or
+            $asset.staticMacAddress -cne $fleetAsset[0].staticMacAddress -or
+            $asset.bootstrapMediaId -cne ('ngmedia-' + ([string]$asset.assetId).ToLowerInvariant()) -or
+            [string]$fleetAsset[0].imageId -cnotin @($asset.allowedImageRefs) -or
+            [string]$fleetAsset[0].roleHook -cnotin @($asset.allowedBootstrapProfileRefs) -or
+            [int]$network[0].vlanId -ne [int]$fleetAsset[0].vlanId) {
+            Throw-NgcaError 'NGCA-POLICY-BOOTSTRAP-IDENTITY-MISMATCH'
+        }
+    }
+}
+
 function New-NorthGateCreateOnlyBackendPolicyArtifact {
     [CmdletBinding()]
     param(
@@ -825,6 +858,9 @@ function New-NorthGateCreateOnlyBackendPolicyArtifact {
     Assert-NgcaBackendPolicyMapping $mappingArtifact.value $authorization
     $boundary = Assert-NgcaGitSourceBoundary $RepositoryRoot `
         ([string]$authorization.repository.commit) ([string]$authorization.repository.tree)
+    $fleetMapArtifact = Read-NgcaRawGitCanonicalDocument $boundary `
+        'bootstrap-media/catalog/fleet-bootstrap-map.json' 'NGCA-BOOTSTRAP-FLEET-MAP-INVALID'
+    Assert-NgcaBootstrapPolicyIdentity $mappingArtifact.value $fleetMapArtifact.value
     $promotionEnabled = $false
     $promotionHash = ''
     if (($PromotionRecordPath -eq '') -xor ($ExpectedPromotionRecordSha256 -eq '')) {

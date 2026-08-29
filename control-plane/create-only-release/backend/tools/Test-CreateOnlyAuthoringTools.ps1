@@ -92,6 +92,34 @@ function New-NgcaResourcePolicy {
     }
 }
 
+function New-NgcaFleetMap {
+    $ids=@('NG-VM-018','NG-VM-010','NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012','NG-VM-019','NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015')
+    $names=@('NG-DEB-CAN01','NG-CANARY-01','NG-MAIL-EXT01','NG-MAIL-INT01','NG-WRK-01','NG-WRK-02','NG-MGR-01','NG-IT-01','NG-CYBER-01','NG-HR-APP01','NG-PLAT-APP01','NG-KALI-EXT01')
+    $macById=@{
+        'NG-VM-010'='024E4700000A';'NG-VM-011'='024E4700000B';'NG-VM-012'='024E4700000C'
+        'NG-VM-019'='024E4700000D';'NG-VM-020'='024E4700000E';'NG-VM-021'='024E4700000F'
+        'NG-VM-016'='024E47000010';'NG-VM-017'='024E47000011';'NG-VM-018'='024E47000012'
+        'NG-VM-014'='024E47000013';'NG-VM-013'='024E47000014';'NG-VM-015'='024E47000015'
+    }
+    $assets=@()
+    for($i=0;$i-lt$ids.Count;$i++){
+        $image='debian-12.12-amd64-netinst'
+        if($ids[$i]-in @('NG-VM-010','NG-VM-011','NG-VM-012','NG-VM-019','NG-VM-020','NG-VM-021')){$image='windows-11-25h2-english-x64'}
+        if($ids[$i]-ceq'NG-VM-015'){$image='kali-2026.2-installer-netinst-amd64'}
+        $assets+=[pscustomobject][ordered]@{
+            assetId=$ids[$i];name=$names[$i];hostname=$names[$i].ToLowerInvariant();family='test'
+            imageId=$image;staticMacAddress=$macById[$ids[$i]];vlanId=150;address='10.10.150.200'
+            prefixLength=24;gateway='10.10.150.1';allowedDnsServers=[object[]]@('10.10.150.1')
+            domainSuffix='northgate.test';roleHook='bootstrap-standard'
+        }
+    }
+    [pscustomobject][ordered]@{
+        '$schema'='northgate/bootstrap-fleet-map/v1';catalogVersion='2026.08.02.1'
+        managementSourceAddress='10.10.100.11';bootstrapIdentity='northgate-bootstrap'
+        temporaryAccessHours=24;assets=[object[]]$assets
+    }
+}
+
 function New-NgcaGitFixture {
     param([string]$Base,[ValidateSet('Valid','Noncanonical','Filter','Executable','Secret','Submodule')][string]$Mode='Valid')
     $repo=Join-Path $Base ('repo-'+$Mode+'-'+[guid]::NewGuid().ToString('N'));[IO.Directory]::CreateDirectory($repo)|Out-Null
@@ -115,6 +143,7 @@ function New-NgcaGitFixture {
     if($Mode -ceq 'Secret'){$manifest|Add-Member -NotePropertyName password -NotePropertyValue 'NotAllowedSecret123!'}
     Write-NgcaTestCanonical (Join-Path $repo 'manifests\vms\NG-VM-018.json') $manifest|Out-Null
     Write-NgcaTestCanonical (Join-Path $repo 'schemas\fixture.schema.json') ([pscustomobject][ordered]@{'$schema'='https://json-schema.org/draft/2020-12/schema';type='object'})|Out-Null
+    Write-NgcaTestCanonical (Join-Path $repo 'bootstrap-media\catalog\fleet-bootstrap-map.json') (New-NgcaFleetMap)|Out-Null
     $promotionArtifact=Write-NgcaTestCanonical (Join-Path $repo 'policy\deployment-promotion.json') (New-NgcaPromotion)
     Write-NgcaTestCanonical (Join-Path $repo 'policy\resource-limits.json') (New-NgcaResourcePolicy)|Out-Null
     if($Mode -ceq 'Filter'){[IO.File]::WriteAllText((Join-Path $repo '.gitattributes'),"*.json filter=evil`n",(New-Object Text.UTF8Encoding($false)))}
@@ -188,11 +217,13 @@ function New-NgcaMapping {
     param($Authorization)
     $assets=@();$ids=@('NG-VM-018','NG-VM-010','NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012','NG-VM-019','NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015')
     $names=@('NG-DEB-CAN01','NG-CANARY-01','NG-MAIL-EXT01','NG-MAIL-INT01','NG-WRK-01','NG-WRK-02','NG-MGR-01','NG-IT-01','NG-CYBER-01','NG-HR-APP01','NG-PLAT-APP01','NG-KALI-EXT01')
+    $fleetMap=New-NgcaFleetMap
     for($i=0;$i-lt $ids.Count;$i++){
         $image='debian-12.12-amd64-netinst';$firmware='linux-gen2'
-        if($ids[$i]-ceq'NG-VM-010'){$image='windows-11-25h2-english-x64';$firmware='windows-gen2'}
+        if($ids[$i]-in @('NG-VM-010','NG-VM-011','NG-VM-012','NG-VM-019','NG-VM-020','NG-VM-021')){$image='windows-11-25h2-english-x64';$firmware='windows-gen2'}
         if($ids[$i]-ceq'NG-VM-015'){$image='kali-2026.2-installer-netinst-amd64';$firmware='kali-gen2-unsigned'}
-        $assets+=[pscustomobject][ordered]@{assetId=$ids[$i];name=$names[$i];allowedImageRefs=[object[]]@($image);allowedStorageProfileRefs=[object[]]@('lab-storage');allowedNetworkProfileRefs=[object[]]@('business-apps');allowedFirmwareProfileRefs=[object[]]@($firmware);allowedBootstrapProfileRefs=[object[]]@('bootstrap-standard');allowedRecoveryProfileRefs=[object[]]@('recovery-standard');maximumProcessors=4;maximumMemoryMiB=16384;maximumOsDiskGiB=120;adapterPolicyId=('ngnic-'+$names[$i].ToLowerInvariant());staticMacAddress=('02AABBCCDD{0:X2}'-f($i+1));bootstrapMediaId=('ngmedia-'+$ids[$i].ToLowerInvariant())}
+        $fleetAsset=@($fleetMap.assets|Where-Object assetId -ceq $ids[$i])[0]
+        $assets+=[pscustomobject][ordered]@{assetId=$ids[$i];name=$names[$i];allowedImageRefs=[object[]]@($image);allowedStorageProfileRefs=[object[]]@('lab-storage');allowedNetworkProfileRefs=[object[]]@('business-apps');allowedFirmwareProfileRefs=[object[]]@($firmware);allowedBootstrapProfileRefs=[object[]]@('bootstrap-standard');allowedRecoveryProfileRefs=[object[]]@('recovery-standard');maximumProcessors=4;maximumMemoryMiB=16384;maximumOsDiskGiB=120;adapterPolicyId=('ngnic-'+$names[$i].ToLowerInvariant());staticMacAddress=$fleetAsset.staticMacAddress;bootstrapMediaId=('ngmedia-'+$ids[$i].ToLowerInvariant())}
     }
     [pscustomobject][ordered]@{
         schema='northgate/create-only-backend-policy-mapping/v1';policyId='northgate-authoring-test';policyVersion='2026.08.02.9';stateKeyId='ngkey-authoring-test-01';planTtlSeconds=900;approvalTtlSeconds=300
@@ -293,6 +324,9 @@ try{
         -MappingPath $mappingArtifact.path -OutputRoot (Join-Path $testRoot 'policy-disabled') `
         -SignerCertificateSha256 $releasePin -CertificateStoreLocation CurrentUser -ConfirmAuthoring
     Assert-NgcaTest (-not $disabledPolicy.applyEnabled -and $disabledPolicy.promotionRecordSha256-ceq'') 'Backend policy defaults disabled when no exact promotion record is supplied.'
+    $badIdentityMapping=ConvertFrom-Json (ConvertTo-Json $mapping -Depth 30);$badIdentityMapping.allowedAssets[0].staticMacAddress='024E47FFFFFF'
+    $badIdentityArtifact=Write-NgcaTestCanonical (Join-Path $testRoot 'mapping-bad-bootstrap-identity.json') $badIdentityMapping
+    Assert-NgcaThrows { New-NorthGateCreateOnlyBackendPolicyArtifact -RepositoryRoot $fixture.root -HostAuthorizationPath $authorizationArtifact.path -HostAuthorizationSignaturePath (Join-Path $testRoot 'authorization.p7s') -ExpectedHostAuthorizationSha256 $authorizationArtifact.sha256 -ExpectedHostAuthorizationSignerCertificateSha256 $authorizationPin -MappingPath $badIdentityArtifact.path -OutputRoot (Join-Path $testRoot 'policy-bad-bootstrap-identity') -SignerCertificateSha256 $releasePin -CertificateStoreLocation CurrentUser -ConfirmAuthoring } '^NGCA-POLICY-BOOTSTRAP-IDENTITY-MISMATCH$' 'Backend policy rejects a static MAC that does not match the immutable bootstrap fleet map.'
     $enabledPolicy=New-NorthGateCreateOnlyBackendPolicyArtifact -RepositoryRoot $fixture.root `
         -HostAuthorizationPath $authorizationArtifact.path -HostAuthorizationSignaturePath (Join-Path $testRoot 'authorization.p7s') `
         -ExpectedHostAuthorizationSha256 $authorizationArtifact.sha256 -ExpectedHostAuthorizationSignerCertificateSha256 $authorizationPin `

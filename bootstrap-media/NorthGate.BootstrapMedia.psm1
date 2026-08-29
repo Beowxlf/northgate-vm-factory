@@ -47,7 +47,14 @@ function Read-NgbmJsonFile {
     if ($raw.IndexOf([char]0) -ge 0 -or $raw -match '(?i)BEGIN\s+(?:RSA\s+|OPENSSH\s+)?PRIVATE\s+KEY') {
         Stop-Ngbm 'NGBM-SECRET-MATERIAL-FORBIDDEN'
     }
-    try { $value = Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $raw }
+    try {
+        $converter = Microsoft.PowerShell.Core\Get-Command `
+            -Name 'Microsoft.PowerShell.Utility\ConvertFrom-Json' -ErrorAction Stop
+        if ($converter.Parameters.ContainsKey('DateKind')) {
+            $value = Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $raw -DateKind String
+        }
+        else { $value = Microsoft.PowerShell.Utility\ConvertFrom-Json -InputObject $raw }
+    }
     catch { Stop-Ngbm 'NGBM-JSON-PARSE-FAILED' }
     [pscustomobject]@{ Path = $item.FullName; Raw = $raw; Value = $value }
 }
