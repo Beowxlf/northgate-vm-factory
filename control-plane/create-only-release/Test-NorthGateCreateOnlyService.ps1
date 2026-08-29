@@ -18,6 +18,7 @@ function global:Get-NorthGateCreateOnlyRolloutPromotionContext { param($Context)
 function global:Register-NorthGateCreateOnlyRolloutPromotion { param($Context,[byte[]]$PromotionBytes,[byte[]]$DetachedCmsSignatureBytes) $script:RegisteredPromotionBytes=$PromotionBytes;[pscustomobject]@{marker='rollout-promoted';signatureLength=$DetachedCmsSignatureBytes.Length} }
 function global:Invoke-NorthGateCreateOnlyApply { param($Context,[string]$PlanId) [pscustomobject]@{marker='apply';planId=$PlanId} }
 function global:Get-NorthGateCreateOnlyReceipt { param($Context,[string]$PlanId) [pscustomobject]@{marker='receipt';planId=$PlanId} }
+function global:Invoke-NorthGateCreateOnlyReceiptReconciliation { param($Context,[string]$PlanId) [pscustomobject]@{marker='receipt-reconciled';planId=$PlanId} }
 
 $root=$PSScriptRoot
 $protocol=Import-Module (Join-Path $root 'NorthGate.VMFactory.CreateOnlyProtocol.psd1') -Force -PassThru
@@ -131,6 +132,17 @@ try {
         -ActorSid $adminSid -ActorIsAdministrator $true -SshIdentitySid $sshSid `
         -ServiceIdentitySid $serviceSid } '^NGCOR-ROLLOUT-ENVELOPE-NONCANONICAL$' `
         'Whitespace-normalized rollout wrappers are rejected.'
+    $reconciled=Invoke-NorthGateCreateOnlyBackendServiceRequest -Context ([pscustomobject]@{}) `
+        -Operation reconcile-receipt -PlanId $planId -BodyBytes $empty -ActorSid $sshSid `
+        -ActorIsAdministrator $false -SshIdentitySid $sshSid -ServiceIdentitySid $serviceSid
+    Assert-NgcsTest ($reconciled.marker -ceq 'receipt-reconciled' -and
+        $reconciled.planId -ceq $planId) `
+        'Routine SSH identity can request bounded receipt-only reconciliation.'
+    Assert-NgcsThrows { Invoke-NorthGateCreateOnlyBackendServiceRequest -Context ([pscustomobject]@{}) `
+        -Operation reconcile-receipt -PlanId $planId -BodyBytes $empty -ActorSid $adminSid `
+        -ActorIsAdministrator $true -SshIdentitySid $sshSid -ServiceIdentitySid $serviceSid } `
+        '^NGCOR-SERVICE-ACTOR-NOT-AUTHORIZED$' `
+        'Native administrator cannot impersonate the confined reconciliation actor.'
     Assert-NgcsTest (([IO.File]::ReadAllText((Join-Path $root 'Start-NorthGateCreateOnlyPipeService.ps1')) -notmatch
         'CreateOnlyRelease\.psd1|Invoke-NorthGateCreateOnlyServiceRequest') -and
         ([IO.File]::ReadAllText((Join-Path $root 'Start-NorthGateCreateOnlyPipeService.ps1')) -match
@@ -142,5 +154,5 @@ try {
 }
 finally {
     Remove-Module $service.Name -Force -ErrorAction SilentlyContinue
-    foreach($name in @('Get-NorthGateCreateOnlyBackendState','New-NorthGateCreateOnlyHostPlan','Get-NorthGateCreateOnlyHostPlan','Register-NorthGateCreateOnlyApproval','Get-NorthGateCreateOnlyRolloutPromotionContext','Register-NorthGateCreateOnlyRolloutPromotion','Invoke-NorthGateCreateOnlyApply','Get-NorthGateCreateOnlyReceipt','Invoke-NorthGateCreateOnlyCrashRecovery')){Remove-Item ('Function:\global\'+$name) -Force -ErrorAction SilentlyContinue}
+    foreach($name in @('Get-NorthGateCreateOnlyBackendState','New-NorthGateCreateOnlyHostPlan','Get-NorthGateCreateOnlyHostPlan','Register-NorthGateCreateOnlyApproval','Get-NorthGateCreateOnlyRolloutPromotionContext','Register-NorthGateCreateOnlyRolloutPromotion','Invoke-NorthGateCreateOnlyApply','Get-NorthGateCreateOnlyReceipt','Invoke-NorthGateCreateOnlyReceiptReconciliation','Invoke-NorthGateCreateOnlyCrashRecovery')){Remove-Item ('Function:\global\'+$name) -Force -ErrorAction SilentlyContinue}
 }

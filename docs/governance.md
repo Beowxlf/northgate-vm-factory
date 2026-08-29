@@ -51,3 +51,9 @@ The plan-only canary proposal is likewise not deployment approval. Activating a 
 Every lab-affecting action is correlated with one change ID across the pull request, commit/tree, plan registration, approval, MCP audit events, before/after inventory, signed receipt, and Operation-SeeSaw records.
 
 The normal executor has no write access to Operation-SeeSaw. A separate off-host collector or verified Codex documentation step records the receipt and its SHA-256. Evidence-write failure creates a reconciliation finding; it does not rewrite the execution outcome.
+
+
+## Receipt reconciliation
+
+A create transaction that reached a verified, ledger-bound VM but failed while signing its receipt is not eligible for apply replay. Recovery uses the separately authorized `reconcile-receipt <planId>` operation only after the receipt signer is usable and the backend validates the original signed plan and release anchors, consumed approval, execution ID, bound ledger, terminal evidence-pending journal, and exact live VM configuration. The operation is idempotent and may write only the missing signed receipt plus authenticated completion state and audit evidence; it has no VM mutation path. Any live drift, ambiguous historical state, missing anchor, or signer failure stops reconciliation for investigation.
+

@@ -1642,6 +1642,101 @@ function Get-NgcdServiceSid {
     'S-1-5-80-' + ($parts -join '-')
 }
 
+function Test-NgcdAclMutationRights {
+    param([Security.AccessControl.FileSystemRights]$Rights)
+    $writeMask = [Security.AccessControl.FileSystemRights]::WriteData -bor
+        [Security.AccessControl.FileSystemRights]::AppendData -bor
+        [Security.AccessControl.FileSystemRights]::WriteExtendedAttributes -bor
+        [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor
+        [Security.AccessControl.FileSystemRights]::WriteAttributes -bor
+        [Security.AccessControl.FileSystemRights]::Delete -bor
+        [Security.AccessControl.FileSystemRights]::ChangePermissions -bor
+        [Security.AccessControl.FileSystemRights]::TakeOwnership
+    ($Rights -band $writeMask) -ne 0
+}
+
+function Set-NgcdReceiptSignerKeyAccess {
+    param(
+        [Parameter(Mandatory)][string]$ExpectedSignerSha256,
+        [Parameter(Mandatory)][string]$ExpectedServiceSid
+    )
+    if ((Get-NgcdServiceSid) -cne $ExpectedServiceSid) {
+        Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-SERVICE-SID-MISMATCH'
+    }
+    $certificates = @(Get-ChildItem -LiteralPath 'Cert:\LocalMachine\My' -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.HasPrivateKey -and
+            (Get-NgcdSha256Bytes $_.RawData) -ceq $ExpectedSignerSha256
+        })
+    if ($certificates.Count -ne 1) {
+        Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-SIGNING-KEY-UNAVAILABLE'
+    }
+    $certificate = $certificates[0]
+    $null = Test-NgcdCertificatePin $certificate $ExpectedSignerSha256
+    $rsa = [Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($certificate)
+    try {
+        $programData = [Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)
+        if ($rsa -is [Security.Cryptography.RSACng]) {
+            $keyRoot = Join-Path $programData 'Microsoft\Crypto\Keys'
+            $keyPath = Join-Path $keyRoot ([string]$rsa.Key.UniqueName)
+        }
+        elseif ($rsa -is [Security.Cryptography.RSACryptoServiceProvider]) {
+            $keyRoot = Join-Path $programData 'Microsoft\Crypto\RSA\MachineKeys'
+            $keyPath = Join-Path $keyRoot ([string]$rsa.CspKeyContainerInfo.UniqueKeyContainerName)
+        }
+        else { Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-PROVIDER-INVALID' }
+        $keyPath = Assert-NgcdPathWithin $keyPath $keyRoot 'NGCOR-DEPLOYMENT-RECEIPT-KEY-PATH-INVALID'
+        $null = Assert-NgcdNoReparsePath $keyPath 'NGCOR-DEPLOYMENT-RECEIPT-KEY-PATH-INVALID'
+        if (-not (Test-Path -LiteralPath $keyPath -PathType Leaf)) {
+            Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-PATH-INVALID'
+        }
+        try { $acl = Get-Acl -LiteralPath $keyPath -ErrorAction Stop }
+        catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-ACL-UNREADABLE' }
+        $sid = New-Object Security.Principal.SecurityIdentifier($ExpectedServiceSid)
+        foreach ($rule in @($acl.Access)) {
+            try { $ruleSid = $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value }
+            catch { continue }
+            if ($ruleSid -ceq $ExpectedServiceSid -and
+                $rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Deny) {
+                Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-ACCESS-DENIED'
+            }
+            if ($ruleSid -ceq $ExpectedServiceSid -and
+                $rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
+                (Test-NgcdAclMutationRights $rule.FileSystemRights)) {
+                Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-ACCESS-EXCESSIVE'
+            }
+        }
+        $readRule = New-Object Security.AccessControl.FileSystemAccessRule(
+            $sid,[Security.AccessControl.FileSystemRights]::Read,
+            [Security.AccessControl.AccessControlType]::Allow
+        )
+        $acl.SetAccessRule($readRule)
+        try { Set-Acl -LiteralPath $keyPath -AclObject $acl -ErrorAction Stop }
+        catch { Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-ACL-WRITE-FAILED' }
+        $readback = Get-Acl -LiteralPath $keyPath -ErrorAction Stop
+        $effective = @($readback.Access | Where-Object {
+            try { $_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -ceq $ExpectedServiceSid }
+            catch { $false }
+        })
+        $allowsRead = @($effective | Where-Object {
+            $_.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
+            ($_.FileSystemRights -band [Security.AccessControl.FileSystemRights]::Read) -ne 0 -and
+            -not (Test-NgcdAclMutationRights $_.FileSystemRights)
+        }).Count -ge 1
+        $denies = @($effective | Where-Object {
+            $_.AccessControlType -eq [Security.AccessControl.AccessControlType]::Deny
+        }).Count
+        if (-not $allowsRead -or $denies -ne 0) {
+            Stop-Ngcd 'NGCOR-DEPLOYMENT-RECEIPT-KEY-ACL-READBACK-FAILED'
+        }
+        [pscustomobject][ordered]@{
+            status = 'verified'; signerCertificateSha256 = $ExpectedSignerSha256
+            serviceIdentitySid = $ExpectedServiceSid; keyProvider = $rsa.GetType().Name
+        }
+    }
+    finally { if ($null -ne $rsa) { $rsa.Dispose() } }
+}
+
 function Invoke-NgcdSc {
     param([string[]]$Arguments)
     $sc = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::System)) 'sc.exe'
@@ -2234,8 +2329,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCC3mp0hfu8kA8++
-# 1vBJeF2sEWm1YSBexQFDHrqkkQfZhaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBH7j5qKMt9Fv7W
+# taS0IlppIuNZm8XR45CobVNhBQ5gK6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -2263,14 +2358,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIKKa5FXVWGXRHyfQaGF2ClV7xNbVxuirYiVl15V57e7uMA0GCSqG
-# SIb3DQEBAQUABIIBgIJ3acqVxbMjlMdAn9vFHIc9nACEsObpG4tbtus0MFezYPu1
-# 0zfwxnE5sp1W0fUlNN4s5OXzJ/WN0XkkcaLkO2RIGlvCAUV2T5dJUsDNrXZzwf9u
-# DtXrMSz+lSoRTG8GEGjwKqAnMvSuvcrhTB60ZdgRuJXmYfK7zCu0JXwN+dCxcDJV
-# GgIS8aSc1XbZ3VexNU405jtJdiNd+z7bxZvipWJAr6lBfXWoZRbvxcx/9umuNoGF
-# mmo9C8T9DllVnGYPc+NgwQAQykmlDZ5KiJOxWTUmU2vfdiQ5RKvNGrXLK285oLng
-# zU0RijMenq0O5vlU1QMGyDYK2EubIde8iBoImR9xLkGzNDlMZqIwj/W8oliv+O1j
-# loeLhsCTe/4LBpNorokrsQGG2J+GDdv6XVpnOg9Flck6vq6M4Ujg7nKH/iDykmlg
-# 3rreuwGs9iXoiH+uWlGr33YhiK+OnBp5Ta57K4R7GM6z9oIT4MqG0pgJImh36n2H
-# 3s7H1vlEN5+THah5qg==
+# hvcNAQkEMSIEIP2hQZWOTUhMushEQ2v4YE3ujJLqlWI/OFRpZzXml8MkMA0GCSqG
+# SIb3DQEBAQUABIIBgEdw4IyJkWP+I8+vOvoQxZXv9Zwb4SllSisUND4XQ03GIJ39
+# 5qPkQpsTkS18m1o/I8azvvCsbwnGhM/2/QLPDoTUMUfTV1Ae+EPAdIgTwNoK8tac
+# 0S4WA/CLTVK7cBPHniMIYaeGD2vt281rXgHTnwWs9iE+rUqkh07bsTD4eRo4o5Fj
+# EotnRvfq3W1HBO0lCCMFUQCgqEHhzENB4L0AXkXEgnvVPqvgMvoX0TuaotFxLg1t
+# mEd34hIUC1870amLGXlixZ3/NhhC4+Wuzv/2b7HtfCoUk3pQve8n171Xu4UKxcg6
+# Mj7Mw9LD89pX3PKgovPtRwjzyHMKcivrhYgfsn6OX35+UxrujwLWgSyi2O4Xh1Kc
+# 9WGQej8Z9qZykmY6Pj+LKFO2uQg0kfGA8sqNd+0poIiVupmn7Sf4gStZHrAz79dL
+# EiYSKngp0Qf/sWZ0F32tnPCgJ6rV0SEHce5z/hYQXzv/GPdZLfnmR+fmb91suNsn
+# NBf3GK3HZulGxIFt5w==
 # SIG # End signature block

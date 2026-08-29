@@ -330,6 +330,33 @@ function New-NgcbDetachedCmsSignature {
     catch { Throw-NgcbError 'NGCB-RECEIPT-SIGNING-FAILED' }
 }
 
+function Test-NgcbReceiptSignerCapability {
+    param(
+        [Parameter(Mandatory)][Security.Cryptography.X509Certificates.X509Certificate2]$Certificate,
+        [Parameter(Mandatory)][string]$ExpectedCertificateSha256
+    )
+    $probe = [Text.Encoding]::UTF8.GetBytes(
+        'northgate/create-only-receipt-signing-probe/v1'
+    )
+    try {
+        if (-not $Certificate.HasPrivateKey -or
+            (Get-NgcbCertificateSha256 $Certificate) -cne $ExpectedCertificateSha256) {
+            Throw-NgcbError 'NGCB-RECEIPT-SIGNER-NOT-USABLE'
+        }
+        $signature = New-NgcbDetachedCmsSignature $probe $Certificate
+        $evidence = Assert-NgcbDetachedCmsSignature $probe $signature $ExpectedCertificateSha256 `
+            'NGCB-RECEIPT-SIGNER-NOT-USABLE'
+        if ($evidence.certificateSha256 -cne $ExpectedCertificateSha256) {
+            Throw-NgcbError 'NGCB-RECEIPT-SIGNER-NOT-USABLE'
+        }
+        return $true
+    }
+    catch {
+        if ($_.Exception.Message -ceq 'NGCB-RECEIPT-SIGNER-NOT-USABLE') { throw }
+        Throw-NgcbError 'NGCB-RECEIPT-SIGNER-NOT-USABLE'
+    }
+}
+
 function Get-NgcbCertificateWithPrivateKey {
     param([Parameter(Mandatory)][string]$CertificateSha256)
     foreach ($storePath in @('Cert:\LocalMachine\My', 'Cert:\CurrentUser\My')) {
@@ -1044,6 +1071,8 @@ function New-NorthGateCreateOnlyBackendContext {
     Assert-NgcbNoReparseAncestor $rolloutPromotions | Out-Null
     $receiptCertificate = Get-NgcbCertificateWithPrivateKey `
         ([string]$authorization.identity.receiptSignerCertificateSha256)
+    $null = Test-NgcbReceiptSignerCapability $receiptCertificate `
+        ([string]$authorization.identity.receiptSignerCertificateSha256)
     $context = [pscustomobject][ordered]@{
         ContextVersion = 'northgate/create-only-backend-context/v1'
         Mode = 'Production'
@@ -1071,6 +1100,162 @@ function New-NorthGateCreateOnlyBackendContext {
     }
     $context.ContextMarker = Get-NgcbContextMarker $context
     Assert-NgcbContext $context
+    return $context
+}
+
+function New-NgcbHistoricalContextForPlan {
+    param(
+        [Parameter(Mandatory)][object]$CurrentContext,
+        [Parameter(Mandatory)][string]$PlanId
+    )
+    Assert-NgcbContext $CurrentContext
+    Assert-NgcbPlanId $PlanId
+    if ($CurrentContext.Mode -ne 'Production') { return $CurrentContext }
+    Assert-NgcbContextAnchorsCurrent $CurrentContext
+
+    $currentPlanPath = Get-NgcbPlanPath $CurrentContext $PlanId
+    if (Test-Path -LiteralPath $currentPlanPath -PathType Leaf) { return $CurrentContext }
+    $backendParent = Assert-NgcbNoReparseAncestor (Split-Path -Parent $CurrentContext.StateRoot)
+    $candidates = @(Get-ChildItem -LiteralPath $backendParent -Directory -ErrorAction Stop | Where-Object {
+        $_.Name -cmatch '^ngcor-[a-z0-9][a-z0-9.-]{7,63}$' -and
+        (Test-Path -LiteralPath (Join-Path $_.FullName ('plans\' + $PlanId + '.json')) -PathType Leaf)
+    })
+    if ($candidates.Count -ne 1) { Throw-NgcbError 'NGCB-RECONCILIATION-STATE-NOT-UNIQUE' }
+    $stateRoot = Assert-NgcbNoReparseAncestor $candidates[0].FullName
+    $releaseId = [string]$candidates[0].Name
+    $releaseParent = Assert-NgcbNoReparseAncestor (
+        Split-Path -Parent ([string]$CurrentContext.Authorization.install.versionedReleaseRoot)
+    )
+    $releaseRoot = Assert-NgcbNoReparseAncestor (Join-Path $releaseParent $releaseId)
+    if (-not (Test-Path -LiteralPath $releaseRoot -PathType Container)) {
+        Throw-NgcbError 'NGCB-RECONCILIATION-RELEASE-NOT-AVAILABLE'
+    }
+
+    $installedArtifact = Read-NgcbCanonicalFile (Join-Path $releaseRoot 'installed-release.json') `
+        $script:MaximumArtifactBytes 'NGCB-RECONCILIATION-INSTALLED-RELEASE-INVALID'
+    $installed = $installedArtifact.Value
+    Assert-NgcbExactProperties $installed @(
+        'schema','transactionId','releaseId','releaseManifestSha256','deploymentAuthorizationSha256',
+        'repositoryCommit','repositoryTree','releaseSignerCertificateSha256','serviceIdentitySid',
+        'sshIdentitySid','serviceName','serviceHostFileName','installedAtUtc',
+        'deploymentAuthorizationSignerCertificateSha256','backendPolicySha256','dataBundleSha256',
+        'dataBundleId','backendDataRoot','backendStateRoot','backendStateKeyPath'
+    ) 'NGCB-RECONCILIATION-INSTALLED-RELEASE-INVALID'
+    if ($installed.schema -cne 'northgate/create-only-installed-release/v1' -or
+        $installed.releaseId -cne $releaseId -or
+        [IO.Path]::GetFullPath([string]$installed.backendStateRoot).TrimEnd('\') -ine $stateRoot.TrimEnd('\') -or
+        [IO.Path]::GetFullPath([string]$installed.backendDataRoot).TrimEnd('\') -ine
+            ([IO.Path]::GetFullPath((Join-Path $releaseRoot 'backend-data')).TrimEnd('\')) -or
+        $installed.serviceName -cne 'NorthGateCreateOnly' -or
+        $installed.serviceIdentitySid -cne $CurrentContext.Authorization.identity.serviceIdentitySid -or
+        $installed.sshIdentitySid -cne $CurrentContext.Authorization.identity.sshIdentitySid) {
+        Throw-NgcbError 'NGCB-RECONCILIATION-INSTALLED-RELEASE-INVALID'
+    }
+
+    $releaseArtifact = Read-NgcbCanonicalFile (Join-Path $releaseRoot 'release-manifest.json') `
+        $script:MaximumArtifactBytes 'NGCB-RECONCILIATION-RELEASE-INVALID'
+    if ($releaseArtifact.Sha256 -cne $installed.releaseManifestSha256) {
+        Throw-NgcbError 'NGCB-RECONCILIATION-RELEASE-INVALID'
+    }
+    $null = Assert-NgcbDetachedCmsSignature $releaseArtifact.Bytes `
+        (Read-NgcbSignatureFile (Join-Path $releaseRoot 'release-manifest.p7s')) `
+        ([string]$installed.releaseSignerCertificateSha256) 'NGCB-RECONCILIATION-RELEASE-INVALID'
+    Assert-NgcbReleaseManifest $releaseArtifact.Value $releaseArtifact.Sha256
+    if ($releaseArtifact.Value.releaseId -cne $releaseId -or
+        $releaseArtifact.Value.repository.commit -cne $installed.repositoryCommit -or
+        $releaseArtifact.Value.repository.tree -cne $installed.repositoryTree) {
+        Throw-NgcbError 'NGCB-RECONCILIATION-RELEASE-INVALID'
+    }
+
+    $authorizationArtifact = Read-NgcbCanonicalFile (Join-Path $releaseRoot 'deployment-authorization.json') `
+        $script:MaximumArtifactBytes 'NGCB-RECONCILIATION-AUTHORIZATION-INVALID'
+    if ($authorizationArtifact.Sha256 -cne $installed.deploymentAuthorizationSha256) {
+        Throw-NgcbError 'NGCB-RECONCILIATION-AUTHORIZATION-INVALID'
+    }
+    $null = Assert-NgcbDetachedCmsSignature $authorizationArtifact.Bytes `
+        (Read-NgcbSignatureFile (Join-Path $releaseRoot 'deployment-authorization.p7s')) `
+        ([string]$installed.deploymentAuthorizationSignerCertificateSha256) `
+        'NGCB-RECONCILIATION-AUTHORIZATION-INVALID'
+    Assert-NgcbHostAuthorization $authorizationArtifact.Value $releaseArtifact.Value $authorizationArtifact.Sha256
+    $authorization = $authorizationArtifact.Value
+    if ([IO.Path]::GetFullPath([string]$authorization.install.versionedReleaseRoot).TrimEnd('\') -ine
+            $releaseRoot.TrimEnd('\') -or
+        $authorization.identity.releaseSignerCertificateSha256 -cne $installed.releaseSignerCertificateSha256 -or
+        $authorization.identity.receiptSignerCertificateSha256 -cne
+            $CurrentContext.Authorization.identity.receiptSignerCertificateSha256 -or
+        $authorization.host.hostId -cne $CurrentContext.Authorization.host.hostId) {
+        Throw-NgcbError 'NGCB-RECONCILIATION-AUTHORIZATION-INVALID'
+    }
+
+    $policyArtifact = Read-NgcbCanonicalFile (Join-Path $releaseRoot 'backend-policy.json') `
+        $script:MaximumArtifactBytes 'NGCB-RECONCILIATION-POLICY-INVALID'
+    if ($policyArtifact.Sha256 -cne $installed.backendPolicySha256) {
+        Throw-NgcbError 'NGCB-RECONCILIATION-POLICY-INVALID'
+    }
+    $null = Assert-NgcbDetachedCmsSignature $policyArtifact.Bytes `
+        (Read-NgcbSignatureFile (Join-Path $releaseRoot 'backend-policy.p7s')) `
+        ([string]$installed.releaseSignerCertificateSha256) 'NGCB-RECONCILIATION-POLICY-INVALID'
+    Assert-NgcbBackendPolicy $policyArtifact.Value $authorization $authorizationArtifact.Sha256 `
+        $policyArtifact.Sha256
+
+    $dataRoot = Assert-NgcbNoReparseAncestor ([string]$installed.backendDataRoot)
+    $bundleArtifact = Read-NgcbCanonicalFile (Join-Path $dataRoot 'bundle.json') 10485760 `
+        'NGCB-RECONCILIATION-DATA-BUNDLE-INVALID'
+    if ($bundleArtifact.Sha256 -cne $installed.dataBundleSha256) {
+        Throw-NgcbError 'NGCB-RECONCILIATION-DATA-BUNDLE-INVALID'
+    }
+    $null = Assert-NgcbDetachedCmsSignature $bundleArtifact.Bytes `
+        (Read-NgcbSignatureFile (Join-Path $dataRoot 'bundle.p7s')) `
+        ([string]$installed.releaseSignerCertificateSha256) 'NGCB-RECONCILIATION-DATA-BUNDLE-INVALID'
+    Assert-NgcbDataBundle $bundleArtifact.Value $releaseArtifact.Value
+    if ($bundleArtifact.Value.bundleId -cne $installed.dataBundleId) {
+        Throw-NgcbError 'NGCB-RECONCILIATION-DATA-BUNDLE-INVALID'
+    }
+
+    $stateKeyPath = [IO.Path]::GetFullPath([string]$installed.backendStateKeyPath)
+    if ($stateKeyPath -ine (Join-Path $stateRoot 'state-key.dpapi')) {
+        Throw-NgcbError 'NGCB-RECONCILIATION-STATE-KEY-INVALID'
+    }
+    Assert-NgcbRestrictedAcl $stateRoot ([string]$authorization.identity.serviceIdentitySid)
+    Assert-NgcbRestrictedAcl $dataRoot ([string]$authorization.identity.serviceIdentitySid)
+    try {
+        $stateKeyItem = Get-Item -LiteralPath $stateKeyPath -Force -ErrorAction Stop
+        if ($stateKeyItem.PSIsContainer -or $stateKeyItem.Length -lt 48 -or $stateKeyItem.Length -gt 4096 -or
+            ($stateKeyItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            Throw-NgcbError 'NGCB-RECONCILIATION-STATE-KEY-INVALID'
+        }
+        $entropy = [Text.Encoding]::UTF8.GetBytes(
+            'northgate-vm-factory|' + [string]$policyArtifact.Value.stateKeyId
+        )
+        $stateKey = [Security.Cryptography.ProtectedData]::Unprotect(
+            [IO.File]::ReadAllBytes($stateKeyPath),$entropy,
+            [Security.Cryptography.DataProtectionScope]::LocalMachine
+        )
+        if ($stateKey.Length -ne 32) { Throw-NgcbError 'NGCB-RECONCILIATION-STATE-KEY-INVALID' }
+    }
+    catch {
+        if ($_.Exception.Message -ceq 'NGCB-RECONCILIATION-STATE-KEY-INVALID') { throw }
+        Throw-NgcbError 'NGCB-RECONCILIATION-STATE-KEY-INVALID'
+    }
+
+    $context = [pscustomobject][ordered]@{
+        ContextVersion = 'northgate/create-only-backend-context/v1'; Mode = 'Production'
+        StateRoot = $stateRoot; Authorization = $authorization
+        AuthorizationSha256 = $authorizationArtifact.Sha256; ReleaseManifest = $releaseArtifact.Value
+        ReleaseManifestSha256 = $releaseArtifact.Sha256; Policy = $policyArtifact.Value
+        PolicySha256 = $policyArtifact.Sha256; DataBundle = $bundleArtifact.Value
+        DataBundleSha256 = $bundleArtifact.Sha256; DataRoot = $dataRoot; StateKey = $stateKey
+        ReceiptCertificate = $CurrentContext.ReceiptCertificate
+        AnchorPaths = [pscustomobject][ordered]@{
+            release = $releaseArtifact.Path; authorization = $authorizationArtifact.Path
+            policy = $policyArtifact.Path; dataBundle = $bundleArtifact.Path
+        }
+        TestState = [pscustomobject]@{}; TestScenario = 'None'; ContextMarker = ''
+    }
+    $context.ContextMarker = Get-NgcbContextMarker $context
+    Assert-NgcbContext $context
+    $null = Test-NgcbReceiptSignerCapability $context.ReceiptCertificate `
+        ([string]$authorization.identity.receiptSignerCertificateSha256)
     return $context
 }
 
@@ -2700,7 +2885,10 @@ function Get-NorthGateCreateOnlyHostPlan {
 }
 
 function Assert-NgcbApprovalContract {
-    param([object]$Approval, [object]$PlanRecord, [object]$Plan, [object]$Context)
+    param(
+        [object]$Approval, [object]$PlanRecord, [object]$Plan, [object]$Context,
+        [switch]$AllowExpired
+    )
     Assert-NgcbExactProperties $Approval @(
         'schema','approvalId','decision','planId','planHash','planAuthenticationHash','changeId',
         'repository','releaseManifestSha256','authorizationSha256','policySha256','dataBundleSha256','issuedAtUtc','expiresAtUtc',
@@ -2730,7 +2918,8 @@ function Assert-NgcbApprovalContract {
     $expires = ConvertTo-NgcbUtc $Approval.expiresAtUtc 'NGCB-APPROVAL-TIME-INVALID'
     $planExpiry = ConvertTo-NgcbUtc $Plan.expiresAtUtc 'NGCB-PLAN-TIME-INVALID'
     $now = [DateTimeOffset]::UtcNow
-    if ($issued -gt $now.AddMinutes(1) -or $expires -le $now -or $expires -le $issued -or
+    if ((-not $AllowExpired -and ($issued -gt $now.AddMinutes(1) -or $expires -le $now)) -or
+        $expires -le $issued -or
         $expires -gt $issued.AddSeconds([int]$Context.Policy.approvalTtlSeconds) -or
         $expires -gt $planExpiry) { Throw-NgcbError 'NGCB-APPROVAL-TIME-INVALID' }
 }
@@ -2805,7 +2994,7 @@ function Register-NorthGateCreateOnlyApproval {
 }
 
 function Read-NgcbApprovalRecord {
-    param([object]$Context, [object]$ParsedPlan)
+    param([object]$Context, [object]$ParsedPlan, [switch]$AllowExpired)
     $path = Get-NgcbApprovalPath $Context ([string]$ParsedPlan.Record.planId)
     $envelope = Read-NgcbEnvelope $Context 'plan-approval-record' $path 'NGCB-APPROVAL-STATE-CORRUPT'
     $record = $envelope.record
@@ -2830,7 +3019,8 @@ function Read-NgcbApprovalRecord {
         $evidence.certificateSha256 -cne $record.signerCertificateSha256) {
         Throw-NgcbError 'NGCB-APPROVAL-STATE-CORRUPT'
     }
-    Assert-NgcbApprovalContract $record.approval $ParsedPlan.Record $ParsedPlan.Plan $Context
+    Assert-NgcbApprovalContract $record.approval $ParsedPlan.Record $ParsedPlan.Plan $Context `
+        -AllowExpired:$AllowExpired
     return [pscustomobject][ordered]@{ Record = $record; Envelope = $envelope }
 }
 
@@ -3244,6 +3434,47 @@ function Invoke-NgcbInertCreate {
     }
 }
 
+function Assert-NgcbInertVmReadback {
+    param([object]$Context,[object]$Plan,[string]$VmId,[bool]$ExpectRunning)
+    $operation = $Plan.operation
+    $vms = @($Context.TestState.vms | Where-Object { $_.vmId -ceq $VmId })
+    $disks = @($Context.TestState.disks | Where-Object { $_.vmId -ceq $VmId })
+    $adapters = @($Context.TestState.adapters | Where-Object { $_.vmId -ceq $VmId })
+    $expectedState = if ($ExpectRunning) { 'Running' } else { 'Off' }
+    $expectedNote = Get-NgcbOwnershipNote $operation.assetId $operation.changeId `
+        $Plan.reservationId $Plan.planId $false
+    if ($vms.Count -ne 1 -or $disks.Count -ne 1 -or $adapters.Count -ne 1 -or
+        $vms[0].name -cne $operation.name -or [int]$vms[0].generation -ne 2 -or
+        $vms[0].state -cne $expectedState -or $vms[0].notes -cne $expectedNote -or
+        [IO.Path]::GetFullPath([string]$disks[0].path) -ine [IO.Path]::GetFullPath([string]$operation.vhdPath) -or
+        $adapters[0].switchId -cne $operation.switchId -or
+        $adapters[0].macAddress -cne $operation.staticMacAddress -or
+        [bool]$adapters[0].dynamicMacAddressEnabled) {
+        Throw-NgcbError 'NGCB-VM-READBACK-MISMATCH'
+    }
+    $after = [pscustomobject][ordered]@{
+        vmId=$VmId; name=$operation.name; generation=2; state=$expectedState
+        processorCount=[int]$operation.processors; startupMemoryBytes=[int64]$operation.startupMemoryMiB*1MB
+        dynamicMemoryEnabled=($operation.memoryMode -ceq 'dynamic'); vhdPath=$operation.vhdPath
+        imagePath=$operation.imagePath; bootstrapMediaId=$operation.bootstrapMediaId
+        bootstrapMediaMode=$operation.bootstrapMediaMode; bootstrapMediaSha256=$operation.bootstrapMediaSha256
+        bootstrapMediaProvenanceSha256=$operation.bootstrapMediaProvenanceSha256
+        bootstrapMediaBundleManifestSha256=$operation.bootstrapMediaBundleManifestSha256
+        bootstrapMediaUnattendedPayloadSha256=$operation.bootstrapMediaUnattendedPayloadSha256
+        installationMediaPaths=[object[]]@($operation.bootstrapMediaPath)
+        switchId=$operation.switchId; vlanId=[int]$operation.vlanId
+        adapterPolicyId=$operation.adapterPolicyId; adapterId=[string]$adapters[0].adapterId
+        staticMacAddress=$operation.staticMacAddress; dynamicMacAddressEnabled=$false
+        secureBootEnabled=[bool]$operation.secureBootEnabled; secureBootTemplate=$operation.secureBootTemplate
+        secureBootExceptionId=$operation.secureBootExceptionId; vtpmEnabled=[bool]$operation.vtpmRequired
+        ownershipNoteSha256=Get-NgcbStringSha256Hex $expectedNote
+    }
+    [pscustomobject][ordered]@{
+        VmId=$VmId; AfterState=$after
+        AfterStateHash=Get-NgcbStringSha256Hex (ConvertTo-NorthGateCreateOnlyCanonicalJson $after)
+    }
+}
+
 function New-NgcbSignedReceiptRecord {
     param(
         [object]$Context, [object]$ParsedPlan, [object]$ApprovalRecord,
@@ -3263,13 +3494,13 @@ function New-NgcbSignedReceiptRecord {
         approvalId = [string]$ApprovalRecord.approval.approvalId
         approvalSha256 = [string]$ApprovalRecord.approvalSha256
         repository = $plan.repository
-        releaseManifestSha256 = [string]$Context.ReleaseManifestSha256
-        authorizationSha256 = [string]$Context.AuthorizationSha256
-        policySha256 = [string]$Context.PolicySha256
+        releaseManifestSha256 = [string]$plan.release.releaseManifestSha256
+        authorizationSha256 = [string]$plan.authorization.authorizationSha256
+        policySha256 = [string]$plan.policy.policySha256
         rolloutAuthorizationSha256 = [string]$plan.policy.rolloutAuthorizationSha256
         rolloutSequence = [int]$plan.policy.rolloutSequence
         rolloutStage = [string]$plan.policy.rolloutStage
-        dataBundleSha256 = [string]$Context.DataBundleSha256
+        dataBundleSha256 = [string]$plan.data.dataBundleSha256
         manifestSha256 = [string]$plan.data.manifestSha256
         catalogHash = [string]$plan.data.catalogHash
         beforeIdentityHash = [string]$plan.liveState.identityHash
@@ -3360,15 +3591,15 @@ function Assert-NgcbReceiptRecord {
         $Record.receipt.planHash -cne $ParsedPlan.Record.planHash -or
         $Record.receipt.planAuthenticationHash -cne $ParsedPlan.Record.planAuthenticationHash -or
         $Record.receipt.repository.identity -cne $script:RepositoryIdentity -or
-        $Record.receipt.repository.commit -cne $Context.ReleaseManifest.repository.commit -or
-        $Record.receipt.repository.tree -cne $Context.ReleaseManifest.repository.tree -or
-        $Record.receipt.releaseManifestSha256 -cne $Context.ReleaseManifestSha256 -or
-        $Record.receipt.authorizationSha256 -cne $Context.AuthorizationSha256 -or
-        $Record.receipt.policySha256 -cne $Context.PolicySha256 -or
+        $Record.receipt.repository.commit -cne $ParsedPlan.Plan.repository.commit -or
+        $Record.receipt.repository.tree -cne $ParsedPlan.Plan.repository.tree -or
+        $Record.receipt.releaseManifestSha256 -cne $ParsedPlan.Plan.release.releaseManifestSha256 -or
+        $Record.receipt.authorizationSha256 -cne $ParsedPlan.Plan.authorization.authorizationSha256 -or
+        $Record.receipt.policySha256 -cne $ParsedPlan.Plan.policy.policySha256 -or
         $Record.receipt.rolloutAuthorizationSha256 -cne $ParsedPlan.Plan.policy.rolloutAuthorizationSha256 -or
         [int]$Record.receipt.rolloutSequence -ne [int]$ParsedPlan.Plan.policy.rolloutSequence -or
         $Record.receipt.rolloutStage -cne $ParsedPlan.Plan.policy.rolloutStage -or
-        $Record.receipt.dataBundleSha256 -cne $Context.DataBundleSha256 -or
+        $Record.receipt.dataBundleSha256 -cne $ParsedPlan.Plan.data.dataBundleSha256 -or
         $Record.receipt.operation.adapterPolicyId -cne $ParsedPlan.Plan.operation.adapterPolicyId -or
         $Record.receipt.operation.adapterReservationId -cne $ParsedPlan.Plan.operation.adapterReservationId -or
         $Record.receipt.operation.staticMacAddress -cne $ParsedPlan.Plan.operation.staticMacAddress -or
@@ -3400,10 +3631,12 @@ function Get-NorthGateCreateOnlyReceipt {
     [CmdletBinding()]
     param([Parameter(Mandatory)][object]$Context, [Parameter(Mandatory)][string]$PlanId)
     Assert-NgcbContext $Context
-    $parsedPlan = Read-NgcbPlanRecord $Context $PlanId
-    $envelope = Read-NgcbEnvelope $Context 'signed-receipt-record' (Get-NgcbReceiptPath $Context $PlanId) `
+    $receiptContext = New-NgcbHistoricalContextForPlan $Context $PlanId
+    $parsedPlan = Read-NgcbPlanRecord $receiptContext $PlanId
+    $envelope = Read-NgcbEnvelope $receiptContext 'signed-receipt-record' `
+        (Get-NgcbReceiptPath $receiptContext $PlanId) `
         'NGCB-RECEIPT-NOT-AVAILABLE'
-    Assert-NgcbReceiptRecord $Context $envelope.record $parsedPlan
+    Assert-NgcbReceiptRecord $receiptContext $envelope.record $parsedPlan
     return [pscustomobject][ordered]@{
         receipt = $envelope.record.receipt
         receiptSha256 = $envelope.record.receiptSha256
@@ -3531,6 +3764,126 @@ function Invoke-NorthGateCreateOnlyApply {
     finally { Exit-NgcbLockSet $lock }
 }
 
+function Invoke-NorthGateCreateOnlyReceiptReconciliation {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][object]$Context,[Parameter(Mandatory)][string]$PlanId)
+    Assert-NgcbContext $Context
+    Assert-NgcbPlanId $PlanId
+    Assert-NgcbProductionServiceIdentity $Context
+    $transactionContext = New-NgcbHistoricalContextForPlan $Context $PlanId
+    $initialPlan = Read-NgcbPlanRecord $transactionContext $PlanId
+    $assetId = [string]$initialPlan.Plan.operation.assetId
+    $lock = Enter-NgcbLockSet $transactionContext $assetId
+    try {
+        $parsedPlan = Read-NgcbPlanRecord $transactionContext $PlanId
+        $receiptPath = Get-NgcbReceiptPath $transactionContext $PlanId
+        if (Test-Path -LiteralPath $receiptPath -PathType Leaf) {
+            $receiptEnvelope = Read-NgcbEnvelope $transactionContext 'signed-receipt-record' $receiptPath `
+                'NGCB-RECEIPT-NOT-AVAILABLE'
+            Assert-NgcbReceiptRecord $transactionContext $receiptEnvelope.record $parsedPlan
+            if ($parsedPlan.Record.state -ceq 'AppliedEvidencePending' -and
+                $parsedPlan.Record.evidenceState -ceq 'receipt-signing-failed') {
+                $parsedPlan.Record.state = 'Applied'
+                $parsedPlan.Record.evidenceState = 'signed-receipt-complete'
+                Save-NgcbPlanRecord $transactionContext $parsedPlan.Record
+                $last = Read-NgcbLastJournalEvent $transactionContext $assetId $parsedPlan.Plan.reservationId
+                if ($null -eq $last -or $last.state -cne 'ReceiptReconciled') {
+                    $null = Write-NgcbJournalEvent $transactionContext $assetId $parsedPlan.Plan.reservationId `
+                        $PlanId 'ReceiptReconciled' ([string]$receiptEnvelope.record.receipt.operation.vmId) `
+                        'NGCB-RECEIPT-RECONCILED'
+                }
+                Write-NgcbAuditEvent $transactionContext 'receipt-reconciled' 'succeeded' `
+                    'NGCB-RECEIPT-RECONCILED' $PlanId $assetId
+            }
+            elseif ($parsedPlan.Record.state -cne 'Applied' -or
+                $parsedPlan.Record.evidenceState -cne 'signed-receipt-complete') {
+                Throw-NgcbError 'NGCB-RECONCILIATION-STATE-INVALID'
+            }
+            return Get-NorthGateCreateOnlyReceipt $transactionContext $PlanId
+        }
+        if ($parsedPlan.Record.state -cne 'AppliedEvidencePending' -or
+            $parsedPlan.Record.approvalState -cne 'Consumed' -or
+            $parsedPlan.Record.evidenceState -cne 'receipt-signing-failed' -or
+            $parsedPlan.Record.executionId -cnotmatch '^ngx-[a-f0-9]{64}$' -or
+            $parsedPlan.Record.quarantineState -cne 'not-required') {
+            Throw-NgcbError 'NGCB-RECONCILIATION-STATE-INVALID'
+        }
+        $resolved = Resolve-NgcbManifest $transactionContext $assetId
+        Assert-NgcbPlanContract $transactionContext $parsedPlan.Record $parsedPlan.Plan $resolved
+        $approvalEnvelope = Read-NgcbApprovalRecord $transactionContext $parsedPlan -AllowExpired
+        if ($approvalEnvelope.Record.state -cne 'Consumed' -or
+            $approvalEnvelope.Record.executionId -cne $parsedPlan.Record.executionId -or
+            $approvalEnvelope.Record.consumedAtUtc -cnotmatch `
+                '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$') {
+            Throw-NgcbError 'NGCB-RECONCILIATION-APPROVAL-INVALID'
+        }
+        $consumedAt = ConvertTo-NgcbUtc $approvalEnvelope.Record.consumedAtUtc `
+            'NGCB-RECONCILIATION-APPROVAL-INVALID'
+        $approvalIssued = ConvertTo-NgcbUtc $approvalEnvelope.Record.approval.issuedAtUtc `
+            'NGCB-RECONCILIATION-APPROVAL-INVALID'
+        $planExpires = ConvertTo-NgcbUtc $parsedPlan.Plan.expiresAtUtc `
+            'NGCB-RECONCILIATION-APPROVAL-INVALID'
+        if ($consumedAt -lt $approvalIssued -or
+            $consumedAt -gt $planExpires.AddSeconds($script:MaximumClockSkewSeconds)) {
+            Throw-NgcbError 'NGCB-RECONCILIATION-APPROVAL-INVALID'
+        }
+
+        $ledger = Read-NgcbLedger $transactionContext
+        $ledgerEntries = @($ledger.entries | Where-Object {
+            $_.reservationId -ceq $parsedPlan.Plan.reservationId
+        })
+        if ($ledgerEntries.Count -ne 1) { Throw-NgcbError 'NGCB-RECONCILIATION-LEDGER-INVALID' }
+        $ledgerEntry = $ledgerEntries[0]
+        if ($ledgerEntry.state -cne 'Bound' -or $ledgerEntry.assetId -cne $assetId -or
+            $ledgerEntry.name -cne $parsedPlan.Plan.operation.name -or
+            $ledgerEntry.planId -cne $PlanId -or
+            $ledgerEntry.changeId -cne $parsedPlan.Plan.operation.changeId -or
+            $ledgerEntry.vmId -cnotmatch '^[a-f0-9-]{36}$' -or
+            [IO.Path]::GetFullPath([string]$ledgerEntry.assetRoot) -ine
+                [IO.Path]::GetFullPath([string]$parsedPlan.Plan.operation.assetRoot) -or
+            [IO.Path]::GetFullPath([string]$ledgerEntry.vhdPath) -ine
+                [IO.Path]::GetFullPath([string]$parsedPlan.Plan.operation.vhdPath)) {
+            Throw-NgcbError 'NGCB-RECONCILIATION-LEDGER-INVALID'
+        }
+        $lastJournal = Read-NgcbLastJournalEvent $transactionContext $assetId `
+            $parsedPlan.Plan.reservationId
+        if ($null -eq $lastJournal -or $lastJournal.planId -cne $PlanId -or
+            $lastJournal.state -cne 'EvidenceReconciliationPending' -or
+            $lastJournal.vmId -cne $ledgerEntry.vmId -or
+            $lastJournal.detailCode -cne 'NGCB-RECEIPT-SIGNING-FAILED') {
+            Throw-NgcbError 'NGCB-RECONCILIATION-JOURNAL-INVALID'
+        }
+
+        $readback = if ($transactionContext.Mode -ceq 'Production') {
+            Assert-NgcbProductionVmReadback $parsedPlan.Plan $ledgerEntry.vmId `
+                ($parsedPlan.Plan.operation.desiredPowerState -ceq 'running')
+        }
+        else {
+            Assert-NgcbInertVmReadback $transactionContext $parsedPlan.Plan $ledgerEntry.vmId `
+                ($parsedPlan.Plan.operation.desiredPowerState -ceq 'running')
+        }
+        $providerResult = [pscustomobject][ordered]@{
+            status='Created'; vmId=[string]$readback.VmId; afterState=$readback.AfterState
+            afterStateHash=[string]$readback.AfterStateHash; quarantineState='not-required'
+            reasonCode='NGCB-CREATE-VERIFIED'
+        }
+        $receiptRecord = New-NgcbSignedReceiptRecord $transactionContext $parsedPlan `
+            $approvalEnvelope.Record $providerResult ([string]$parsedPlan.Record.executionId)
+        $null = Write-NgcbEnvelope $transactionContext 'signed-receipt-record' $receiptRecord `
+            $receiptPath -CreateNew
+        $parsedPlan.Record.state = 'Applied'
+        $parsedPlan.Record.evidenceState = 'signed-receipt-complete'
+        Save-NgcbPlanRecord $transactionContext $parsedPlan.Record
+        $null = Write-NgcbJournalEvent $transactionContext $assetId $parsedPlan.Plan.reservationId `
+            $PlanId 'ReceiptReconciled' $ledgerEntry.vmId 'NGCB-RECEIPT-RECONCILED' `
+            ([string]$readback.AfterState.adapterId) ([string]$parsedPlan.Plan.operation.staticMacAddress)
+        Write-NgcbAuditEvent $transactionContext 'receipt-reconciled' 'succeeded' `
+            'NGCB-RECEIPT-RECONCILED' $PlanId $assetId
+        return Get-NorthGateCreateOnlyReceipt $transactionContext $PlanId
+    }
+    finally { Exit-NgcbLockSet $lock }
+}
+
 function Invoke-NorthGateCreateOnlyCrashRecovery {
     [CmdletBinding()]
     param(
@@ -3654,6 +4007,7 @@ Export-ModuleMember -Function @(
     'Register-NorthGateCreateOnlyRolloutPromotion',
     'Register-NorthGateCreateOnlyApproval',
     'Invoke-NorthGateCreateOnlyApply',
+    'Invoke-NorthGateCreateOnlyReceiptReconciliation',
     'Get-NorthGateCreateOnlyReceipt',
     'Invoke-NorthGateCreateOnlyCrashRecovery'
 )
@@ -3661,8 +4015,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCD0WY3XO4BqCN6f
-# aLPxfjiWWR9plXm9X/38MIaw32Fb8KCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCx7VPYrAiB9AO2
+# N5+tEiuswzUnBFf9msOPU2EAKN+OZqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -3690,14 +4044,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIPBhJCIi9va+Pm/Qp7rT4EzEBokI/BQwnFjdXuQU6MSbMA0GCSqG
-# SIb3DQEBAQUABIIBgKx/yYRoZZXV6lvaT2r14nDo+/k2iiQ1z8MCobLEMBbCMQLI
-# zilb5vJqjd5XbI/hhzZ87CmAXK95t++PUiEVkxuleQ4QR5Mc3YecTQjk1olt4D97
-# dFpP5eex8o4HeHAmFDWyC0O6Hf7aoTa2pmGElBsxFVd69R9huGfZDt07ailDBLwY
-# LLl7lA4UqEskHm9/E3Px7qRhzIzR/ixBp+fvQ9uFH67T1UuEZ8uQh5wCqL+kb1wM
-# TZbkiKCTh9kvE0CSM0t50fJo4h33iSZLlIcFlIVe9GW6ZARj8BTA6FjK26yWEheo
-# Dg+L0/qZ13dhBTuHta4m4s+ewqdGOE9/JMBZz+77rWh0C1EQgfeXK5Un8J1wMex4
-# Q51o0MljKzF+nvy57cifWGmW/Qy2/kymeCBRueXQ0VjMabaT4Iwc9IOYilU/Xnc6
-# hWb2CVMfYWQ+WGXnzWwVtkBfHaxQh7+jtlMKEqjmwuePbiqIDXesvOCBiueNBPaz
-# vcayl2JA7opaCHi9wQ==
+# hvcNAQkEMSIEIJSCcAApyCpklUrVk2/5bxZdyxuEUGcruoR3V3VaUdBsMA0GCSqG
+# SIb3DQEBAQUABIIBgLaOCnwbP0G9zsZJgr+081duRQJOkXHoGMB92IFp5jFpnCR4
+# H03vOIYCCRyey3LjwZCARqYS3uKXLFs5B9NYN8EFR3vUzBH803fjVCDkaLo7rjd4
+# iY5WXcCPzI5bXWwvqmecdAApt4pNFhhPzwbG3o8oKBVPAYLxJW0ll5dI2ZbBUzkB
+# L/V6yXR38IfN5KP64xVK2HNs1iVNtxJcDTsYDWFpNBEJ5udyUKxp71dQ/2cerpm0
+# teX3Mgv3yGoV8Wg1q8IIx6gZw3Ka+fFRyP7H8mFVbwCiJe8yvtlT9w2g3ej+7ybi
+# +aWHpm9iADeeeD0eKIDTNByrK2O5yu1HBMv5qwMSnxctRzbtLEoodkTCzBRasJzL
+# GiK0wQQR0OH5DZ0zT2QwJIE52Jmk24VMhU79qIMzrHMbK+o6gXhCQ1yroXQIbRN7
+# Q9V3T9Z9l8FKNevhZk/H/S0nQkcr/HZuzVOsBF6HyP21RIFitDdJCCzN5K5dTBaV
+# oEVYhCEfntQLH9JXfA==
 # SIG # End signature block

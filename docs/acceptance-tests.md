@@ -41,7 +41,9 @@ installed. These tests define the minimum exit criteria for that promotion.
 20. Reject an advanced initial base-policy stage, routine-SSH/SYSTEM/service rollout promotion, wrong native Administrator SID, wrong signer, stale or noncanonical context, missing/mismatched signed canary receipt, missing evidence hashes, still-running or connected canary, skipped/replayed/conflicting sequence, changed immutable base policy, and any third rollout promotion.
 21. Reject missing, hash-mismatched, untrusted, or wrong-signer Authenticode on every packaged `.ps1`, `.psm1`, and `.psd1` before module import; prove detached CMS alone is insufficient.
 22. Prove a disabled host authorization remains disabled after installation even when an active signed backend policy and data bundle are present, and prove every non-status service operation rejects with `NGCOR-INSTALLED-POLICY-DISABLED`.
+23. Simulate receipt-signing failure only after verified VM creation and ledger binding; prove `reconcile-receipt` validates immutable historical release/plan anchors and exact VM readback, never invokes VM creation or another Hyper-V mutation, produces one valid receipt, finalizes authenticated state, returns the same receipt on retry, and fails closed on VM drift, ambiguous state, or signer unavailability.
 
 ## Canary exit
 
 Use one disposable, non-domain-controller VM. Capture before/after inventory, failure injection, concurrency behavior, quarantine/rollback, logs, receipt, and Operation-SeeSaw evidence. A successful VM boot alone is not acceptance.
+

@@ -113,6 +113,23 @@ State writes use create-new or atomic replacement; journal event files are
 append-only. Receipt failure is reported as evidence reconciliation pending and
 never misrepresented as a VM rollback.
 
+## Receipt reconciliation
+
+`Invoke-NorthGateCreateOnlyReceiptReconciliation` repairs only the evidence tail
+of a transaction whose VM was already verified and bound to the protected ledger.
+It requires the exact original execution ID, consumed approval, bound ledger,
+terminal evidence-pending journal, immutable signed plan/release anchors, usable
+receipt signer, and exact live VM configuration. Historical release state is
+admitted only after the currently installed production context is valid and the
+single matching prior release directory independently validates its signed
+manifest, authorization, policy, data bundle, state key, ACLs, and host/identity
+bindings.
+
+The operation never calls the create provider and has no VM mutation primitive.
+It writes the missing detached-CMS receipt and authenticated completion records.
+A retry returns the same receipt; drift, ambiguity, missing anchors, or signer
+failure stops without touching the VM.
+
 ## Switch fingerprint contract
 
 The authorized switch fingerprint is SHA-256 of canonical JSON containing exact
@@ -147,3 +164,4 @@ startup never constructs the backend and therefore never mutates transaction sta
 Run `./Test-CreateOnlyBackend.ps1`. The harness uses an inert in-memory provider,
 ephemeral CMS certificates, and temporary authenticated state. It does not call
 Hyper-V or write outside its temporary test root.
+

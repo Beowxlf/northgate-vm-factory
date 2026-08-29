@@ -253,7 +253,7 @@ function ConvertFrom-NorthGateCreateOnlyCommand {
     if ($Command -cin @('status','plan','rollout-context','promote-rollout')) {
         return [pscustomobject][ordered]@{ operation = $Command; planId = '' }
     }
-    if ($Command -cmatch '^(apply|receipt|approval-context|approve) (ngp-[a-f0-9]{64})$') {
+    if ($Command -cmatch '^(apply|receipt|reconcile-receipt|approval-context|approve) (ngp-[a-f0-9]{64})$') {
         return [pscustomobject][ordered]@{ operation = $Matches[1]; planId = $Matches[2] }
     }
     Throw-NgcorProtocolError 'NGCOR-COMMAND-NOT-ALLOWED'
@@ -361,8 +361,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCTeSOwR2I4Xg9H
-# yhW0VnnSxp5wAXM/Wq9w9a1mH2aWM6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBMtDyFFXgKBm7t
+# 8zOuCjf5VOj4JALs3AjALTNAUqGfTqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -390,14 +390,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIJqAOQA10Pg/Uo1fCcm7bsKOIGMd2NzSphW3QwaF/+rIMA0GCSqG
-# SIb3DQEBAQUABIIBgGtpVi8DAbu/9pdoWcIbTz7Dmui8SW0J2Hq6C68K48mljQfW
-# 48XQWhKgT22ca7L6bG0F1VeC2MTdF483HXhAC3vY3pxa1CdjEOix3SQKJ8xq/esL
-# y+IiTKfsSUtDPU+Y41AJ1EijFpTE4w9bSbvCntgUgMd8D3/hyuSOhZgZEJbg2h23
-# nhtxm0usrdXrDUzurh4DsQgAJ9wSMXddj4w3YL+1dov76V2Y3Xe2WN6pxWE9eY2A
-# u/UXD185dGSeoN+ytd7eCoXQwSaFzrrLGbGi6fJyHICryK/shN68hX3G1K100vD1
-# IV3h1kEbUC2f/PLb7s7PhlApzForTOGJ7qYbmVQS+j0F3TmjjxZodWSd/DQKxTAx
-# nNJHRJP/fGFyy4H4ejhbUkUX6ssCvd35cpETQsWIxA9sAWhAuSH3E2gUUPm8rT6z
-# CLIWmsi4JRtTA/Yd9R3asa0eX4+z/x8nDHMdj3OFEHkd3IaCsno89/l0h3yna6ij
-# I2RJeLv07v1VFJTsuQ==
+# hvcNAQkEMSIEIGZSjAyJgv2EY/t4f5h1GusUzaL7uT+43W2bO1uDaGXhMA0GCSqG
+# SIb3DQEBAQUABIIBgINMPBQ7hGfJ5H9+S+eR01sFw+dNgG/rTUNlawBASzteZzcq
+# 7tviJMae8EsqCG8R97d8XFGFVOFYLt7mxUxC8C/8qZhk/TxAToS2lEd6Jld9TtLX
+# /LOT+9QaFm086iV2U6Rl32mS1s+h3XLv+zbFxb818fbalS1brWtjQuddw1R+WNbg
+# lU4N3q71Inbf3eNpo6nYbIXKv6GO6h4rXpwBYY7oe+vE1cr+xdELC0HURNQPgAIz
+# kdy5us6j9RM6FNWgKOJapwnxzHb631QsYv2wslMsee9uViO6VaAq9PtGmq8K3uc8
+# IMZCn3IfjlAyamLVqsAKSc8U/U6o/2SFNhgjVyYRZAelEPZWOgPf/Cw1x5rqQI63
+# m9WlOpB0XpHLZFWYP03IUC4aja6fjJnOfArKvUNHOheYXyg5hikYgpRzrSJAY7Pm
+# j9SP+383LDW4XtQ6ea1WlOrXtiOLtBkUDnxQNHexiz8LIolsYMlVPj0bC9rxJ6yK
+# Yn+CCZq5YPNDO9knjg==
 # SIG # End signature block

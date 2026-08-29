@@ -485,6 +485,10 @@ if (-not $PSCmdlet.ShouldProcess([string]$authorization.host.hostId,
         'Install the verified create-only release, service, and confined SSH configuration')) {
     Stop-Ngci 'NGCOR-INSTALL-CONFIRMATION-REQUIRED'
 }
+$null = & $deployment {
+    param($ReceiptSignerSha256,$ServiceSid)
+    Set-NgcdReceiptSignerKeyAccess $ReceiptSignerSha256 $ServiceSid
+} ([string]$authorization.identity.receiptSignerCertificateSha256) $serviceSid
 $context = & $deployment { param($Authorization) New-NgcdProductionContext $Authorization } $authorization
 $runtimeArtifacts = [pscustomobject][ordered]@{
     releaseManifestSignature = Read-NgciExclusiveBytes $ReleaseManifestSignaturePath 1048576 'NGCOR-INSTALL-CMS-SIGNATURE-INVALID'
@@ -510,8 +514,8 @@ $runtimeArtifacts = [pscustomobject][ordered]@{
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCB8X3qfulhhE/NP
-# vIGXlDoRij61npAMYAbErcn57C6jyKCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCD3taQ+kKyssK8Z
+# ifgiFf9M1V/EUQrEaS+fJxRgny1jIKCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -539,14 +543,14 @@ $runtimeArtifacts = [pscustomobject][ordered]@{
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIO4umVmX19VWXH9tAjbuHFe9Xs2QFhe9soMoFt6cuaRsMA0GCSqG
-# SIb3DQEBAQUABIIBgI72Jl2Sd7YxuZtNI4E0jSt1Z9BE8X3B0Gn8PkKzQe2f8rj5
-# CGGpImxkKJydD2VcrJdCq7d/WgS5+uBQiaAHacB8iikoBc2COGIgrsLZhCNcMBDV
-# GmF8XFfDsZPf4Es7mlEKxUSFzlGxNCuLMxdzmnyqZMIdpwijnEz60lePxzQYcX90
-# +8keXBIAWTRa31/5zcZSepSyUa90rtxFCf/zASHDJMiCcSE1mo/sZUfy31If8e9v
-# ODUUBfU+lwbr+edZHTbRLmxSe9mZ5ciqH66xH5YRWzozdYYJTuIhzCtAe1eHiWHa
-# 9FVCqRMgCdySRLC8uVQsdCGEhXwC6sTa52qtbP04F13elaIBSDOc48fbfwT7fLr+
-# hxXlEko9Ti6Zy54GiVcs4rZse9hezyJ2lk4Vgi6rZp6Sy4rb7qDMy7Ah7QHvnp5a
-# ONaB/omnyoVJvVteuE6sdKmMYWN9EgoKwFEgO6F9XmetK4xUr8EOwKX1P4+wXfkC
-# woPkgqmyKv0u+QS4Yw==
+# hvcNAQkEMSIEIKVjUSLvZrtfKO7jrgFwDV2YOq88nRLuD9hN6ZZhueNyMA0GCSqG
+# SIb3DQEBAQUABIIBgC8E/hRBzmb6dxiFiBbq79PBrBm+qriOH+H8jWSZHEAyMLZW
+# BfpAhc+78DEwtfT+3JOmYOpEtZrhZabT0GAVJkfVsSSCOi7SS9qoRx1jHibN1XWr
+# 6D15ytMnZ/qePyAZ8LyYj9D2olc8IR/U1VdLpuDBJga+w8Aa8d/FbzAFsCS7a7bc
+# EX2XnLQoXcfq3yGxaxj6PXVoxzML4EizRxqGZg0ZBK4CIDYpKuQAj9/Vk++kDNAJ
+# 8oAS9DfQph/kbl+W5LropOkJJZj3UyUr6zFF88nsYLT4PSd+KX7YPrt7Eo08549c
+# CQYLTqPkP7qFCagrHuA5RjzY8siH9s9N3QJuQGscDgcTIk+FNaNXP+IHT1TPMi6e
+# owcU90DgGH7ufBVRdUl/t/ug3fDJOqsPxp53hcS8CHWs9/NWmjlsgESZ9Rws/mLv
+# uBYS/4TLjp4FsJOPVo3yblE7B0TF4h7FuaanRO+LDIO2Cd4S9oii85BQ45JrqgeN
+# 0QGiWtdvUye6ExQDxQ==
 # SIG # End signature block

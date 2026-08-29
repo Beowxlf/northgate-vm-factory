@@ -172,7 +172,7 @@ try {
             governanceExceptionId='NG-GOV-20260802-TEST'
         }
         sourceProof=[pscustomobject][ordered]@{sourceKind='raw-git-blobs';headEqualsCommit=$true;cleanWorktree=$true;replaceRefsAbsent=$true;submodulesAbsent=$true;contentFiltersAbsent=$true}
-        packageSemantics=[pscustomobject][ordered]@{sourceExecutableOnHost=$false;installInitiallyEnabled=$false;liveApplyImplemented=$true;allowedProtocolCommands=[object[]]@('status','plan','apply','receipt')}
+        packageSemantics=[pscustomobject][ordered]@{sourceExecutableOnHost=$false;installInitiallyEnabled=$false;liveApplyImplemented=$true;allowedProtocolCommands=[object[]]@('status','plan','apply','receipt','reconcile-receipt')}
         files=[object[]]@([pscustomobject][ordered]@{path='backend/NorthGate.VMFactory.CreateOnlyBackend.psm1';gitMode='100644';gitBlobOid=('d'*40);sizeBytes=1;sha256=('e'*64)})
     }
     $releaseHash = Get-NgcbTestSha (ConvertTo-NgcbTestBytes $release)
@@ -707,6 +707,73 @@ try {
     Assert-NgcbThrows { New-NorthGateCreateOnlyHostPlan -Context $unknownHarness.Context -PlanRequestBytes (New-NgcbPlanRequest) } '^NGCB-CREATE-COLLISION$' 'An outcome-unknown partial create remains a hard identity-reuse blocker.'
     $recovery=Invoke-NorthGateCreateOnlyCrashRecovery -Context $unknownHarness.Context -AssetId 'NG-VM-018'
     Assert-NgcbTest (@($recovery).Count -eq 1 -and @($recovery)[0].state -ceq 'OutcomeUnknown' -and -not @($recovery)[0].approvalReusable) ('Crash recovery remains fail closed for uncertain ownership: ' + (ConvertTo-Json $recovery -Compress))
+
+    $receiptRecoveryHarness=New-NgcbHarness
+    $receiptRecoveryPlan=New-NorthGateCreateOnlyHostPlan -Context $receiptRecoveryHarness.Context `
+        -PlanRequestBytes (New-NgcbPlanRequest)
+    $null=Register-NgcbTestApproval $receiptRecoveryHarness.Context $receiptRecoveryPlan $null
+    $originalRecoveryReceipt=Invoke-NorthGateCreateOnlyApply -Context $receiptRecoveryHarness.Context `
+        -PlanId $receiptRecoveryPlan.planId
+    $receiptRecoveryPath=Join-Path $receiptRecoveryHarness.Context.StateRoot `
+        ('receipts\'+$receiptRecoveryPlan.planId+'.json')
+    [IO.File]::Delete($receiptRecoveryPath)
+    $receiptRecoveryParsed=& $module {param($c,$p)Read-NgcbPlanRecord $c $p} `
+        $receiptRecoveryHarness.Context $receiptRecoveryPlan.planId
+    $receiptRecoveryParsed.Record.state='AppliedEvidencePending'
+    $receiptRecoveryParsed.Record.evidenceState='receipt-signing-failed'
+    & $module {param($c,$r)Save-NgcbPlanRecord $c $r} `
+        $receiptRecoveryHarness.Context $receiptRecoveryParsed.Record
+    $receiptRecoveryVmId=[string]$originalRecoveryReceipt.receipt.operation.vmId
+    $null=& $module {
+        param($c,$a,$r,$p,$v)
+        Write-NgcbJournalEvent $c $a $r $p 'EvidenceReconciliationPending' $v `
+            'NGCB-RECEIPT-SIGNING-FAILED'
+    } $receiptRecoveryHarness.Context 'NG-VM-018' $receiptRecoveryParsed.Plan.reservationId `
+        $receiptRecoveryPlan.planId $receiptRecoveryVmId
+    $beforeReconciliationVmCount=@($receiptRecoveryHarness.State.vms).Count
+    $reconciledReceipt=Invoke-NorthGateCreateOnlyReceiptReconciliation `
+        -Context $receiptRecoveryHarness.Context -PlanId $receiptRecoveryPlan.planId
+    $receiptRecoveryFinal=& $module {param($c,$p)Read-NgcbPlanRecord $c $p} `
+        $receiptRecoveryHarness.Context $receiptRecoveryPlan.planId
+    Assert-NgcbTest ($reconciledReceipt.receipt.outcome -ceq 'Succeeded' -and
+        $reconciledReceipt.receipt.operation.vmId -ceq $receiptRecoveryVmId -and
+        $receiptRecoveryFinal.Record.state -ceq 'Applied' -and
+        $receiptRecoveryFinal.Record.evidenceState -ceq 'signed-receipt-complete' -and
+        @($receiptRecoveryHarness.State.vms).Count -eq $beforeReconciliationVmCount) `
+        'Receipt reconciliation re-verifies and signs the existing VM without replaying creation.'
+    $reconciledRetry=Invoke-NorthGateCreateOnlyReceiptReconciliation `
+        -Context $receiptRecoveryHarness.Context -PlanId $receiptRecoveryPlan.planId
+    Assert-NgcbTest ($reconciledRetry.receipt.receiptId -ceq $reconciledReceipt.receipt.receiptId -and
+        @($receiptRecoveryHarness.State.vms).Count -eq $beforeReconciliationVmCount) `
+        'Receipt reconciliation retry is idempotent and never creates another VM.'
+
+    $receiptDriftHarness=New-NgcbHarness
+    $receiptDriftPlan=New-NorthGateCreateOnlyHostPlan -Context $receiptDriftHarness.Context `
+        -PlanRequestBytes (New-NgcbPlanRequest)
+    $null=Register-NgcbTestApproval $receiptDriftHarness.Context $receiptDriftPlan $null
+    $receiptDriftResult=Invoke-NorthGateCreateOnlyApply -Context $receiptDriftHarness.Context `
+        -PlanId $receiptDriftPlan.planId
+    $receiptDriftPath=Join-Path $receiptDriftHarness.Context.StateRoot `
+        ('receipts\'+$receiptDriftPlan.planId+'.json')
+    [IO.File]::Delete($receiptDriftPath)
+    $receiptDriftParsed=& $module {param($c,$p)Read-NgcbPlanRecord $c $p} `
+        $receiptDriftHarness.Context $receiptDriftPlan.planId
+    $receiptDriftParsed.Record.state='AppliedEvidencePending'
+    $receiptDriftParsed.Record.evidenceState='receipt-signing-failed'
+    & $module {param($c,$r)Save-NgcbPlanRecord $c $r} $receiptDriftHarness.Context $receiptDriftParsed.Record
+    $receiptDriftVmId=[string]$receiptDriftResult.receipt.operation.vmId
+    $null=& $module {
+        param($c,$a,$r,$p,$v)
+        Write-NgcbJournalEvent $c $a $r $p 'EvidenceReconciliationPending' $v `
+            'NGCB-RECEIPT-SIGNING-FAILED'
+    } $receiptDriftHarness.Context 'NG-VM-018' $receiptDriftParsed.Plan.reservationId `
+        $receiptDriftPlan.planId $receiptDriftVmId
+    $receiptDriftHarness.State.vms[-1].notes='tampered'
+    Assert-NgcbThrows {
+        Invoke-NorthGateCreateOnlyReceiptReconciliation -Context $receiptDriftHarness.Context `
+            -PlanId $receiptDriftPlan.planId
+    } '^NGCB-VM-READBACK-MISMATCH$' `
+        'Receipt reconciliation fails closed when the existing VM no longer matches its signed plan.'
 
     $tamperHarness=New-NgcbHarness
     $tamperPlan=New-NorthGateCreateOnlyHostPlan -Context $tamperHarness.Context -PlanRequestBytes (New-NgcbPlanRequest)
