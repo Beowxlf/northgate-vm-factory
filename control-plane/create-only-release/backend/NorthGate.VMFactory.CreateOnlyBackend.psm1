@@ -2577,6 +2577,179 @@ function Get-NgcbRolloutIdentitySnapshot {
     return [pscustomobject][ordered]@{ vms=[object[]]$vms; adapters=[object[]]$adapters }
 }
 
+function Get-NgcbHistoricalCanaryPromotionEvidence {
+    param(
+        [object]$Context,
+        [string]$RequiredAssetId
+    )
+    $candidateContexts = @()
+    if ($Context.Mode -ceq 'InertTest') {
+        $property = $Context.TestState.PSObject.Properties['HistoricalCanaryContext']
+        if ($null -ne $property -and $null -ne $property.Value) {
+            $candidateContexts = @($property.Value)
+        }
+    }
+    else {
+        $backendParent = Assert-NgcbNoReparseAncestor (Split-Path -Parent $Context.StateRoot)
+        $planIds = @()
+        foreach ($directory in @(Get-ChildItem -LiteralPath $backendParent -Directory -ErrorAction Stop)) {
+            if ([IO.Path]::GetFullPath($directory.FullName).TrimEnd('\') -ieq
+                    [IO.Path]::GetFullPath($Context.StateRoot).TrimEnd('\')) { continue }
+            $receiptRoot = Join-Path $directory.FullName 'receipts'
+            foreach ($file in @(Get-ChildItem -LiteralPath $receiptRoot -Filter 'ngp-*.json' `
+                    -File -ErrorAction SilentlyContinue)) {
+                $planId = [IO.Path]::GetFileNameWithoutExtension($file.Name)
+                if ($planId -cmatch '^ngp-[a-f0-9]{64}$') { $planIds += $planId }
+            }
+        }
+        foreach ($planId in @($planIds | Sort-Object -Unique)) {
+            try { $candidateContexts += New-NgcbHistoricalContextForPlan $Context $planId }
+            catch { continue }
+        }
+    }
+
+    $validated = @()
+    $identity = Get-NgcbRolloutIdentitySnapshot $Context
+    foreach ($historical in $candidateContexts) {
+        try {
+            Assert-NgcbContext $historical
+            $ledger = Read-NgcbLedger $historical
+            $entries = @(Get-NgcbAuthoritativeLedgerEntries $historical $ledger)
+            $matches = @($entries | Where-Object {
+                $_.assetId -ceq $RequiredAssetId -and $_.state -ceq 'Bound'
+            })
+            if ($entries.Count -ne 1 -or $matches.Count -ne 1) { continue }
+            $entry = $matches[0]
+            $parsedPlan = Read-NgcbPlanRecord $historical ([string]$entry.planId)
+            $receiptEnvelope = Read-NgcbEnvelope $historical 'signed-receipt-record' `
+                (Get-NgcbReceiptPath $historical ([string]$entry.planId)) `
+                'NGCB-ROLLOUT-CANARY-RECEIPT-MISSING'
+            Assert-NgcbReceiptRecord $historical $receiptEnvelope.record $parsedPlan
+            $gate = [pscustomobject][ordered]@{
+                assetId=$RequiredAssetId;status='accepted-retired'
+                receiptSha256=[string]$receiptEnvelope.record.receiptSha256
+                acceptanceEvidenceSha256=('0' * 64);retirementEvidenceSha256=('0' * 64)
+            }
+            Assert-NgcbCanaryRolloutEvidence $historical $gate `
+                ([pscustomobject]@{ entries=[object[]]$entries }) $identity
+            $validated += [pscustomobject][ordered]@{
+                Context=$historical;Entry=$entry;Entries=[object[]]$entries
+                ParsedPlan=$parsedPlan;ReceiptEnvelope=$receiptEnvelope;Historical=$true
+            }
+        }
+        catch { continue }
+    }
+    if ($validated.Count -ne 1) {
+        Throw-NgcbError 'NGCB-ROLLOUT-PROMOTION-HISTORICAL-STATE-NOT-UNIQUE'
+    }
+    return $validated[0]
+}
+
+function Get-NgcbCanaryPromotionEvidence {
+    param(
+        [object]$Context,
+        [int]$NextSequence,
+        [string]$RequiredAssetId
+    )
+    $ledger = Read-NgcbLedger $Context
+    $entries = @(Get-NgcbAuthoritativeLedgerEntries $Context $ledger)
+    $currentReady = @($entries | Where-Object { $_.state -cne 'Bound' }).Count -eq 0 -and
+        $entries.Count -eq $NextSequence
+    if ($currentReady) {
+        for ($index=0;$index-lt $entries.Count;$index++) {
+            if ($entries[$index].assetId -cne $script:ExactFleetAssetIds[$index]) {
+                $currentReady = $false; break
+            }
+        }
+    }
+    if (-not $currentReady) {
+        if ($NextSequence -ne 1 -or $entries.Count -ne 0) {
+            Throw-NgcbError 'NGCB-ROLLOUT-PROMOTION-LEDGER-NOT-READY'
+        }
+        return Get-NgcbHistoricalCanaryPromotionEvidence $Context $RequiredAssetId
+    }
+
+    $matches = @($entries | Where-Object { $_.assetId -ceq $RequiredAssetId })
+    if ($matches.Count -ne 1) { Throw-NgcbError 'NGCB-ROLLOUT-CANARY-RECEIPT-MISSING' }
+    $entry = $matches[0]
+    $planContext = $Context
+    if (-not (Test-Path -LiteralPath (Get-NgcbPlanPath $Context ([string]$entry.planId)) `
+            -PathType Leaf)) {
+        if ($Context.Mode -ceq 'InertTest' -and
+            $null -ne $Context.TestState.PSObject.Properties['HistoricalCanaryContext']) {
+            $planContext = $Context.TestState.HistoricalCanaryContext
+        }
+        else {
+            $planContext = New-NgcbHistoricalContextForPlan $Context ([string]$entry.planId)
+        }
+    }
+    $parsedPlan = Read-NgcbPlanRecord $planContext ([string]$entry.planId)
+    $receiptEnvelope = Read-NgcbEnvelope $Context 'signed-receipt-record' `
+        (Get-NgcbReceiptPath $Context ([string]$entry.planId)) `
+        'NGCB-ROLLOUT-CANARY-RECEIPT-MISSING'
+    Assert-NgcbReceiptRecord $planContext $receiptEnvelope.record $parsedPlan
+    $identity = Get-NgcbRolloutIdentitySnapshot $Context
+    $gate = [pscustomobject][ordered]@{
+        assetId=$RequiredAssetId;status='accepted-retired'
+        receiptSha256=[string]$receiptEnvelope.record.receiptSha256
+        acceptanceEvidenceSha256=('0' * 64);retirementEvidenceSha256=('0' * 64)
+    }
+    Assert-NgcbCanaryRolloutEvidence $Context $gate `
+        ([pscustomobject]@{ entries=[object[]]$entries }) $identity
+    return [pscustomobject][ordered]@{
+        Context=$planContext;Entry=$entry;Entries=[object[]]$entries
+        ParsedPlan=$parsedPlan;ReceiptEnvelope=$receiptEnvelope;Historical=$false
+    }
+}
+
+function Import-NgcbHistoricalCanaryPromotionState {
+    param(
+        [object]$Context,
+        [int]$NextSequence,
+        [string]$RequiredAssetId
+    )
+    $evidence = Get-NgcbCanaryPromotionEvidence $Context $NextSequence $RequiredAssetId
+    if (-not [bool]$evidence.Historical) { return $false }
+
+    $ledger = Read-NgcbLedger $Context
+    if (@(Get-NgcbAuthoritativeLedgerEntries $Context $ledger).Count -ne 0 -or
+        @($ledger.entries).Count -ne 0) {
+        Throw-NgcbError 'NGCB-ROLLOUT-PROMOTION-LEDGER-NOT-READY'
+    }
+    $entry = $evidence.Entry
+    $importedEntry = [pscustomobject][ordered]@{
+        assetId=[string]$entry.assetId;name=[string]$entry.name
+        reservationId=[string]$entry.reservationId;changeId=[string]$entry.changeId
+        planId=[string]$entry.planId;vmId=[string]$entry.vmId;state=[string]$entry.state
+        assetRoot=[string]$entry.assetRoot;vhdPath=[string]$entry.vhdPath
+        updatedAtUtc=[string]$entry.updatedAtUtc
+    }
+    $receiptPath = Get-NgcbReceiptPath $Context ([string]$entry.planId)
+    if (Test-Path -LiteralPath $receiptPath -PathType Leaf) {
+        $existing = Read-NgcbEnvelope $Context 'signed-receipt-record' $receiptPath `
+            'NGCB-ROLLOUT-CANARY-RECEIPT-MISMATCH'
+        if ((ConvertTo-NorthGateCreateOnlyCanonicalJson $existing.record) -cne
+            (ConvertTo-NorthGateCreateOnlyCanonicalJson $evidence.ReceiptEnvelope.record)) {
+            Throw-NgcbError 'NGCB-ROLLOUT-CANARY-RECEIPT-MISMATCH'
+        }
+    }
+    else {
+        $null = Write-NgcbEnvelope $Context 'signed-receipt-record' `
+            $evidence.ReceiptEnvelope.record $receiptPath -CreateNew
+    }
+    $ledger.entries = [object[]]@($importedEntry)
+    Save-NgcbLedger $Context $ledger
+    Write-NgcbAuditEvent $Context 'rollout-canary-state-imported' 'succeeded' `
+        'NGCB-ROLLOUT-CANARY-STATE-IMPORTED' ([string]$entry.planId) $RequiredAssetId
+    $verified = Get-NgcbCanaryPromotionEvidence $Context $NextSequence $RequiredAssetId
+    if ([bool]$verified.Historical -or $verified.Entry.planId -cne $entry.planId -or
+        $verified.ReceiptEnvelope.record.receiptSha256 -cne
+            $evidence.ReceiptEnvelope.record.receiptSha256) {
+        Throw-NgcbError 'NGCB-ROLLOUT-PROMOTION-IMPORT-VERIFY-FAILED'
+    }
+    return $true
+}
+
 function Get-NgcbRolloutPromotionContextCore {
     param([object]$Context)
     $effective = Get-NgcbEffectiveRolloutState $Context
@@ -2584,34 +2757,9 @@ function Get-NgcbRolloutPromotionContextCore {
     $nextSequence = [int]$effective.sequence + 1
     $requiredCanaryAssetId = if ($nextSequence -eq 1) { 'NG-VM-018' } else { 'NG-VM-010' }
     $toStage = if ($nextSequence -eq 1) { 'windows-canary' } else { 'persistent-fleet' }
-    $ledger = Read-NgcbLedger $Context
-    $entries = @(Get-NgcbAuthoritativeLedgerEntries $Context $ledger)
-    if (@($entries | Where-Object { $_.state -cne 'Bound' }).Count -ne 0 -or
-        $entries.Count -ne $nextSequence) {
-        Throw-NgcbError 'NGCB-ROLLOUT-PROMOTION-LEDGER-NOT-READY'
-    }
-    for ($index=0;$index-lt $entries.Count;$index++) {
-        if ($entries[$index].assetId -cne $script:ExactFleetAssetIds[$index]) {
-            Throw-NgcbError 'NGCB-ROLLOUT-PROMOTION-LEDGER-NOT-READY'
-        }
-    }
-    $canaryEntry = @($entries | Where-Object { $_.assetId -ceq $requiredCanaryAssetId })
-    if ($canaryEntry.Count -ne 1) { Throw-NgcbError 'NGCB-ROLLOUT-CANARY-RECEIPT-MISSING' }
-    $receiptEnvelope = Read-NgcbEnvelope $Context 'signed-receipt-record' `
-        (Get-NgcbReceiptPath $Context ([string]$canaryEntry[0].planId)) `
-        'NGCB-ROLLOUT-CANARY-RECEIPT-MISSING'
-    $parsedPlan = Read-NgcbPlanRecord $Context ([string]$canaryEntry[0].planId)
-    Assert-NgcbReceiptRecord $Context $receiptEnvelope.record $parsedPlan
-    $identity = Get-NgcbRolloutIdentitySnapshot $Context
-    $receiptGate = [pscustomobject][ordered]@{
-        assetId = $requiredCanaryAssetId
-        status = 'accepted-retired'
-        receiptSha256 = [string]$receiptEnvelope.record.receiptSha256
-        acceptanceEvidenceSha256 = '0' * 64
-        retirementEvidenceSha256 = '0' * 64
-    }
-    Assert-NgcbCanaryRolloutEvidence $Context $receiptGate `
-        ([pscustomobject]@{entries=[object[]]$entries}) $identity
+    $canaryEvidence = Get-NgcbCanaryPromotionEvidence $Context $nextSequence $requiredCanaryAssetId
+    $entries = @($canaryEvidence.Entries)
+    $receiptEnvelope = $canaryEvidence.ReceiptEnvelope
     return [pscustomobject][ordered]@{
         schema = 'northgate/create-only-rollout-promotion-context/v1'
         nextSequence = $nextSequence
@@ -2704,6 +2852,9 @@ function Register-NorthGateCreateOnlyRolloutPromotion {
             $promotion.toStage -cne $promotionContext.permittedToStage) {
             Throw-NgcbError 'NGCB-ROLLOUT-PROMOTION-BINDING-INVALID'
         }
+        $null = Import-NgcbHistoricalCanaryPromotionState $Context `
+            ([int]$promotionContext.nextSequence) ([string]$promotionContext.requiredCanaryAssetId)
+        $promotionContext = Get-NgcbRolloutPromotionContextCore $Context
         $expectedReceipt = [string]$promotionContext.requiredCanaryReceiptSha256
         if ([int]$promotion.sequence -eq 1) {
             if ($promotion.rollout.debianCanary.receiptSha256 -cne $expectedReceipt -or
@@ -4129,8 +4280,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBIK1eIrL8Pvu4l
-# 2TNrRO4f5OuiYqL0jhUedSx/ETu83KCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCkNW4uBla/ub+V
+# GXJpVmTAL79c+V+D3O66klUnjcUuXqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -4158,14 +4309,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIF9+6mJ9i+h96RPvHoU2PwLhq37tf8Pv5aTvf/r2cwdfMA0GCSqG
-# SIb3DQEBAQUABIIBgJokiqJ00uT8SdXUPRRVVaaHFwuetTBDtYmoXUmyZKRz0iTG
-# 8afYzgbIEDLMAGSCRLnEVvqg0zoWB8Fc4Dh5xUddIWC6ghd/8SW4RHTXxeDre9BP
-# 3uKMSZSiWJuQW7a4K8gapXj+lk597zAXxeqx/Ay/T1xocgowTiY/yFpU+SLSHxYd
-# 053GMaXOazS7kd3bs+BLJSoJxaCfIHZihxpe+bhSV1/PBNwW01BxjYgALfwKZ4XC
-# rrzChZgzuJ9f0DPmDt3TC3qoA1LAgyqALFFZ4wWr9FXLVG/KvWAV0ylojcdY//hY
-# 09Tgjfhrg+yHfbloGjKTPFC7FcxsHG/FLh8oIXpsBDRCDdsJQP6/YAtBXaIEoKHQ
-# TwmkPcy6gAOq79LWuhz6U5wJZRKDT0UJ0/Fs8tnazKyoYbiAgMMrF+uMKXC/Buv0
-# XhFaImyVtpZ1M2EWWvICLsDKgScMKK6QPSUbafk/b6GzZSF9YQ+QZPXa7tYkqPL+
-# Vv8gP+dtoIysFtEVRQ==
+# hvcNAQkEMSIEIKO6Ndco8aBvtjlpurHfZBetEC12vuZ6GoUK84174DFqMA0GCSqG
+# SIb3DQEBAQUABIIBgE5Q9D7BGTiWIHPoeprfEitXthsC+z0LP0WMJkeWwFLcE5lD
+# q15n/I890pb0SIrY31xg14UzQhtiXzzCaEZb/uR1BvgIQ50jrQ7/fUVJlGzLLJe8
+# ZciGm9WZEjdNrT54QqEvA723YiMVXVKfW73YAPdidZ1ToAl37VMFb3MVPOAWBgZo
+# oA0V4zYHlqxT4WA1FfE/C2IfIzucpjWGipV3E4VHyFmDFWFLxdaaulNHF+9QzDoT
+# 88eFJ80EvAZXBGNcX5DEyG+ZCPzkAGyB2N1/H/T7sx0GTefsv96dRV0KEuiVL6/X
+# 7nFLyKrl5Ew/gn/FZ7xG2AMPd845PBwEu91VZYcp28A2HqYA73d1Xpe8tcxjKHQ3
+# 9Mh58hifcLjHzEiiCAFDAqxowvn6obO4pJhGqCKLqCDx2SeUoDMlSo0mIE35dnuU
+# 0LOiORJ7d6fT1wpYlkRzp9RF+K7NmAzqHrZwiq6mTNmqPuI+2nbQzEPb4LXqnIMU
+# qz0Wmr13RwNSPXIAMw==
 # SIG # End signature block

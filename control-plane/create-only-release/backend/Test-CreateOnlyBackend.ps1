@@ -552,6 +552,49 @@ try {
     $null=& $module {param($c,$a,$i)Assert-NgcbRolloutState $c $a $i} $harness.Context 'NG-VM-010' $rolloutIdentity
     Assert-NgcbTest $true 'Signed Debian receipt plus acceptance/retirement hashes and live retirement unlock only the Windows canary.'
 
+    $historicalHarness=New-NgcbHarness
+    $historicalPlan=New-NorthGateCreateOnlyHostPlan -Context $historicalHarness.Context `
+        -PlanRequestBytes (New-NgcbPlanRequest)
+    $null=Register-NgcbTestApproval $historicalHarness.Context $historicalPlan $null
+    $historicalReceipt=Invoke-NorthGateCreateOnlyApply -Context $historicalHarness.Context `
+        -PlanId $historicalPlan.planId
+    $historicalHarness.State.vms[-1].state='Off'
+    $historicalHarness.State.adapters[-1].switchId=''
+    $upgradedHarness=New-NgcbHarness
+    $upgradedHarness.Context.TestState|Add-Member -NotePropertyName HistoricalCanaryContext `
+        -NotePropertyValue $historicalHarness.Context
+    $upgradeVmCountBefore=@($upgradedHarness.State.vms).Count
+    $upgradeContext=Get-NorthGateCreateOnlyRolloutPromotionContext -Context $upgradedHarness.Context
+    $upgradeLedgerBefore=&$module {param($c)Read-NgcbLedger $c} $upgradedHarness.Context
+    Assert-NgcbTest ($upgradeContext.requiredCanaryReceiptSha256 -ceq
+        $historicalReceipt.receiptSha256 -and @($upgradeLedgerBefore.entries).Count -eq 0) `
+        'Cross-release promotion context authenticates historical canary evidence without mutating current state.'
+    $upgradePromotion=New-NgcbRolloutPromotion $upgradeContext
+    $upgradeResult=Register-NgcbRolloutPromotion $upgradedHarness.Context $upgradePromotion
+    $upgradeLedgerAfter=&$module {param($c)Read-NgcbLedger $c} $upgradedHarness.Context
+    $upgradeReceiptPath=Join-Path $upgradedHarness.Context.StateRoot `
+        ('receipts\'+$historicalPlan.planId+'.json')
+    $upgradeAudit=&$module {
+        param($c,$p)Test-NgcbAuditEventExists $c 'rollout-canary-state-imported' `
+            'succeeded' 'NGCB-ROLLOUT-CANARY-STATE-IMPORTED' $p 'NG-VM-018'
+    } $upgradedHarness.Context $historicalPlan.planId
+    Assert-NgcbTest ($upgradeResult.status -ceq 'registered' -and
+        $upgradeResult.stage -ceq 'windows-canary') `
+        'Signed cross-release promotion advances only to the Windows-canary stage.'
+    Assert-NgcbTest (@($upgradeLedgerAfter.entries).Count -eq 1 -and
+        $upgradeLedgerAfter.entries[0].state -ceq 'Bound' -and
+        $upgradeLedgerAfter.entries[0].planId -ceq $historicalPlan.planId) `
+        'Cross-release promotion imports exactly one authenticated bound canary identity.'
+    Assert-NgcbTest ((Test-Path -LiteralPath $upgradeReceiptPath -PathType Leaf) -and
+        $upgradeAudit) `
+        'Cross-release promotion imports the signed receipt and records a protected audit event.'
+    Assert-NgcbTest (@($upgradedHarness.State.vms).Count -eq $upgradeVmCountBefore) `
+        'Cross-release promotion does not recreate a VM.'
+    $upgradeRetry=Register-NgcbRolloutPromotion $upgradedHarness.Context $upgradePromotion
+    Assert-NgcbTest ($upgradeRetry.status -ceq 'already-registered' -and
+        @((&$module {param($c)Read-NgcbLedger $c} $upgradedHarness.Context).entries).Count -eq 1) `
+        'Cross-release promotion retry is idempotent after the bounded state import.'
+
     $windowsMedia=@($bootstrapMedia|Where-Object assetId -ceq 'NG-VM-010')[0]
     $harness.State.selectedImage=[pscustomobject][ordered]@{path=$authorizedImages[2].path;sizeBytes=[int64]4;sha256=('8'*64)}
     $harness.State.selectedBootstrapMedia=[pscustomobject][ordered]@{mediaId=$windowsMedia.mediaId;path=$windowsMedia.path;sizeBytes=[int64]$windowsMedia.sizeBytes;sha256=$windowsMedia.sha256}
