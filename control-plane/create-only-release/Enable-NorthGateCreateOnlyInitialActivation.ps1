@@ -43,7 +43,7 @@ try {
     $manifestBytes = [IO.File]::ReadAllBytes((Join-Path $installedRoot 'release-manifest.json'))
     $authorizationBytes = [IO.File]::ReadAllBytes((Join-Path $installedRoot 'deployment-authorization.json'))
     $backendPolicyBytes = [IO.File]::ReadAllBytes((Join-Path $installedRoot 'backend-policy.json'))
-    $dataBundleBytes = [IO.File]::ReadAllBytes((Join-Path $installedRoot 'data-bundle.json'))
+    $dataBundleBytes = [IO.File]::ReadAllBytes((Join-Path $installedRoot 'backend-data\bundle.json'))
     $installed = (ConvertFrom-NorthGateCreateOnlyCanonicalJsonBytes `
         -Bytes $installedBytes -MaximumBytes 1048576).Value
     $manifest = (ConvertFrom-NorthGateCreateOnlyCanonicalJsonBytes `
@@ -81,8 +81,8 @@ catch {
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBDSbhCThYlkBxp
-# K2ixzlHClpWw+SEFNkwZtKJLfGgE06CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBpnqHM29vCTXHo
+# TYuR+4MyJSN67Bfr4eCXXOrP/M/rwaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -110,14 +110,14 @@ catch {
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIEfmWb/3TsUAw6zXS+0eoMAmzPoTKyB4dyS3T/qfYgocMA0GCSqG
-# SIb3DQEBAQUABIIBgAyplenF4KOMXsTYj2eV96QbJiHV3U25Hea7fixspBCGJsAh
-# L7KgDHgpYDh0smyiBbGy9ZX+427fgGwuhN7MD0J3eetK8NmIawDmiLOfS37d7w/P
-# H+iCcDA9/M8kIHizL9KemKcVDFbdhyA1QoIWMQWpZqwBOIDoCuznWD7MDN0/3/iD
-# cJ05YY6mXvVqrEClzAf+Nxsr8Q3fG8Kjk0yUJybzXdPF3KzbA3uWxuv0pQ1KAOc1
-# U6ACe/8cxU3vbUiNRhJTNmbZthfpzKHxrva+7HyFg8bdCk/OsV+hnd8wqK7ptZT+
-# 2/jV4Wj3JJXBLuuBhhYYhUXH6A8Ale76tyciQScqBglxhoYhO1b3BkZiFDSCUiU8
-# DeFlsc8R7B1C2tQJrSh4GsYF1s1TRIZpH/TTsHcwCd0aE3TG/cndt+x2Z9wpdhlz
-# wg7N7lwv5Ia1Sy8mavixODtTlM+ihAoOXee6SIv+ux0xI3g8oruPj7jg8Z8AEJGv
-# q904OytW1C6+nkRkNQ==
+# hvcNAQkEMSIEILV+oW4+1ZUQ3F/5UV/N1tGWdwdciBV9nlo+5u7WXRy2MA0GCSqG
+# SIb3DQEBAQUABIIBgH/lcIxBuD2nQ2dFPYoIRGERABKSk2pzVWbtBnIWQxqzCuEf
+# fPxSNj43dORA3IH068lU8b/pMrWu5QtWN/1C+M1eSlW0ufwpb5E9X/I8dClxrdV7
+# HqS3U/tDz/6f0HMBAb8NRoLQmcccWdbgJkOTEo/OndKZa5zRjruwTEa7FH38bFBL
+# lm9pUFQRCiOpdXIwC08QJdGtl7W0Fcvx4Kuh5CE4nk9Xsv3QdwyuV7EzAL9Xj6WJ
+# fjR5z5NfkD+YezHN73X34bmuKhcKcCzXQ+HY0acJLfH5p8FRAMSbuyTYRPBrXxze
+# G8GcBdYwr/IwXpsJJPPWm/24FH8/6jc3P/rkbiggelMwpTN0CbNMObEkZeoAKgj9
+# ODaXpRyPyHu+MVURKOVrtHKVRu+s/Mc0+y/cRNKJewgeKewHE6pQFsSMXCrvmdUD
+# KB3KKMuGPb7C/cwqriZYWOlOTIbQ2nShcs8u8nktX1+t9VjRdhT0H+wdCDSnpX9G
+# bP8ioxXuuf0tmZGNPQ==
 # SIG # End signature block

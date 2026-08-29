@@ -103,6 +103,12 @@ try {
         $serviceScript -match 'initialActivationSha256' -and
         $serviceScript -match 'NGCOR-INITIAL-ACTIVATION-STATE-INVALID') `
         'An active service requires the HMAC and approval-signer bound initial activation record.'
+    Assert-NgchTest ($activationScript -match [regex]::Escape(
+            "Join-Path `$installedRoot 'backend-data\bundle.json'"
+        ) -and $activationScript -notmatch [regex]::Escape(
+            "Join-Path `$installedRoot 'data-bundle.json'"
+        )) `
+        'Initial activation verifies the data bundle at the installer-owned runtime path.'
     Assert-NgchTest ($serviceScript -match '\$backendContext = \$null\s+if \(\[bool\]\$policy\.applyEnabled\)' -and
         $serviceScript.IndexOf('if ([bool]$policy.applyEnabled)') -lt
         $serviceScript.IndexOf('$backendContext = New-NorthGateCreateOnlyBackendContext')) `
