@@ -6,6 +6,7 @@ $ErrorActionPreference = 'Stop'
 $pipeName = 'NorthGate.VMFactory.CreateOnly.v1'
 $maximumPlanBytes = 32768
 $maximumResponseBytes = 65536
+$responseHeaderTimeoutMilliseconds = 60000
 
 function Stop-NgcorForcedCommand {
     param([string]$Code, [int]$ExitCode = 1)
@@ -266,7 +267,7 @@ try {
         $pipe.Write($lengthBytes, 0, 4)
         $pipe.Write($payload, 0, $payload.Length)
         $pipe.Flush()
-        $responseLengthBytes = Read-NgcorPipeExact $pipe 4 10000
+        $responseLengthBytes = Read-NgcorPipeExact $pipe 4 $responseHeaderTimeoutMilliseconds
         $responseLength = [BitConverter]::ToInt32($responseLengthBytes, 0)
         if ($responseLength -le 0 -or $responseLength -gt $maximumResponseBytes) {
             throw 'NGCOR-PIPE-RESPONSE-SIZE-INVALID'
@@ -308,8 +309,8 @@ catch {
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCC/6PTl9nlBuA8o
-# Jll9cH5977jg62r3cjFDUZId46nxQ6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCEO+FiSfwtyHjQ
+# IJMo98mViG47SFj3tnFseJ6OFvBwuKCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -337,14 +338,14 @@ catch {
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIG4l6j7d8gJGhND6QsN42Lgm3vvcHTRZomgtjoXLO+ckMA0GCSqG
-# SIb3DQEBAQUABIIBgIUYCKzgdGFoojseL7/gQSicy7qlejK7WpENREAj/6cyT3gc
-# iPF4THYeskinCHbhLM5MYXzn9+9bsqhq9/ooGN4CrNxuq6h5sYkg7W8DIaNTBDJ/
-# 49gPAQVl38HSOAizbpYSCY+XWhrWNlqGHJmn18GSLCE2us//f1UPe0E3FGuYm8c4
-# lntVp/gTTAGwDhnvsW2f+0GLxAhwP70cXKXiYsnaIFF8eJlx+Mu4y9qFEvKhAdzK
-# +RwrqrWrq5aqE3UljEQpe/fysi8drtIJGccF75MxnxHrcL/RFo8QkEgYqAs21TMF
-# f/9fERgleunb/X4CoX0P16F6VPQASzpaIiPVmqXlLLNCLw+dd5957xvfBiV8XP0Z
-# sGCMTMxnsj5I7dZgdb4LKlkTM5aulwE811//btE4+Xy2ptB4Fy251YuPYZJ2Bw9B
-# UrAJSbXLqVACFrerKK2S9mw3Ap7HPR/E8BwCdzKnzLZx4YDPb/b60eO4NZuQavo1
-# wWt3aOF+NeZ6gkMrmQ==
+# hvcNAQkEMSIEIMdvjpZHceWX9DTz/s4LwJjCrUdqysMxtoq1FfOTWK5BMA0GCSqG
+# SIb3DQEBAQUABIIBgB8VI2mnCTQ7XbmVo32LlFlI/NIwr+Ho2fRyIbr2FtA7vP8u
+# e4um2aBdUKu17rSe13wSkq2VVzFh64QyXzR/cdBrnu2FT7JDO+17NXgQP0evMV/j
+# nqeYBi1CHqUn+pD4XudHLXCDDPxt7dcpyL+zhyRQfN9Klgr+nB6K0teYOyHFW9Ig
+# /3u8LPploYeHgwDXRMnDxksU62wovMP2NZ8P4YlXUgSgsX/bCAF9V9K2NO6BVdo4
+# gxuDaN9IgUXNHzYeVz6YCea18Byrf3nCnp0PjzSI7TbvLxyL9FKmctLwsWxX8seG
+# ZU+nVF/ZiUEvDzT2Ll5tQrUMTU9UJRIP/a9Yx2V/ygXk+vKv9rs9c2i0z91kWW18
+# RYKAj/2vobWA8gnCl0nZlvxrma4Nc1nCW31qapPQoOia4Q/bj1TjSMysU2ZVhUSv
+# cm1uEYST06pBCarCPbu5EqxjcXA+S2i+QzhyqAkDFEkZngtES2EzOVHT7zTFTlsp
+# T10jv6QUwVrrgGUmMA==
 # SIG # End signature block

@@ -296,6 +296,7 @@ Assert-NgcorThrows {
 $forcedSource = [IO.File]::ReadAllText((Join-Path $root 'Invoke-NorthGateCreateOnlyForcedCommand.ps1'))
 $serviceSource = [IO.File]::ReadAllText((Join-Path $root 'Start-NorthGateCreateOnlyPipeService.ps1'))
 $serviceHostSource = [IO.File]::ReadAllText((Join-Path $root 'NorthGate.CreateOnly.ServiceHost.cs'))
+$deploymentSource = [IO.File]::ReadAllText((Join-Path $root 'NorthGate.VMFactory.CreateOnlyDeployment.psm1'))
 Assert-NgcorTest ($forcedSource -cnotmatch '(?i)Invoke-Expression|ScriptBlock::Create|EncodedCommand|New-VM|Hyper-V|CreateOnlyRelease\.psd1') 'Forced handler has no privileged module or evaluation primitive.'
 Assert-NgcorTest ($forcedSource.IndexOf('ConvertFrom-NorthGateCreateOnlyCommand $originalCommand') -lt
     $forcedSource.IndexOf('New-Object System.IO.Pipes.NamedPipeClientStream')) `
@@ -315,6 +316,9 @@ Assert-NgcorTest ($forcedSource -match 'Read-NgcorStandardInput 1 2000' -and $fo
 Assert-NgcorTest ($forcedSource -match 'function Read-NgcorStandardInput[\s\S]{0,1800}\$bytes = \$memory\.ToArray\(\)[\s\S]{0,80}return ,\$bytes') `
     'Empty standard input is preserved as a scalar byte array across the PowerShell function boundary.'
 Assert-NgcorTest ($forcedSource -match '\$maximumPlanBytes \+ 1' -and $forcedSource -match 'ConvertFrom-NorthGateCreateOnlyPlanRequestBytes') 'Plan stdin is bounded and strictly parsed before forwarding.'
+Assert-NgcorTest ($forcedSource -match '\$responseHeaderTimeoutMilliseconds = 60000' -and
+    $forcedSource -match 'Read-NgcorPipeExact \$pipe 4 \$responseHeaderTimeoutMilliseconds') `
+    'Plan and status responses have a bounded timeout long enough for the validated host snapshot.'
 Assert-NgcorTest ($forcedSource -match 'function Get-NgcorForcedSafeErrorCode' -and
     $forcedSource -match '\\bNGCOR-\[A-Z0-9-\]\{1,96\}\\b' -and
     $forcedSource -match 'RegexOptions\]::CultureInvariant' -and
@@ -322,6 +326,8 @@ Assert-NgcorTest ($forcedSource -match 'function Get-NgcorForcedSafeErrorCode' -
     'Wrapped failures preserve only a bounded NorthGate code and otherwise fail closed generically.'
 Assert-NgcorTest ($serviceSource -cnotmatch 'S-1-5-2|CreateNewInstance') 'Pipe ACL does not deny NETWORK or grant instance creation.'
 Assert-NgcorTest ($serviceSource -match 'ReadAsync' -and $serviceSource -match 'PIPE-READ-TIMEOUT') 'Service frame reads are bounded and asynchronous.'
+Assert-NgcorTest ($deploymentSource.Contains("@('sidtype',`$script:ServiceName,'unrestricted')")) `
+    'The dedicated service SID remains enabled without a restricted token that blocks Hyper-V provider authorization.'
 
 $runtimeFiles = Get-ChildItem -LiteralPath $root -File | Where-Object { $_.Extension -in @('.ps1','.psm1') }
 foreach ($file in $runtimeFiles) {
@@ -1006,12 +1012,11 @@ $null = & (Join-Path $root 'Test-NorthGateCreateOnlyService.ps1')
 $null = & (Join-Path $root 'Test-NorthGateCreateOnlyDeployment.ps1')
 
 Write-Output "PASS: $script:Assertions assertions"
-
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAuXnxWhoDxeZKt
-# zMStaGPiGD0SH1AQEoIbaA3HpAeMnaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCeRuFWi68auOlH
+# geuwDGF8HVhaxD/7Q2lKiWIF/GDpH6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -1039,14 +1044,14 @@ Write-Output "PASS: $script:Assertions assertions"
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIMTz3BPkZcqzgLkKIxSM54XfxONjMMz8R/fEVg6Jov/cMA0GCSqG
-# SIb3DQEBAQUABIIBgDvoT7GCujPxw/3khLh97JEHAfrZTNfgh12tVs04GthrEDKO
-# rx+fG1+5svVxjaocIzmbzF+P0v4ArwPouOg4ME6evNtKv/TnG7GzBCRnDoafK7Gd
-# ipomQL4pPovRcqTyc8/BiJ3pfFLnFn2/k7di4BqEr/kmAHpDhCJtD7lBFFcXusId
-# z1mYLdYnTooLB7s7nT3FYLdjaqE44kxTVwQLkBhc/x4pm59YnPF1zdfe7QoeyfYS
-# eTUItgN4JFGlnURsbvBPOU+T9yD0ch0ypfQWKe8Z4Xo4oGL6vJ/4VaoCyU/fTC96
-# WAf28jp0oTrnjxgMG+F1lw4+xsXaSHFzkI36oo9rVznbihXdmh1IRiYxYQ6CwySw
-# GWqObejI+xS23GSsVdC1dGfjWIVegaSnUtjV6Cv78vcEDqhDyUjscxoru15b3S7C
-# YdHvkuaqYM9v2pr9kKiUe+SyJjs602nLyUuPRc6T2DJvbH+pqv4qW9HBx9Qk0Sae
-# MA6IauOT7Gps85KIAA==
+# hvcNAQkEMSIEII64+qCqivgpzN/8/5X8zP3YIgdPUo/JCzzmMNuuHLRvMA0GCSqG
+# SIb3DQEBAQUABIIBgLP1b8JjmIPL1sw3CKR+yL0dDJ9rAEOiqzuAG/xixkIwKgXZ
+# SptBkwAh126nFCREMdI2VFYedh532F4mRrNyfM+uFIGsdO9AcgpMiAHgu6ZhTwbL
+# ZhHLJ4uyq5MdzLDP2CArs9gAlnTpli725ywCwcXSkRgcr5S6TBaMbdQ5lLN1IdJI
+# L46bX8931+wVz8ztLvV84YIEm2t21T2PaTT2DB7nvB2p2KidN0ZDQ8gdYfHQXXC8
+# +VxvZ+1J4yJb+eA3KwUW2Lz2reExMYQFya2ViArdb2KM17gueDWyFzd1YwhDyfDn
+# x84aMRf+xCJR7XzXTZgZTSa5mO2q6MLAIMSewmALFcyuRiJOy2OXixhUnql9waBv
+# GtKQsgKcdcJ783fj65dNe1ZgQOOHCowHtT/1iZN9tFh6i9kTvZfO8Fhr0rYonWn0
+# GGU+Mvx2IrAtH3Hs9daUtoRQPtB0lMZYT5yqHFA9xWvgl9ccdb7ibKRSf05TSij1
+# 0bbn1RjRQ3Xcu9cPXg==
 # SIG # End signature block
