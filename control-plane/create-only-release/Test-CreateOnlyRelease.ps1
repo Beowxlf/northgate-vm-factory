@@ -119,6 +119,10 @@ $promotionSource = [IO.File]::ReadAllText((Join-Path $root 'New-NorthGateCreateO
 Assert-NgcorTest ($promotionSource.Contains('Get-NgcdExistingProductionContext $Authorization') -and
     -not $promotionSource.Contains('Get-NgcdRuntimeContext $Authorization')) `
     'The named-administrator rollout writer validates installed release state through the administrator-safe production context.'
+Assert-NgcorTest ($promotionSource -match '\$pipeResponseTimeoutMilliseconds = 120000' -and
+    $promotionSource -match 'Read-NgcrExact \$pipe 4[\s\S]{0,100}\$pipeResponseTimeoutMilliseconds' -and
+    $promotionSource -match 'Read-NgcrExact \$pipe \$responseLength \$pipeResponseTimeoutMilliseconds') `
+    'Rollout response reads remain bounded while allowing authenticated historical-state validation.'
 
 $release = Import-Module (Join-Path $root 'NorthGate.VMFactory.CreateOnlyRelease.psd1') -Force -PassThru
 $protocol = Import-Module (Join-Path $root 'NorthGate.VMFactory.CreateOnlyProtocol.psd1') -Force -PassThru
