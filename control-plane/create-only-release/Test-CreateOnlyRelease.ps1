@@ -115,6 +115,11 @@ foreach ($file in Get-ChildItem -LiteralPath $root -File | Where-Object { $_.Ext
 }
 Assert-NgcorTest ($parseErrors.Count -eq 0) ('All PowerShell files parse: ' + ($parseErrors -join '; '))
 
+$promotionSource = [IO.File]::ReadAllText((Join-Path $root 'New-NorthGateCreateOnlyRolloutPromotion.ps1'))
+Assert-NgcorTest ($promotionSource.Contains('Get-NgcdExistingProductionContext $Authorization') -and
+    -not $promotionSource.Contains('Get-NgcdRuntimeContext $Authorization')) `
+    'The named-administrator rollout writer validates installed release state through the administrator-safe production context.'
+
 $release = Import-Module (Join-Path $root 'NorthGate.VMFactory.CreateOnlyRelease.psd1') -Force -PassThru
 $protocol = Import-Module (Join-Path $root 'NorthGate.VMFactory.CreateOnlyProtocol.psd1') -Force -PassThru
 $deployment = Import-Module (Join-Path $root 'NorthGate.VMFactory.CreateOnlyDeployment.psd1') -Force -PassThru
@@ -1026,12 +1031,11 @@ $null = & (Join-Path $root 'Test-NorthGateCreateOnlyService.ps1')
 $null = & (Join-Path $root 'Test-NorthGateCreateOnlyDeployment.ps1')
 
 Write-Output "PASS: $script:Assertions assertions"
-
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDv1Vf7SJK4sc3e
-# B9cW37o2IXVWxUbMcBfBsFZyK/1SIqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCANJXJ+2NrupZfj
+# U876KQzMriGbw9yxjdQs4HD83OW2XaCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -1059,14 +1063,14 @@ Write-Output "PASS: $script:Assertions assertions"
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEICne5Bi+o6ACljMArc079W+BM4d5AjNUWvmyCxPbdcPcMA0GCSqG
-# SIb3DQEBAQUABIIBgGCH5UEniAZ27DjecRvVswhpSFAbQgHM5az96LMCH79oO02U
-# TiEgOZH4UImWUC1/M2HkYtZMUV0UjZ0PJzNQv25TZA68wwOztE44Xjn/X0GvqYY1
-# NX/xRcDcPbJoIcHYmUOEj8SdtLkpYI81Q/Zg28RdMI6os0ZJ0gmSeBD3VgAeKdzZ
-# E4bapY9uYYHs8teuDQt+9D/z5KGAY+PRNNapsXx0R5fuGMONXwL33bbELmcQQsmM
-# 0VkCLYulBZREhiTBpwpzR1+T26JUBWea3UG5iuFh+MnTw9DCGITuaw2ArZZUjTZ3
-# 7irk0GY/ROvGCHXyrt05cMpjPk8rzffMWeJuUVXL3HPXcH00+x8tfphpAgjL8XAd
-# ym4e9LymytfGGBlfY2LouPaiv00gQwSBmKKVHNpFVKdkUDg7NA+2Y0IF3VFQPHSO
-# xmkAxCsNjg8Yulat0pY9skqSfND/N80Q27U9ApajneuSAe3yeVTmwEpKNa0lFaeY
-# GANx3mwQxlF6FccmIw==
+# hvcNAQkEMSIEIIc2Q7PfuXd2aZYKq//94X6Qbjgk600E8SB7PsAc0FUdMA0GCSqG
+# SIb3DQEBAQUABIIBgGEoEls7Wm9u03XzXW3RZJRVGN0w9hjpOUj4xfAP4jLcW/oB
+# QpHi83+fA3e87XUq9SK6Rv8b0QlKfAit4wFNxH6LYkRCpFXCPq/Y8mPFbrtLpjbu
+# L7o+yG/I2/31/Jm7sQntk4lh30gwgNn9SyyMUXv/238ygcikZb4aKtzIfMOIMUsl
+# HTMzBwBzEFXXMNQfwSenkz35f81FnALrst6q7fti2oWL8591jlqKkL0L0vfaHEN3
+# ATl8VWPxxNkSs/Mnc9FC3s4rXsGj2rxrZrYDRCCJ9GiMS7XauKw4KVDHSx6kcIyd
+# pIfvvm8TDaJwqk8vHUUPsZB1w/ldP+jZKWEBkGBxcKx6NasbxvbRdqmF2x7g3opA
+# +LUiw4+JYM9vOgQabPtL2cwxgGW9HecrQ1xq/nriPO6cc1FJSOGUMgeGjcrhDEbc
+# ca51NmnJPe8pvr4azDvuWo0m3cZkesyN3c0DdsnIHIIi/UgUM15vqzw6rdC9c7Vh
+# Gid0xDwvPGn3r02gzQ==
 # SIG # End signature block

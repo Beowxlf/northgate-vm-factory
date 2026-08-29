@@ -246,7 +246,7 @@ if ($installed.schema -cne 'northgate/create-only-installed-release/v1' -or
 }
 try {
     $runtimeContext = & $deployment {
-        param($Authorization) Get-NgcdRuntimeContext $Authorization
+        param($Authorization) Get-NgcdExistingProductionContext $Authorization
     } $authorization
     $verified = Test-NorthGateCreateOnlyInstalledRelease -Context $runtimeContext `
         -Manifest $manifest -Authorization $authorization `
@@ -394,8 +394,8 @@ finally { $keyMaterial.Rsa.Dispose() }
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCpffIUZObox2gw
-# ZyhhBLzwOvclUirVD30lW6JxfZaxdqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCYiTburD434zOP
+# yKnD+p/1SDDGDtkdFtrtYLfBzCC8d6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -423,14 +423,14 @@ finally { $keyMaterial.Rsa.Dispose() }
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIOB3JpYdeYk4gzyl1k6wXxgeezIzxtYk5Lly7FlXW0/DMA0GCSqG
-# SIb3DQEBAQUABIIBgBxvTV3X1j6L3dmvAbgPggz/DtiGFUIFUs3D1Fw5lf0IXlRT
-# iZdRE/yf8nVuZmDJGwYXJFxhTJuMW0Aa0YglqaMd3h1SHLwxUWRdMTr7VPvl5CUC
-# 3Y8FhwOOdwo5ChUrZlsVU5FOBL2Vc1Fj0AAiJoqYLLjKbibgXYcrEY4DqU8Yt/Ri
-# iI6ox3skwwej3PY5axLV1UqsDzX3xkrjjAwb1+O7zLN27w/29xbtuPCcGf3l9u7p
-# kos7fiSNC4ilYy4EmUhyZNDWQS2qJeSk19LDQZ0fb5XG7DcweCrenQ45WCYeAIya
-# mpGsRnMGdZU1+8Ig8dl3LHv3mZLqFU9iOo5cQSMzWVSHhoe6PyVhmDdeMJ7LNanh
-# C3ApszhjX+483uf5P4LuHrahcsHfq3XwAJZBbCqjEWGhoamjeMDZ6/KyVfXNzlLI
-# KInLcnVh/0cbgSNxZGDT5pf9MccKxi0UVrBvJrZg+XcVQkt9XntLHp230ctaP/bf
-# 826O1hKKo08A9ZIagA==
+# hvcNAQkEMSIEIK5tT00HjwyZ9jP3mxqYhPW1+e1QRggnHwi5GZ9jWzxYMA0GCSqG
+# SIb3DQEBAQUABIIBgI69HVsel1DSx02/+Js4LAE2M/iUF1ez27+b4k27m6nf0Ydk
+# DG3eAtbrb/+fUsp8UcCZM3C9eYINue6GzPbcG7U1qnBFlOBM+KueA3/tONJz8HJP
+# p8YQDwA1x2RmDWqTPXZUTPoJYLwqWyx99ybJCSbK74qN7B0BzN3lM58WF7EYQt+I
+# kk5RqckUoX0hBLynHA0O12NpAKF3LRjyy62ZiGWXirgNjukaBUhvkM+3e5F8qtXw
+# Pw7oeTIfJ6pAU/ZB3z1Pr0PCirbZe8ACVb8LTZKHCbDlq5qttgkTd1a1+z8HDJ9C
+# u0ln9m4b56Ru0/DxbVZp2ZwWGpyAG5R0v6idsKtlHBcGXWyh/PcGLn9tH2saY1oj
+# zCL2+V0ji32+J26DFLaVI0+jyqUFZ/0964B+yaTFF7QYq7KLlOaHYZNkjme64YUR
+# 2nvZhLGhPyD93ISsQZZgq0bItrtfHaLkRiNm3FEY0pCAn9EKcOIfKmneyMZxWY2a
+# Wf9y7MJIeY45llE8Nw==
 # SIG # End signature block
