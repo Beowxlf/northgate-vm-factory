@@ -74,7 +74,11 @@ function Format-NgcbTestUtc {
 
 function Copy-NgcbTestObject {
     param($Value)
-    ConvertFrom-Json (ConvertTo-Json $Value -Depth 30)
+    $json = ConvertTo-Json $Value -Depth 30
+    if ((Get-Command ConvertFrom-Json).Parameters.ContainsKey('DateKind')) {
+        ConvertFrom-Json $json -DateKind String
+    }
+    else { ConvertFrom-Json $json }
 }
 
 function Write-NgcbTestArtifact {
@@ -101,9 +105,19 @@ try {
     $source = [IO.File]::ReadAllText((Join-Path $root 'NorthGate.VMFactory.CreateOnlyBackend.psm1'))
     foreach ($forbidden in @(
         '(?i)\bRemove-VM\b','(?i)\bRemove-VHD\b','(?i)\bRemove-VMSwitch\b','(?i)\bRename-VM\b',
-        '(?i)\bNew-VMSwitch\b','(?i)\bSet-VMSwitch\b','(?i)\bAdd-VMHardDiskDrive\b',
+        '(?i)\bNew-VMSwitch\b','(?i)\bSet-VMSwitch\b',
         '(?i)\bMount-VHD\b','(?i)\bInvoke-Expression\b','(?i)\bStart-Process\b'
     )) { Assert-NgcbTest ($source -notmatch $forbidden) "Privileged source excludes $forbidden." }
+    $productionCreateStart=$source.IndexOf('function Invoke-NgcbProductionCreate')
+    $productionCreateEnd=$source.IndexOf('function Invoke-NgcbInertCreate',$productionCreateStart)
+    $productionCreateSource=$source.Substring($productionCreateStart,$productionCreateEnd-$productionCreateStart)
+    $ownershipWriteIndex=$productionCreateSource.IndexOf('Hyper-V\Set-VM -VM $vm -AutomaticCheckpointsEnabled')
+    $ownershipReadbackIndex=$productionCreateSource.IndexOf('Hyper-V\Get-VM -Id ([guid]$vmId)')
+    $dataDiskCreateIndex=$productionCreateSource.IndexOf('foreach ($dataDisk in @($operation.dataDisks))')
+    Assert-NgcbTest ($productionCreateStart -ge 0 -and $productionCreateEnd -gt $productionCreateStart -and
+        $ownershipWriteIndex -ge 0 -and $ownershipReadbackIndex -gt $ownershipWriteIndex -and
+        $dataDiskCreateIndex -gt $ownershipReadbackIndex) `
+        'Production Create writes and verifies the plan-bound VM ownership note before creating data disks.'
     $readOnlyRights = [Security.AccessControl.FileSystemRights]::ReadAndExecute -bor
         [Security.AccessControl.FileSystemRights]::Synchronize
     $mutationMask = [Security.AccessControl.FileSystemRights]::WriteData -bor
@@ -275,7 +289,7 @@ try {
         executableActions=[object[]]@('Create');planTtlSeconds=900;approvalTtlSeconds=600;stateKeyId='ngkey-backend-test-01'
         limits=[pscustomobject][ordered]@{hostReserveMemoryMiB=49152;hostProcessorReserveCount=2;maximumVcpuToLogicalRatio=2;minimumVolumeFreeBytes=[int64](100GB);minimumVolumeFreePercent=15;maximumProcessorCount=8;maximumStartupMemoryMiB=32768;maximumDynamicMemoryMiB=65536;maximumOsDiskGiB=256}
         rollout=[pscustomobject][ordered]@{stage='debian-canary';exactAssetOrder=[object[]]@('NG-VM-018','NG-VM-010','NG-VM-014','NG-VM-013','NG-VM-011','NG-VM-012','NG-VM-019','NG-VM-020','NG-VM-021','NG-VM-016','NG-VM-017','NG-VM-015');maximumConcurrentTransactions=1;debianCanary=[pscustomobject][ordered]@{assetId='NG-VM-018';status='pending';receiptSha256='';acceptanceEvidenceSha256='';retirementEvidenceSha256=''};windowsCanary=[pscustomobject][ordered]@{assetId='NG-VM-010';status='pending';receiptSha256='';acceptanceEvidenceSha256='';retirementEvidenceSha256=''}}
-       storageProfiles=[object[]]@([pscustomobject][ordered]@{profileRef='lab-ephemeral';catalogServerPolicyId='ng-storage-lab-ephemeral-v1';volumeId='volume-d';root=$storageRoot;reserveBytes=[int64](100GB);maximumOsDiskGiB=80;workloadClass='canary'})
+       storageProfiles=[object[]]@([pscustomobject][ordered]@{profileRef='lab-ephemeral';catalogServerPolicyId='ng-storage-lab-ephemeral-v1';volumeId='volume-d';root=$storageRoot;reserveBytes=[int64](100GB);maximumOsDiskGiB=80;maximumDataDiskCount=1;maximumDataDiskGiB=100;maximumTotalDataDiskGiB=100;workloadClass='canary'})
         networkProfiles=[object[]]@([pscustomobject][ordered]@{profileRef='business-apps';catalogServerPolicyId='ng-network-business-apps-v1';switchPolicyId='northgate-app-trunk';vlanId=150})
         images=[object[]]@(
             [pscustomobject][ordered]@{imageRef='debian-12.12-amd64-netinst';authorizationImageId='debian-12.12-amd64-netinst';path=$imagePath;sha256=('6'*64);sizeBytes=[int64]4;guestFamily='linux';firmwareProfileRef='linux-gen2';secureBootEnabled=$true;secureBootTemplate='MicrosoftUEFICertificateAuthority';secureBootExceptionId='none';vtpmRequired=$false},
@@ -292,7 +306,7 @@ try {
         )
         recoveryProfiles=[object[]]@([pscustomobject][ordered]@{profileRef='none-canary';catalogServerPolicyId='ng-recovery-none-canary-v1'})
         allowedAssets=[object[]]@(
-            [pscustomobject][ordered]@{assetId='NG-VM-018';name='NG-DEB-CAN01';allowedImageRefs=[object[]]@('debian-12.12-amd64-netinst');allowedStorageProfileRefs=[object[]]@('lab-ephemeral');allowedNetworkProfileRefs=[object[]]@('business-apps');allowedFirmwareProfileRefs=[object[]]@('linux-gen2');allowedBootstrapProfileRefs=[object[]]@('debian12-disposable-canary');allowedRecoveryProfileRefs=[object[]]@('none-canary');maximumProcessors=2;maximumMemoryMiB=4096;maximumOsDiskGiB=40;adapterPolicyId='ngnic-ng-deb-can01';staticMacAddress='02AABBCCDDEE';bootstrapMediaId='ngmedia-ng-vm-018'},
+            [pscustomobject][ordered]@{assetId='NG-VM-018';name='NG-DEB-CAN01';allowedImageRefs=[object[]]@('debian-12.12-amd64-netinst');allowedStorageProfileRefs=[object[]]@('lab-ephemeral');allowedNetworkProfileRefs=[object[]]@('business-apps');allowedFirmwareProfileRefs=[object[]]@('linux-gen2');allowedBootstrapProfileRefs=[object[]]@('debian12-disposable-canary');allowedRecoveryProfileRefs=[object[]]@('none-canary');maximumProcessors=2;maximumMemoryMiB=4096;maximumOsDiskGiB=40;maximumDataDiskCount=1;maximumDataDiskGiB=100;maximumTotalDataDiskGiB=100;adapterPolicyId='ngnic-ng-deb-can01';staticMacAddress='02AABBCCDDEE';bootstrapMediaId='ngmedia-ng-vm-018'},
             [pscustomobject][ordered]@{assetId='NG-VM-010';name='NG-CANARY-01';allowedImageRefs=[object[]]@('windows-11-25h2-english-x64');allowedStorageProfileRefs=[object[]]@('lab-ephemeral');allowedNetworkProfileRefs=[object[]]@('business-apps');allowedFirmwareProfileRefs=[object[]]@('windows-gen2');allowedBootstrapProfileRefs=[object[]]@('windows11-disposable-canary');allowedRecoveryProfileRefs=[object[]]@('none-canary');maximumProcessors=2;maximumMemoryMiB=4096;maximumOsDiskGiB=64;adapterPolicyId='ngnic-ng-canary-01';staticMacAddress='02AABBCCDDEF';bootstrapMediaId='ngmedia-ng-vm-010'}
         )
     }
@@ -300,7 +314,7 @@ try {
     $manifest = [pscustomobject][ordered]@{
         '$schema'='../../schemas/vm-manifest.schema.json';apiVersion='northgate/v1alpha1';kind='VirtualMachine'
         metadata=[pscustomobject][ordered]@{assetId='NG-VM-018';name='NG-DEB-CAN01';ownerRef='infrastructure';purpose='Disposable Debian canary';environment='lab';criticality='low';dataClassification='internal';lifecycle='approved';reviewOrRetirementDate='2026-08-31';changeRef='NG-CHG-20260802-001';dependencies=[object[]]@()}
-        spec=[pscustomobject][ordered]@{intent='create';generation=2;imageRef='debian-12.12-amd64-netinst';firmwareProfileRef='linux-gen2';compute=[pscustomobject][ordered]@{processors=2;memory=[pscustomobject][ordered]@{mode='dynamic';minimumMiB=1024;startupMiB=2048;maximumMiB=4096}};storage=[pscustomobject][ordered]@{profileRef='lab-ephemeral';osDiskGiB=40};network=[pscustomobject][ordered]@{profileRef='business-apps'};bootstrapProfileRef='debian12-disposable-canary';recoveryProfileRef='none-canary';desiredPowerState='running';destroyProtection=$true}
+        spec=[pscustomobject][ordered]@{intent='create';generation=2;imageRef='debian-12.12-amd64-netinst';firmwareProfileRef='linux-gen2';compute=[pscustomobject][ordered]@{processors=2;memory=[pscustomobject][ordered]@{mode='dynamic';minimumMiB=1024;startupMiB=2048;maximumMiB=4096}};storage=[pscustomobject][ordered]@{profileRef='lab-ephemeral';osDiskGiB=40;dataDisks=[object[]]@([pscustomobject][ordered]@{id='service-data';sizeGiB=100})};network=[pscustomobject][ordered]@{profileRef='business-apps'};bootstrapProfileRef='debian12-disposable-canary';recoveryProfileRef='none-canary';desiredPowerState='running';destroyProtection=$true}
     }
     $windowsManifest = [pscustomobject][ordered]@{
         '$schema'='../../schemas/vm-manifest.schema.json';apiVersion='northgate/v1alpha1';kind='VirtualMachine'
@@ -313,7 +327,7 @@ try {
             [pscustomobject][ordered]@{id='windows-11-25h2-english-x64';sha256=('8'*64);sizeBytes=[int64]4;guestFamily='windows';architecture='x86_64';allowedGenerations=[object[]]@(2);allowedFirmwareProfiles=[object[]]@('windows-gen2');sourceArtifactId='windows-11-25h2-english-x64-iso';approvalStatus='promoted';retirementStatus='active'}
         );status='active'}
         networkCatalog=[pscustomobject][ordered]@{'$schema'='../schemas/network-catalog.schema.json';apiVersion='northgate/v1alpha1';kind='NetworkCatalog';catalogVersion='2026.08.02.1';profiles=[object[]]@([pscustomobject][ordered]@{id='business-apps';serverPolicyId='ng-network-business-apps-v1';approvalStatus='approved';allowAttach=$true;allowCreate=$false;allowRebind=$false})}
-        storageCatalog=[pscustomobject][ordered]@{'$schema'='../schemas/storage-catalog.schema.json';apiVersion='northgate/v1alpha1';kind='StorageCatalog';catalogVersion='2026.08.02.1';profiles=[object[]]@([pscustomobject][ordered]@{id='lab-ephemeral';serverPolicyId='ng-storage-lab-ephemeral-v1';approvalStatus='approved';allowProvision=$true;criticalWorkloadsAllowed=$false})}
+        storageCatalog=[pscustomobject][ordered]@{'$schema'='../schemas/storage-catalog.schema.json';apiVersion='northgate/v1alpha1';kind='StorageCatalog';catalogVersion='2026.08.02.1';profiles=[object[]]@([pscustomobject][ordered]@{id='lab-ephemeral';serverPolicyId='ng-storage-lab-ephemeral-v1';approvalStatus='approved';allowProvision=$true;criticalWorkloadsAllowed=$false;allowDataDisks=$true;maximumDataDiskCount=1;maximumDataDiskGiB=100;maximumTotalDataDiskGiB=100})}
         firmwareCatalog=[pscustomobject][ordered]@{'$schema'='../schemas/profile-catalog.schema.json';apiVersion='northgate/v1alpha1';kind='FirmwareCatalog';catalogVersion='2026.08.02.1';profiles=[object[]]@([pscustomobject][ordered]@{id='linux-gen2';serverPolicyId='ng-firmware-linux-gen2-v1';approvalStatus='approved'},[pscustomobject][ordered]@{id='windows-gen2';serverPolicyId='ng-firmware-windows-gen2-v1';approvalStatus='approved'})}
         bootstrapCatalog=[pscustomobject][ordered]@{'$schema'='../schemas/profile-catalog.schema.json';apiVersion='northgate/v1alpha1';kind='BootstrapCatalog';catalogVersion='2026.08.02.1';profiles=[object[]]@([pscustomobject][ordered]@{id='debian12-disposable-canary';serverPolicyId='ng-bootstrap-debian12-disposable-canary-v1';approvalStatus='approved'},[pscustomobject][ordered]@{id='windows11-disposable-canary';serverPolicyId='ng-bootstrap-windows11-disposable-canary-v1';approvalStatus='approved'})}
         recoveryCatalog=[pscustomobject][ordered]@{'$schema'='../schemas/profile-catalog.schema.json';apiVersion='northgate/v1alpha1';kind='RecoveryCatalog';catalogVersion='2026.08.02.1';profiles=[object[]]@([pscustomobject][ordered]@{id='none-canary';serverPolicyId='ng-recovery-none-canary-v1';approvalStatus='approved'})}
@@ -358,6 +372,12 @@ try {
     $badWindowsPolicy.images[0].secureBootTemplate='MicrosoftWindows'
     $badWindowsPolicy.images[0].vtpmRequired=$false
     Assert-NgcbThrows { & $module { param($p,$a,$ah,$ph) Assert-NgcbBackendPolicy $p $a $ah $ph } $badWindowsPolicy $authorization $authorizationHash ('b'*64) } '^NGCB-POLICY-IMAGE-INVALID$' 'Windows policy cannot omit vTPM.'
+    $partialStorageDiskPolicy=Copy-NgcbTestObject $policy
+    $partialStorageDiskPolicy.storageProfiles[0].PSObject.Properties.Remove('maximumTotalDataDiskGiB')
+    Assert-NgcbThrows { & $module { param($p,$a,$ah,$ph) Assert-NgcbBackendPolicy $p $a $ah $ph } $partialStorageDiskPolicy $authorization $authorizationHash ('b'*64) } '^NGCB-POLICY-STORAGE-INVALID$' 'A storage policy cannot partially authorize data-disk limits.'
+    $partialAssetDiskPolicy=Copy-NgcbTestObject $policy
+    $partialAssetDiskPolicy.allowedAssets[0].PSObject.Properties.Remove('maximumDataDiskGiB')
+    Assert-NgcbThrows { & $module { param($p,$a,$ah,$ph) Assert-NgcbBackendPolicy $p $a $ah $ph } $partialAssetDiskPolicy $authorization $authorizationHash ('b'*64) } '^NGCB-POLICY-ASSET-INVALID$' 'An asset policy cannot partially authorize data-disk limits.'
     $kaliPolicy=Copy-NgcbTestObject $policy
     $kaliPolicy.images[0].imageRef='kali-2026.2-installer-netinst-amd64'
     $kaliPolicy.images[0].authorizationImageId='kali-2026.2-installer-netinst-amd64'
@@ -420,6 +440,46 @@ try {
         Register-NorthGateCreateOnlyApproval -Context $Context -ApprovalBytes $bytes -DetachedCmsSignatureBytes $signature
     }
 
+    $catalogDeniedHarness=New-NgcbHarness
+    $catalogDeniedRoot=Join-Path $testRoot 'data-without-disk-catalog-authorization'
+    Copy-Item -LiteralPath $dataRoot -Destination $catalogDeniedRoot -Recurse
+    $catalogDenied=Copy-NgcbTestObject $catalogs.storageCatalog
+    foreach($propertyName in @('allowDataDisks','maximumDataDiskCount','maximumDataDiskGiB','maximumTotalDataDiskGiB')){
+        $catalogDenied.profiles[0].PSObject.Properties.Remove($propertyName)
+    }
+    $catalogDeniedArtifact=Write-NgcbTestArtifact $catalogDeniedRoot 'files/catalog/storageCatalog.json' $catalogDenied
+    $catalogDeniedEntry=@($catalogDeniedHarness.Context.DataBundle.files | Where-Object { $_.role -ceq 'storageCatalog' })[0]
+    $catalogDeniedEntry.sourceSha256=$catalogDeniedArtifact.Sha256
+    $catalogDeniedEntry.canonicalSha256=$catalogDeniedArtifact.Sha256
+    $catalogDeniedEntry.sizeBytes=[int64]$catalogDeniedArtifact.Size
+    $catalogDeniedHarness.Context.DataRoot=[IO.Path]::GetFullPath($catalogDeniedRoot)
+    $catalogDeniedHarness.Context.DataBundleSha256=Get-NgcbTestSha (ConvertTo-NgcbTestBytes $catalogDeniedHarness.Context.DataBundle)
+    $catalogDeniedHarness.Context.ContextMarker=& $module { param($c) Get-NgcbContextMarker $c } $catalogDeniedHarness.Context
+    Assert-NgcbThrows {
+        New-NorthGateCreateOnlyHostPlan -Context $catalogDeniedHarness.Context -PlanRequestBytes (New-NgcbPlanRequest)
+    } '^NGCB-STORAGE-CATALOG-DATA-DISKS-NOT-AUTHORIZED$' `
+        'A storage catalog that omits data-disk authorization cannot plan a multi-disk VM.'
+
+    $osAliasHarness=New-NgcbHarness
+    $osAliasRoot=Join-Path $testRoot 'data-with-os-disk-alias'
+    Copy-Item -LiteralPath $dataRoot -Destination $osAliasRoot -Recurse
+    $osAliasManifest=Copy-NgcbTestObject $manifest
+    $osAliasManifest.spec.storage.dataDisks[0].id='os'
+    $osAliasArtifact=Write-NgcbTestArtifact $osAliasRoot 'files/manifests/NG-VM-018.json' $osAliasManifest
+    $osAliasEntry=@($osAliasHarness.Context.DataBundle.files | Where-Object {
+        $_.role -ceq 'manifest' -and $_.assetId -ceq 'NG-VM-018'
+    })[0]
+    $osAliasEntry.sourceSha256=$osAliasArtifact.Sha256
+    $osAliasEntry.canonicalSha256=$osAliasArtifact.Sha256
+    $osAliasEntry.sizeBytes=[int64]$osAliasArtifact.Size
+    $osAliasHarness.Context.DataRoot=[IO.Path]::GetFullPath($osAliasRoot)
+    $osAliasHarness.Context.DataBundleSha256=Get-NgcbTestSha (ConvertTo-NgcbTestBytes $osAliasHarness.Context.DataBundle)
+    $osAliasHarness.Context.ContextMarker=& $module { param($c) Get-NgcbContextMarker $c } $osAliasHarness.Context
+    Assert-NgcbThrows {
+        New-NorthGateCreateOnlyHostPlan -Context $osAliasHarness.Context -PlanRequestBytes (New-NgcbPlanRequest)
+    } '^NGCB-MANIFEST-DATA-DISKS-INVALID$' `
+        'The reserved data-disk ID os cannot alias the operating-system VHDX path.'
+
     $harness=New-NgcbHarness
     $state=Get-NorthGateCreateOnlyBackendState -Context $harness.Context
     Assert-NgcbTest ($state.applyEnabled -and $state.createOnly -and -not $state.destructiveOperationsExposed) 'Backend state is enabled only for Create.'
@@ -431,6 +491,14 @@ try {
     $planObject=ConvertFrom-Json $plan.canonicalPlan
     Assert-NgcbTest ($planObject.operation.staticMacAddress -ceq '02AABBCCDDEE' -and $planObject.operation.adapterReservationId -match '^ngnicr-[a-f0-9]{64}$' -and $planObject.operation.adapterIdBindingMode -ceq 'hyperv-issued-journal-before-first-boot') 'Plan binds factory-owned static MAC and adapter-ID reservation/journal mode.'
     Assert-NgcbTest ($planObject.operation.secureBootEnabled -and $planObject.operation.secureBootTemplate -ceq 'MicrosoftUEFICertificateAuthority' -and -not $planObject.operation.vtpmRequired) 'Debian plan requires Secure Boot and does not claim vTPM.'
+    Assert-NgcbTest ($planObject.operation.expectedDiskCount -eq 2 -and
+        @($planObject.operation.dataDisks).Count -eq 1 -and
+        $planObject.operation.dataDisks[0].id -ceq 'service-data' -and
+        $planObject.operation.dataDisks[0].sizeGiB -eq 100 -and
+        $planObject.operation.dataDisks[0].controllerNumber -eq 0 -and
+        $planObject.operation.dataDisks[0].controllerLocation -eq 1 -and
+        $planObject.liveState.capacity.requestedStorageBytes -eq [int64](140GB)) `
+        'Plan binds the OS and service-data disks, deterministic SCSI location, and total capacity reservation.'
     Assert-NgcbTest ($planObject.operation.bootstrapMediaId -ceq 'ngmedia-ng-vm-018' -and
         $planObject.operation.bootstrapMediaMode -ceq 'asset-bound-derivative-iso' -and
         $planObject.operation.installationMediaBindingMode -ceq 'asset-bound-immutable-unattended' -and
@@ -466,6 +534,11 @@ try {
     }
     Assert-NgcbTest ($receipt.receipt.operation.staticMacAddress -ceq '02AABBCCDDEE' -and $receipt.receipt.operation.adapterId -match '^[a-f0-9-]{36}$' -and -not $receipt.receipt.operation.dynamicMacAddressEnabled) 'Receipt binds static MAC and Hyper-V-issued adapter ID.'
     Assert-NgcbTest ($receipt.receipt.operation.secureBootEnabled -and -not $receipt.receipt.operation.vtpmRequired -and -not $receipt.receipt.operation.vtpmEnabled) 'Receipt binds Debian firmware security readback.'
+    Assert-NgcbTest ($receipt.receipt.operation.expectedDiskCount -eq 2 -and
+        @($receipt.receipt.operation.dataDisks).Count -eq 1 -and
+        $receipt.receipt.operation.dataDisks[0].id -ceq 'service-data' -and
+        @($harness.State.disks | Where-Object { $_.vmId -ceq $receipt.receipt.operation.vmId }).Count -eq 2) `
+        'Receipt and inert live state prove both plan-bound disks were attached.'
     Assert-NgcbTest ($receipt.receipt.operation.bootstrapMediaId -ceq 'ngmedia-ng-vm-018' -and
         $receipt.receipt.operation.bootstrapMediaMode -ceq 'asset-bound-derivative-iso' -and
         @($receipt.receipt.operation.installationMediaPaths).Count -eq 1 -and

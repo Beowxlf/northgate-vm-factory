@@ -25,7 +25,7 @@
     "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "operation": {
       "type": "object", "additionalProperties": false,
-      "required": ["action", "assetId", "name", "changeId", "reservationId", "vmId", "adapterPolicyId", "adapterReservationId", "adapterId", "staticMacAddress", "dynamicMacAddressEnabled", "secureBootEnabled", "secureBootTemplate", "secureBootExceptionId", "vtpmRequired", "vtpmEnabled", "bootstrapMediaId", "bootstrapMediaMode", "bootstrapMediaSha256", "bootstrapMediaSourceImageSha256", "bootstrapMediaProvenanceSha256", "bootstrapMediaBundleManifestSha256", "bootstrapMediaUnattendedPayloadSha256", "installationMediaPaths", "storageRoot", "assetRoot", "vhdPath", "switchId", "vlanId", "desiredPowerState", "destroyProtection"],
+      "required": ["action", "assetId", "name", "changeId", "reservationId", "vmId", "adapterPolicyId", "adapterReservationId", "adapterId", "staticMacAddress", "dynamicMacAddressEnabled", "secureBootEnabled", "secureBootTemplate", "secureBootExceptionId", "vtpmRequired", "vtpmEnabled", "bootstrapMediaId", "bootstrapMediaMode", "bootstrapMediaSha256", "bootstrapMediaSourceImageSha256", "bootstrapMediaProvenanceSha256", "bootstrapMediaBundleManifestSha256", "bootstrapMediaUnattendedPayloadSha256", "installationMediaPaths", "storageRoot", "assetRoot", "vhdPath", "dataDisks", "expectedDiskCount", "switchId", "vlanId", "desiredPowerState", "destroyProtection"],
       "properties": {
         "action": { "const": "Create" }, "assetId": { "type": "string", "pattern": "^NG-VM-[0-9]{3,}$" },
         "name": { "type": "string" }, "changeId": { "type": "string", "pattern": "^NG-CHG-[0-9]{8}-[0-9]{3,}$" },
@@ -41,7 +41,22 @@
         "bootstrapMediaUnattendedPayloadSha256": { "$ref": "#/$defs/hash" },
         "installationMediaPaths": { "type": "array", "minItems": 1, "maxItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-Za-z]:\\\\" } },
         "storageRoot": { "type": "string" }, "assetRoot": { "type": "string" }, "vhdPath": { "type": "string" },
-        "switchId": { "type": "string" }, "vlanId": { "enum": [110, 120, 130, 140, 150, 160, 240, 250] },
+        "dataDisks": {
+          "type": "array", "maxItems": 4, "uniqueItems": true,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["id", "path", "sizeGiB", "controllerNumber", "controllerLocation"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,31}$" },
+              "path": { "type": "string", "pattern": "^[A-Za-z]:\\\\" },
+              "sizeGiB": { "type": "integer", "minimum": 10, "maximum": 2048 },
+              "controllerNumber": { "const": 0 },
+              "controllerLocation": { "type": "integer", "minimum": 1, "maximum": 4 }
+            }
+          }
+        },
+        "expectedDiskCount": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "switchId": { "type": "string" }, "vlanId": { "enum": [110, 120, 130, 140, 150, 160, 170, 180, 240, 250] },
         "desiredPowerState": { "enum": ["off", "running"] }, "destroyProtection": { "const": true }
       }
     }

@@ -808,15 +808,32 @@ function Assert-NgcbBackendPolicy {
         if (@($Policy.$collection).Count -lt 1) { Throw-NgcbError 'NGCB-POLICY-CONTRACT-INVALID' }
     }
     foreach ($entry in @($Policy.storageProfiles)) {
-        Assert-NgcbExactProperties $entry @(
+        $storageProperties = @(
             'profileRef','catalogServerPolicyId','volumeId','root','reserveBytes','maximumOsDiskGiB','workloadClass'
-        ) 'NGCB-POLICY-STORAGE-INVALID'
+        )
+        $storageDataLimitNames = @('maximumDataDiskCount','maximumDataDiskGiB','maximumTotalDataDiskGiB')
+        $storageDataLimitCount = @($storageDataLimitNames | Where-Object {
+            $entry.PSObject.Properties.Name -ccontains $_
+        }).Count
+        if ($storageDataLimitCount -notin @(0,3)) { Throw-NgcbError 'NGCB-POLICY-STORAGE-INVALID' }
+        if ($storageDataLimitCount -eq 3) {
+            $storageProperties += $storageDataLimitNames
+            if ($entry.maximumDataDiskCount -isnot [int] -or [int]$entry.maximumDataDiskCount -lt 1 -or
+                [int]$entry.maximumDataDiskCount -gt 4 -or $entry.maximumDataDiskGiB -isnot [int] -or
+                [int]$entry.maximumDataDiskGiB -lt 10 -or [int]$entry.maximumDataDiskGiB -gt 2048 -or
+                $entry.maximumTotalDataDiskGiB -isnot [int] -or
+                [int]$entry.maximumTotalDataDiskGiB -lt [int]$entry.maximumDataDiskGiB -or
+                [int]$entry.maximumTotalDataDiskGiB -gt 8192) {
+                Throw-NgcbError 'NGCB-POLICY-STORAGE-INVALID'
+            }
+        }
+        Assert-NgcbExactProperties $entry $storageProperties 'NGCB-POLICY-STORAGE-INVALID'
     }
     foreach ($entry in @($Policy.networkProfiles)) {
         Assert-NgcbExactProperties $entry @('profileRef','catalogServerPolicyId','switchPolicyId','vlanId') `
             'NGCB-POLICY-NETWORK-INVALID'
         if ($entry.switchPolicyId -cne $Authorization.switch.switchPolicyId -or
-            [int]$entry.vlanId -notin @(110,120,130,140,150,160,240,250)) {
+            [int]$entry.vlanId -notin @(110,120,130,140,150,160,170,180,240,250)) {
             Throw-NgcbError 'NGCB-POLICY-NETWORK-INVALID'
         }
     }
@@ -861,11 +878,28 @@ function Assert-NgcbBackendPolicy {
         }
     }
     foreach ($entry in @($Policy.allowedAssets)) {
-        Assert-NgcbExactProperties $entry @(
+        $assetProperties = @(
             'assetId','name','allowedImageRefs','allowedStorageProfileRefs','allowedNetworkProfileRefs',
             'allowedFirmwareProfileRefs','allowedBootstrapProfileRefs','allowedRecoveryProfileRefs',
             'maximumProcessors','maximumMemoryMiB','maximumOsDiskGiB','adapterPolicyId','staticMacAddress','bootstrapMediaId'
-        ) 'NGCB-POLICY-ASSET-INVALID'
+        )
+        $assetDataLimitNames = @('maximumDataDiskCount','maximumDataDiskGiB','maximumTotalDataDiskGiB')
+        $assetDataLimitCount = @($assetDataLimitNames | Where-Object {
+            $entry.PSObject.Properties.Name -ccontains $_
+        }).Count
+        if ($assetDataLimitCount -notin @(0,3)) { Throw-NgcbError 'NGCB-POLICY-ASSET-INVALID' }
+        if ($assetDataLimitCount -eq 3) {
+            $assetProperties += $assetDataLimitNames
+            if ($entry.maximumDataDiskCount -isnot [int] -or [int]$entry.maximumDataDiskCount -lt 1 -or
+                [int]$entry.maximumDataDiskCount -gt 4 -or $entry.maximumDataDiskGiB -isnot [int] -or
+                [int]$entry.maximumDataDiskGiB -lt 10 -or [int]$entry.maximumDataDiskGiB -gt 2048 -or
+                $entry.maximumTotalDataDiskGiB -isnot [int] -or
+                [int]$entry.maximumTotalDataDiskGiB -lt [int]$entry.maximumDataDiskGiB -or
+                [int]$entry.maximumTotalDataDiskGiB -gt 8192) {
+                Throw-NgcbError 'NGCB-POLICY-ASSET-INVALID'
+            }
+        }
+        Assert-NgcbExactProperties $entry $assetProperties 'NGCB-POLICY-ASSET-INVALID'
         if ($entry.adapterPolicyId -cnotmatch '^ngnic-[a-z0-9-]{8,64}$' -or
             $entry.staticMacAddress -cnotmatch '^02[0-9A-F]{10}$' -or
             @($Policy.bootstrapMedia | Where-Object {
@@ -1442,7 +1476,36 @@ function Resolve-NgcbManifest {
         'bootstrapProfileRef','recoveryProfileRef','desiredPowerState','destroyProtection'
     ) 'NGCB-MANIFEST-PROPERTIES-INVALID'
     Assert-NgcbExactProperties $manifest.spec.compute @('processors','memory') 'NGCB-MANIFEST-COMPUTE-INVALID'
-    Assert-NgcbExactProperties $manifest.spec.storage @('profileRef','osDiskGiB') 'NGCB-MANIFEST-STORAGE-INVALID'
+    $manifestStorageProperties = @('profileRef','osDiskGiB')
+    $hasDataDisks = $manifest.spec.storage.PSObject.Properties.Name -ccontains 'dataDisks'
+    if ($hasDataDisks) { $manifestStorageProperties += 'dataDisks' }
+    Assert-NgcbExactProperties $manifest.spec.storage $manifestStorageProperties 'NGCB-MANIFEST-STORAGE-INVALID'
+    $dataDiskSpecs = @()
+    if ($hasDataDisks) {
+        if ($null -eq $manifest.spec.storage.dataDisks) { Throw-NgcbError 'NGCB-MANIFEST-DATA-DISKS-INVALID' }
+        $dataDiskSpecs = @($manifest.spec.storage.dataDisks)
+        if ($dataDiskSpecs.Count -gt 4) { Throw-NgcbError 'NGCB-MANIFEST-DATA-DISKS-INVALID' }
+        foreach ($dataDisk in $dataDiskSpecs) {
+            Assert-NgcbExactProperties $dataDisk @('id','sizeGiB') 'NGCB-MANIFEST-DATA-DISKS-INVALID'
+            if ($dataDisk.id -cnotmatch '^[a-z0-9][a-z0-9-]{1,31}$' -or $dataDisk.id -ceq 'os' -or
+                $dataDisk.sizeGiB -isnot [int] -or [int]$dataDisk.sizeGiB -lt 10 -or
+                [int]$dataDisk.sizeGiB -gt 2048) {
+                Throw-NgcbError 'NGCB-MANIFEST-DATA-DISKS-INVALID'
+            }
+        }
+        $dataDiskIds = @($dataDiskSpecs | ForEach-Object { [string]$_.id })
+        if (@($dataDiskIds | Select-Object -Unique).Count -ne $dataDiskIds.Count) {
+            Throw-NgcbError 'NGCB-MANIFEST-DATA-DISKS-INVALID'
+        }
+    }
+    $dataDiskTotalGiB = [int64]0
+    $dataDiskMaximumGiB = 0
+    foreach ($dataDisk in $dataDiskSpecs) {
+        $dataDiskTotalGiB += [int64]$dataDisk.sizeGiB
+        if ([int]$dataDisk.sizeGiB -gt $dataDiskMaximumGiB) {
+            $dataDiskMaximumGiB = [int]$dataDisk.sizeGiB
+        }
+    }
     Assert-NgcbExactProperties $manifest.spec.network @('profileRef') 'NGCB-MANIFEST-NETWORK-INVALID'
     if ($manifest.spec.compute.memory.mode -ceq 'static') {
         Assert-NgcbExactProperties $manifest.spec.compute.memory @('mode','startupMiB') 'NGCB-MANIFEST-MEMORY-INVALID'
@@ -1482,6 +1545,9 @@ function Resolve-NgcbManifest {
 
     $allowed = Get-NgcbUniqueEntry @($Context.Policy.allowedAssets) 'assetId' $AssetId `
         'NGCB-ASSET-NOT-IN-HOST-POLICY'
+    $allowedDataLimitsPresent = @(@('maximumDataDiskCount','maximumDataDiskGiB','maximumTotalDataDiskGiB') | Where-Object {
+        $allowed.PSObject.Properties.Name -ccontains $_
+    }).Count -eq 3
     if ($allowed.name -cne $manifest.metadata.name -or
         $manifest.spec.imageRef -cnotin @($allowed.allowedImageRefs) -or
         $manifest.spec.storage.profileRef -cnotin @($allowed.allowedStorageProfileRefs) -or
@@ -1491,7 +1557,11 @@ function Resolve-NgcbManifest {
         $manifest.spec.recoveryProfileRef -cnotin @($allowed.allowedRecoveryProfileRefs) -or
         [int]$manifest.spec.compute.processors -gt [int]$allowed.maximumProcessors -or
         $maximumMemory -gt [int]$allowed.maximumMemoryMiB -or
-        [int]$manifest.spec.storage.osDiskGiB -gt [int]$allowed.maximumOsDiskGiB) {
+        [int]$manifest.spec.storage.osDiskGiB -gt [int]$allowed.maximumOsDiskGiB -or
+        ($dataDiskSpecs.Count -gt 0 -and (-not $allowedDataLimitsPresent -or
+            $dataDiskSpecs.Count -gt [int]$allowed.maximumDataDiskCount -or
+            $dataDiskMaximumGiB -gt [int]$allowed.maximumDataDiskGiB -or
+            $dataDiskTotalGiB -gt [int64]$allowed.maximumTotalDataDiskGiB))) {
         Throw-NgcbError 'NGCB-MANIFEST-EXCEEDS-ASSET-POLICY'
     }
     $limits = $Context.Policy.limits
@@ -1531,6 +1601,15 @@ function Resolve-NgcbManifest {
     }
     $storagePolicy = Get-NgcbUniqueEntry @($Context.Policy.storageProfiles) 'profileRef' `
         ([string]$manifest.spec.storage.profileRef) 'NGCB-STORAGE-NOT-IN-HOST-POLICY'
+    $storageDataLimitsPresent = @(@('maximumDataDiskCount','maximumDataDiskGiB','maximumTotalDataDiskGiB') | Where-Object {
+        $storagePolicy.PSObject.Properties.Name -ccontains $_
+    }).Count -eq 3
+    if ($dataDiskSpecs.Count -gt 0 -and (-not $storageDataLimitsPresent -or
+        $dataDiskSpecs.Count -gt [int]$storagePolicy.maximumDataDiskCount -or
+        $dataDiskMaximumGiB -gt [int]$storagePolicy.maximumDataDiskGiB -or
+        $dataDiskTotalGiB -gt [int64]$storagePolicy.maximumTotalDataDiskGiB)) {
+        Throw-NgcbError 'NGCB-MANIFEST-EXCEEDS-STORAGE-POLICY'
+    }
     $authorizedVolume = Get-NgcbUniqueEntry @($Context.Authorization.volumes) 'volumeId' `
         ([string]$storagePolicy.volumeId) 'NGCB-STORAGE-NOT-AUTHORIZED'
     if ([IO.Path]::GetFullPath([string]$authorizedVolume.root).TrimEnd('\') -ine
@@ -1569,6 +1648,19 @@ function Resolve-NgcbManifest {
     $storageCatalogProfile = Assert-NgcbCatalogProfile $catalogArtifacts.storageCatalog.Artifact.Value `
         'StorageCatalog' ([string]$manifest.spec.storage.profileRef) ([string]$storagePolicy.catalogServerPolicyId)
     if ($storageCatalogProfile.allowProvision -ne $true) { Throw-NgcbError 'NGCB-STORAGE-CATALOG-INVALID' }
+    $catalogDataLimitNames = @(
+        'allowDataDisks','maximumDataDiskCount','maximumDataDiskGiB','maximumTotalDataDiskGiB'
+    )
+    $catalogDataLimitsPresent = @($catalogDataLimitNames | Where-Object {
+        $storageCatalogProfile.PSObject.Properties.Name -ccontains $_
+    }).Count -eq 4
+    if ($dataDiskSpecs.Count -gt 0 -and
+        (-not $catalogDataLimitsPresent -or $storageCatalogProfile.allowDataDisks -ne $true -or
+         $dataDiskSpecs.Count -gt [int]$storageCatalogProfile.maximumDataDiskCount -or
+         $dataDiskMaximumGiB -gt [int]$storageCatalogProfile.maximumDataDiskGiB -or
+         $dataDiskTotalGiB -gt [int64]$storageCatalogProfile.maximumTotalDataDiskGiB)) {
+        Throw-NgcbError 'NGCB-STORAGE-CATALOG-DATA-DISKS-NOT-AUTHORIZED'
+    }
     $null = Assert-NgcbCatalogProfile $catalogArtifacts.firmwareCatalog.Artifact.Value `
         'FirmwareCatalog' ([string]$manifest.spec.firmwareProfileRef) ([string]$firmwarePolicy.catalogServerPolicyId)
     $null = Assert-NgcbCatalogProfile $catalogArtifacts.bootstrapCatalog.Artifact.Value `
@@ -1588,6 +1680,23 @@ function Resolve-NgcbManifest {
     $storageRoot = [IO.Path]::GetFullPath([string]$storagePolicy.root).TrimEnd('\')
     $assetRoot = Join-Path $storageRoot $AssetId
     $vhdPath = Join-Path (Join-Path $assetRoot 'Virtual Hard Disks') ($AssetId + '-os.vhdx')
+    $resolvedDataDisks = @()
+    for ($index = 0; $index -lt $dataDiskSpecs.Count; $index++) {
+        $dataDisk = $dataDiskSpecs[$index]
+        $resolvedDataDisks += [pscustomobject][ordered]@{
+            id = [string]$dataDisk.id
+            path = Join-Path (Join-Path $assetRoot 'Virtual Hard Disks') `
+                ($AssetId + '-' + [string]$dataDisk.id + '.vhdx')
+            sizeGiB = [int]$dataDisk.sizeGiB
+            controllerNumber = 0
+            controllerLocation = $index + 1
+        }
+    }
+    $resolvedDiskPaths = @([string]$vhdPath) + @($resolvedDataDisks | ForEach-Object { [string]$_.path })
+    if (@($resolvedDiskPaths | ForEach-Object { [IO.Path]::GetFullPath($_).ToUpperInvariant() } |
+            Select-Object -Unique).Count -ne $resolvedDiskPaths.Count) {
+        Throw-NgcbError 'NGCB-MANIFEST-DATA-DISKS-INVALID'
+    }
     return [pscustomobject][ordered]@{
         Manifest = $manifest
         ManifestSha256 = $manifestData.Artifact.Sha256
@@ -1609,6 +1718,8 @@ function Resolve-NgcbManifest {
         StorageRoot = $storageRoot
         AssetRoot = $assetRoot
         VhdPath = $vhdPath
+        DataDisks = @($resolvedDataDisks)
+        TotalDiskGiB = [int64]$manifest.spec.storage.osDiskGiB + $dataDiskTotalGiB
     }
 }
 
@@ -2253,8 +2364,10 @@ function Get-NgcbObservedState {
         $_.notes -match ('(?:^|;)assetId=' + [regex]::Escape($assetId) + '(?:;|$)')
     })
     $nameVmCollisions = @($snapshot.vms | Where-Object { $_.name -ieq $name })
+    $expectedDiskPaths = @([string]$Resolved.VhdPath) + @($Resolved.DataDisks | ForEach-Object { [string]$_.path })
+    $normalizedExpectedDiskPaths = @($expectedDiskPaths | ForEach-Object { [IO.Path]::GetFullPath($_) })
     $diskCollisions = @($snapshot.disks | Where-Object {
-        [IO.Path]::GetFullPath([string]$_.path) -ieq [IO.Path]::GetFullPath($Resolved.VhdPath)
+        [IO.Path]::GetFullPath([string]$_.path) -iin $normalizedExpectedDiskPaths
     })
     $macCollisions = @($snapshot.adapters | Where-Object {
         ([string]$_.macAddress).ToUpperInvariant() -ceq ([string]$Resolved.AllowedAsset.staticMacAddress).ToUpperInvariant()
@@ -2267,6 +2380,7 @@ function Get-NgcbObservedState {
     })
     $assetRootExists = Test-Path -LiteralPath $Resolved.AssetRoot
     $vhdPathExists = Test-Path -LiteralPath $Resolved.VhdPath
+    $dataDiskPathExists = @($Resolved.DataDisks | Where-Object { Test-Path -LiteralPath ([string]$_.path) })
     Assert-NgcbNoReparseAncestor $Resolved.StorageRoot | Out-Null
     Assert-NgcbNoReparseAncestor $Resolved.AssetRoot | Out-Null
     $volume = Get-NgcbUniqueEntry @($snapshot.volumes) 'volumeId' ([string]$Resolved.Storage.volumeId) `
@@ -2296,7 +2410,7 @@ function Get-NgcbObservedState {
     }
     $reservationMemory = [int64]$Resolved.MaximumMemoryMiB
     $reservationProcessors = [int]$Resolved.Manifest.spec.compute.processors
-    $reservationStorageBytes = [int64]$Resolved.Manifest.spec.storage.osDiskGiB * 1GB
+    $reservationStorageBytes = [int64]$Resolved.TotalDiskGiB * 1GB
     $availableMemory = [int64]$snapshot.host.memoryCapacityMiB - [int64]$snapshot.existingMemoryMiB -
         [int64]$Context.Policy.limits.hostReserveMemoryMiB
     $logicalProcessors = [int]$snapshot.host.logicalProcessorCount
@@ -2332,6 +2446,7 @@ function Get-NgcbObservedState {
         adapters = @($snapshot.adapters)
         target = [pscustomobject][ordered]@{
             assetId = $assetId; name = $name; assetRoot = $Resolved.AssetRoot; vhdPath = $Resolved.VhdPath
+            dataDisks = @($Resolved.DataDisks)
             assetCollisionCount = $assetVmCollisions.Count
             nameCollisionCount = $nameVmCollisions.Count
             diskCollisionCount = $diskCollisions.Count
@@ -2339,6 +2454,7 @@ function Get-NgcbObservedState {
             ledgerCollisionCount = $ledgerCollisions.Count
             assetRootExists = [bool]$assetRootExists
             vhdPathExists = [bool]$vhdPathExists
+            dataDiskPathExistsCount = $dataDiskPathExists.Count
         }
     }
     $capacityRecord = [pscustomobject][ordered]@{
@@ -2366,7 +2482,7 @@ function Get-NgcbObservedState {
         CapacityHash = Get-NgcbStringSha256Hex (ConvertTo-NorthGateCreateOnlyCanonicalJson $capacityRecord)
         CollisionFree = ($assetVmCollisions.Count -eq 0 -and $nameVmCollisions.Count -eq 0 -and
             $diskCollisions.Count -eq 0 -and $macCollisions.Count -eq 0 -and $ledgerCollisions.Count -eq 0 -and
-            -not $assetRootExists -and -not $vhdPathExists)
+            -not $assetRootExists -and -not $vhdPathExists -and $dataDiskPathExists.Count -eq 0)
     }
 }
 
@@ -3015,6 +3131,8 @@ function New-NorthGateCreateOnlyHostPlan {
                 assetRoot = $resolved.AssetRoot
                 vhdPath = $resolved.VhdPath
                 osDiskGiB = [int]$resolved.Manifest.spec.storage.osDiskGiB
+                dataDisks = @($resolved.DataDisks)
+                expectedDiskCount = 1 + @($resolved.DataDisks).Count
                 imageRef = [string]$resolved.Manifest.spec.imageRef
                 imagePath = [IO.Path]::GetFullPath([string]$resolved.Image.path)
                 imageSha256 = [string]$resolved.Image.sha256
@@ -3291,7 +3409,7 @@ function Assert-NgcbPlanContract {
     Assert-NgcbExactProperties $Plan.operation @(
         'action','assetId','name','changeId','generation','processors','memoryMode','minimumMemoryMiB',
         'startupMemoryMiB','maximumMemoryMiB','storageProfileRef','storageRoot','assetRoot','vhdPath',
-        'osDiskGiB','imageRef','imagePath','imageSha256','bootstrapMediaId','bootstrapMediaMode',
+        'osDiskGiB','dataDisks','expectedDiskCount','imageRef','imagePath','imageSha256','bootstrapMediaId','bootstrapMediaMode',
         'bootstrapMediaPath','bootstrapMediaSha256','bootstrapMediaSizeBytes','bootstrapMediaSourceImageId',
         'bootstrapMediaSourceImageSha256','bootstrapMediaProvenancePath','bootstrapMediaProvenanceSha256',
         'bootstrapMediaBundleManifestSha256','bootstrapMediaBuilderId','bootstrapMediaBuilderReleaseSha256',
@@ -3324,6 +3442,9 @@ function Assert-NgcbPlanContract {
         $Plan.operation.generation -ne 2 -or $Plan.operation.destroyProtection -ne $true -or
         $Plan.operation.storageRoot -cne $Resolved.StorageRoot -or
         $Plan.operation.assetRoot -cne $Resolved.AssetRoot -or $Plan.operation.vhdPath -cne $Resolved.VhdPath -or
+        (ConvertTo-NorthGateCreateOnlyCanonicalJson @($Plan.operation.dataDisks)) -cne
+            (ConvertTo-NorthGateCreateOnlyCanonicalJson @($Resolved.DataDisks)) -or
+        [int]$Plan.operation.expectedDiskCount -ne (1 + @($Resolved.DataDisks).Count) -or
         $Plan.operation.imageRef -cne $Resolved.Image.imageRef -or
         [IO.Path]::GetFullPath([string]$Plan.operation.imagePath) -ine [IO.Path]::GetFullPath([string]$Resolved.Image.path) -or
         $Plan.operation.imageSha256 -cne $Resolved.Image.sha256 -or
@@ -3419,9 +3540,24 @@ function Assert-NgcbProductionVmReadback {
          [int64]$memory.Maximum -ne [int64]$operation.maximumMemoryMiB * 1MB)) {
         Throw-NgcbError 'NGCB-VM-READBACK-MISMATCH'
     }
-    $drives = @(Hyper-V\Get-VMHardDiskDrive -VM $vm -ErrorAction Stop)
-    if ($drives.Count -ne 1 -or [IO.Path]::GetFullPath([string]$drives[0].Path) -ine
-        [IO.Path]::GetFullPath([string]$operation.vhdPath)) { Throw-NgcbError 'NGCB-VM-READBACK-MISMATCH' }
+    $drives = @(Hyper-V\Get-VMHardDiskDrive -VM $vm -ErrorAction Stop |
+        Sort-Object ControllerNumber,ControllerLocation)
+    $expectedDrives = @([pscustomobject][ordered]@{
+        path = [string]$operation.vhdPath; controllerNumber = 0; controllerLocation = 0
+    }) + @($operation.dataDisks)
+    if ($drives.Count -ne [int]$operation.expectedDiskCount -or
+        $expectedDrives.Count -ne [int]$operation.expectedDiskCount) {
+        Throw-NgcbError 'NGCB-VM-READBACK-MISMATCH'
+    }
+    for ($index = 0; $index -lt $expectedDrives.Count; $index++) {
+        if ([string]$drives[$index].ControllerType -cne 'SCSI' -or
+            [int]$drives[$index].ControllerNumber -ne [int]$expectedDrives[$index].controllerNumber -or
+            [int]$drives[$index].ControllerLocation -ne [int]$expectedDrives[$index].controllerLocation -or
+            [IO.Path]::GetFullPath([string]$drives[$index].Path) -ine
+                [IO.Path]::GetFullPath([string]$expectedDrives[$index].path)) {
+            Throw-NgcbError 'NGCB-VM-READBACK-MISMATCH'
+        }
+    }
     $dvds = @(Hyper-V\Get-VMDvdDrive -VM $vm -ErrorAction Stop | Sort-Object ControllerNumber,ControllerLocation)
     $expectedDvdPaths = @([IO.Path]::GetFullPath([string]$operation.bootstrapMediaPath))
     $actualDvdPaths = @($dvds | ForEach-Object { [IO.Path]::GetFullPath([string]$_.Path) })
@@ -3455,6 +3591,8 @@ function Assert-NgcbProductionVmReadback {
         state = [string]$vm.State; processorCount = [int]$processor.Count
         startupMemoryBytes = [int64]$memory.Startup; dynamicMemoryEnabled = [bool]$memory.DynamicMemoryEnabled
         vhdPath = [IO.Path]::GetFullPath([string]$drives[0].Path)
+        dataDisks = @($operation.dataDisks)
+        expectedDiskCount = [int]$operation.expectedDiskCount
         imagePath = [IO.Path]::GetFullPath([string]$operation.imagePath)
         bootstrapMediaId = [string]$operation.bootstrapMediaId
         bootstrapMediaMode = [string]$operation.bootstrapMediaMode
@@ -3505,7 +3643,7 @@ function Invoke-NgcbQuarantineProductionVm {
 function Invoke-NgcbProductionCreate {
     param([object]$Context, [object]$Plan)
     foreach ($commandName in @(
-        'Hyper-V\New-VM','Hyper-V\Set-VM','Hyper-V\Set-VMProcessor','Hyper-V\Set-VMMemory',
+        'Hyper-V\New-VM','Hyper-V\New-VHD','Hyper-V\Add-VMHardDiskDrive','Hyper-V\Get-VM','Hyper-V\Set-VM','Hyper-V\Set-VMProcessor','Hyper-V\Set-VMMemory',
         'Hyper-V\Add-VMDvdDrive','Hyper-V\Get-VMDvdDrive','Hyper-V\Get-VMFirmware','Hyper-V\Set-VMFirmware',
         'Hyper-V\Get-VMSecurity','Hyper-V\Set-VMKeyProtector','Hyper-V\Enable-VMTPM',
         'Hyper-V\Add-VMNetworkAdapter','Hyper-V\Set-VMNetworkAdapter','Hyper-V\Connect-VMNetworkAdapter','Hyper-V\Set-VMNetworkAdapterVlan','Hyper-V\Start-VM',
@@ -3527,10 +3665,28 @@ function Invoke-NgcbProductionCreate {
         $null = Write-NgcbJournalEvent $Context $operation.assetId $Plan.reservationId $Plan.planId `
             'VmCreated' $vmId 'NGCB-HYPERV-VM-ID-ISSUED'
         Update-NgcbLedgerEntry $Context $Plan.reservationId 'Applying' $vmId
+        $ownershipNote = Get-NgcbOwnershipNote $operation.assetId $operation.changeId `
+            $Plan.reservationId $Plan.planId $false
         Hyper-V\Set-VM -VM $vm -AutomaticCheckpointsEnabled $false -AutomaticStartAction Nothing `
-            -AutomaticStopAction ShutDown -CheckpointType Production `
-            -Notes (Get-NgcbOwnershipNote $operation.assetId $operation.changeId $Plan.reservationId $Plan.planId $false) `
-            -ErrorAction Stop
+            -AutomaticStopAction ShutDown -CheckpointType Production -Notes $ownershipNote -ErrorAction Stop
+        $vm = Hyper-V\Get-VM -Id ([guid]$vmId) -ErrorAction Stop
+        if ($vm.Name -cne $operation.name -or [string]$vm.Notes -cne $ownershipNote) {
+            Throw-NgcbError 'NGCB-VM-OWNERSHIP-READBACK-MISMATCH'
+        }
+        $null = Write-NgcbJournalEvent $Context $operation.assetId $Plan.reservationId $Plan.planId `
+            'VmOwnershipEstablished' $vmId 'NGCB-VM-OWNERSHIP-READBACK-VERIFIED'
+        foreach ($dataDisk in @($operation.dataDisks)) {
+            $null = Hyper-V\New-VHD -Path ([string]$dataDisk.path) -Dynamic `
+                -SizeBytes ([int64]$dataDisk.sizeGiB * 1GB) -ErrorAction Stop
+            $null = Hyper-V\Add-VMHardDiskDrive -VM $vm -ControllerType SCSI `
+                -ControllerNumber ([int]$dataDisk.controllerNumber) `
+                -ControllerLocation ([int]$dataDisk.controllerLocation) `
+                -Path ([string]$dataDisk.path) -ErrorAction Stop
+        }
+        if (@($operation.dataDisks).Count -gt 0) {
+            $null = Write-NgcbJournalEvent $Context $operation.assetId $Plan.reservationId $Plan.planId `
+                'DataDisksAttached' $vmId 'NGCB-PLAN-BOUND-DATA-DISKS-ATTACHED'
+        }
         Hyper-V\Set-VMProcessor -VM $vm -Count ([int]$operation.processors) -ErrorAction Stop
         if ($operation.memoryMode -ceq 'dynamic') {
             Hyper-V\Set-VMMemory -VM $vm -DynamicMemoryEnabled $true `
@@ -3637,6 +3793,13 @@ function Invoke-NgcbInertCreate {
         vmId=$vmId; controllerType='SCSI'; controllerNumber=0; controllerLocation=0
         path=$operation.vhdPath; diskIdentifier=[guid]::NewGuid().ToString().ToLowerInvariant()
     }
+    foreach ($dataDisk in @($operation.dataDisks)) {
+        $Context.TestState.disks = [object[]]@($Context.TestState.disks) + [pscustomobject][ordered]@{
+            vmId=$vmId; controllerType='SCSI'; controllerNumber=[int]$dataDisk.controllerNumber
+            controllerLocation=[int]$dataDisk.controllerLocation; path=[string]$dataDisk.path
+            diskIdentifier=[guid]::NewGuid().ToString().ToLowerInvariant()
+        }
+    }
     $adapterId = [guid]::NewGuid().ToString().ToLowerInvariant()
     $Context.TestState.adapters = [object[]]@($Context.TestState.adapters) + [pscustomobject][ordered]@{
         vmId=$vmId; adapterId=$adapterId; macAddress=$operation.staticMacAddress
@@ -3667,6 +3830,7 @@ function Invoke-NgcbInertCreate {
         vmId=$vmId; name=$operation.name; generation=2; state=$(if ($operation.desiredPowerState -ceq 'running') {'Running'} else {'Off'})
         processorCount=[int]$operation.processors; startupMemoryBytes=[int64]$operation.startupMemoryMiB*1MB
         dynamicMemoryEnabled=($operation.memoryMode -ceq 'dynamic'); vhdPath=$operation.vhdPath
+        dataDisks=@($operation.dataDisks); expectedDiskCount=[int]$operation.expectedDiskCount
         imagePath=$operation.imagePath
         bootstrapMediaId=$operation.bootstrapMediaId; bootstrapMediaMode=$operation.bootstrapMediaMode
         bootstrapMediaSha256=$operation.bootstrapMediaSha256
@@ -3697,10 +3861,27 @@ function Assert-NgcbInertVmReadback {
     $expectedState = if ($ExpectRunning) { 'Running' } else { 'Off' }
     $expectedNote = Get-NgcbOwnershipNote $operation.assetId $operation.changeId `
         $Plan.reservationId $Plan.planId $false
-    if ($vms.Count -ne 1 -or $disks.Count -ne 1 -or $adapters.Count -ne 1 -or
+    $sortedDisks = @($disks | Sort-Object controllerNumber,controllerLocation)
+    $expectedDisks = @([pscustomobject][ordered]@{
+        path=[string]$operation.vhdPath;controllerNumber=0;controllerLocation=0
+    }) + @($operation.dataDisks)
+    $diskMismatch = $sortedDisks.Count -ne [int]$operation.expectedDiskCount -or
+        $expectedDisks.Count -ne [int]$operation.expectedDiskCount
+    if (-not $diskMismatch) {
+        for ($index = 0; $index -lt $expectedDisks.Count; $index++) {
+            if ([string]$sortedDisks[$index].controllerType -cne 'SCSI' -or
+                [int]$sortedDisks[$index].controllerNumber -ne [int]$expectedDisks[$index].controllerNumber -or
+                [int]$sortedDisks[$index].controllerLocation -ne [int]$expectedDisks[$index].controllerLocation -or
+                [IO.Path]::GetFullPath([string]$sortedDisks[$index].path) -ine
+                    [IO.Path]::GetFullPath([string]$expectedDisks[$index].path)) {
+                $diskMismatch = $true
+                break
+            }
+        }
+    }
+    if ($vms.Count -ne 1 -or $diskMismatch -or $adapters.Count -ne 1 -or
         $vms[0].name -cne $operation.name -or [int]$vms[0].generation -ne 2 -or
         $vms[0].state -cne $expectedState -or $vms[0].notes -cne $expectedNote -or
-        [IO.Path]::GetFullPath([string]$disks[0].path) -ine [IO.Path]::GetFullPath([string]$operation.vhdPath) -or
         $adapters[0].switchId -cne $operation.switchId -or
         $adapters[0].macAddress -cne $operation.staticMacAddress -or
         [bool]$adapters[0].dynamicMacAddressEnabled) {
@@ -3710,6 +3891,7 @@ function Assert-NgcbInertVmReadback {
         vmId=$VmId; name=$operation.name; generation=2; state=$expectedState
         processorCount=[int]$operation.processors; startupMemoryBytes=[int64]$operation.startupMemoryMiB*1MB
         dynamicMemoryEnabled=($operation.memoryMode -ceq 'dynamic'); vhdPath=$operation.vhdPath
+        dataDisks=@($operation.dataDisks); expectedDiskCount=[int]$operation.expectedDiskCount
         imagePath=$operation.imagePath; bootstrapMediaId=$operation.bootstrapMediaId
         bootstrapMediaMode=$operation.bootstrapMediaMode; bootstrapMediaSha256=$operation.bootstrapMediaSha256
         bootstrapMediaProvenanceSha256=$operation.bootstrapMediaProvenanceSha256
@@ -3799,6 +3981,8 @@ function New-NgcbSignedReceiptRecord {
             storageRoot = [string]$plan.operation.storageRoot
             assetRoot = [string]$plan.operation.assetRoot
             vhdPath = [string]$plan.operation.vhdPath
+            dataDisks = @($plan.operation.dataDisks)
+            expectedDiskCount = [int]$plan.operation.expectedDiskCount
             switchId = [string]$plan.operation.switchId
             vlanId = [int]$plan.operation.vlanId
             desiredPowerState = [string]$plan.operation.desiredPowerState
@@ -4280,8 +4464,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCkNW4uBla/ub+V
-# GXJpVmTAL79c+V+D3O66klUnjcUuXqCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAARJIAsKue/0aS
+# I6HvOn/ZH0cAXrWVWMU09NFOeBDTB6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -4309,14 +4493,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIKO6Ndco8aBvtjlpurHfZBetEC12vuZ6GoUK84174DFqMA0GCSqG
-# SIb3DQEBAQUABIIBgE5Q9D7BGTiWIHPoeprfEitXthsC+z0LP0WMJkeWwFLcE5lD
-# q15n/I890pb0SIrY31xg14UzQhtiXzzCaEZb/uR1BvgIQ50jrQ7/fUVJlGzLLJe8
-# ZciGm9WZEjdNrT54QqEvA723YiMVXVKfW73YAPdidZ1ToAl37VMFb3MVPOAWBgZo
-# oA0V4zYHlqxT4WA1FfE/C2IfIzucpjWGipV3E4VHyFmDFWFLxdaaulNHF+9QzDoT
-# 88eFJ80EvAZXBGNcX5DEyG+ZCPzkAGyB2N1/H/T7sx0GTefsv96dRV0KEuiVL6/X
-# 7nFLyKrl5Ew/gn/FZ7xG2AMPd845PBwEu91VZYcp28A2HqYA73d1Xpe8tcxjKHQ3
-# 9Mh58hifcLjHzEiiCAFDAqxowvn6obO4pJhGqCKLqCDx2SeUoDMlSo0mIE35dnuU
-# 0LOiORJ7d6fT1wpYlkRzp9RF+K7NmAzqHrZwiq6mTNmqPuI+2nbQzEPb4LXqnIMU
-# qz0Wmr13RwNSPXIAMw==
+# hvcNAQkEMSIEIFe1EWqAzwdyK1PTOWOetqERPV1yWUmiMXA8BhdGXRTAMA0GCSqG
+# SIb3DQEBAQUABIIBgDvrH3xaAIql02xNFNxUFmeCoLh82JUswfK+bnluXUAWs14G
+# fXP9cpxcjCAeCQ2qXWpJo/4tmpexw1ZLuSWLOOzpx45RiLmNiuVA4fDSx3ZU5RyJ
+# Ld3Txd4moic9T2uHs/gGcKJSAA8ziVSiLkIqTmCtvRdWYjktQPGr4BMq9kivHn25
+# lMDrvmGDrcIXQhImzla5jbyTGga65KEpJ7Xcryl8klIxrs7gqKw0ulhPxhjPhZxW
+# j4aW+vtJiBfr6xPa3n8K62JPykJjTbYQlIWagc8ZuwuKvxOHzVQrMjOGl6MwGtvJ
+# DBLk45UOWifkKdQb1whGldKLTAXpuha3aqccAo4Mfjs9IrO1O8mgNGvORZwGWGzN
+# mdqZhm/FhniphldpQb6qLt1p+EYNlBUHcveRNy9cgqDsZw2kXo8Mge5YSgspYSzC
+# 579Og6U9ZzfaqXmWZEzTUs3MjJ/0SXuwE/B3cul7k3C5PmZ8jD7YjhPtXIManRI4
+# Hh0NaKhXUirX4zETSg==
 # SIG # End signature block

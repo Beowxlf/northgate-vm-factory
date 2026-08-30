@@ -6,6 +6,16 @@
 
 Generation 2 and `destroyProtection: true` are constants in v1. Changes that require replacement are reported as `ReplaceRequired` and are not executable by the initial create-only release.
 
+`spec.storage.dataDisks` is optional. When present, each entry contains only a
+bounded disk ID and size; `os` is reserved, and manifests never supply a host
+path or controller slot.
+The installed planner derives an asset-owned VHDX path and deterministic SCSI
+location, reserves OS-plus-data capacity, and binds the complete disk set into
+the plan and signed receipt. Data disks are denied unless the asset policy,
+storage policy, and approved storage catalog independently authorize the count,
+largest disk, and total data-disk capacity. Omitting those limits authorizes zero
+data disks, preserving compatibility with existing single-disk assets.
+
 ## Separate record types
 
 - `ObservedVirtualMachine` is generated from read-only inventory and is never actionable.

@@ -2,7 +2,7 @@
   "$schema": "../schemas/storage-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "StorageCatalog",
-  "catalogVersion": "2026.08.21.1",
+  "catalogVersion": "2026.08.30.1",
   "profiles": [
     {
       "id": "lab-ephemeral-d",
@@ -45,6 +45,17 @@
       "approvalStatus": "approved",
       "allowProvision": true,
       "criticalWorkloadsAllowed": true
+    },
+    {
+      "id": "persistent-rmm-protected",
+      "serverPolicyId": "ng-storage-persistent-rmm-protected-v1",
+      "approvalStatus": "proposed",
+      "allowProvision": false,
+      "criticalWorkloadsAllowed": false,
+      "allowDataDisks": true,
+      "maximumDataDiskCount": 1,
+      "maximumDataDiskGiB": 100,
+      "maximumTotalDataDiskGiB": 100
     }
   ]
 }

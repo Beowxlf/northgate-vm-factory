@@ -41,6 +41,15 @@ VM, configure CPU/memory/firmware/DVD/network/VLAN, and optionally start that ne
 VM. It has no adoption, rename, replacement, disk attach-from-caller-path,
 switch mutation, existing-VM update, remove, or delete path.
 
+An approved manifest may request up to four new data disks by opaque ID and size.
+The planner—not the caller—derives every path below the new asset root and assigns
+SCSI controller 0 locations 1 through 4; the OS disk remains at location 0. Three
+independent signed limits (asset, storage policy, and approved storage catalog)
+must all authorize the requested count, maximum individual size, and total size.
+Preflight collision and free-space checks cover the complete disk set. Apply may
+create and attach only those plan-bound new VHDX files, and readback plus the
+signed receipt must match every path and controller location before power-on.
+
 New VMs begin powered off with a disconnected adapter. Network attachment and
 power-on happen only after all configuration reads back correctly. Any partial or
 uncertain result consumes the approval, blocks identity reuse, and requires
@@ -164,4 +173,3 @@ startup never constructs the backend and therefore never mutates transaction sta
 Run `./Test-CreateOnlyBackend.ps1`. The harness uses an inert in-memory provider,
 ephemeral CMS certificates, and temporary authenticated state. It does not call
 Hyper-V or write outside its temporary test root.
-

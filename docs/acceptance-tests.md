@@ -38,12 +38,18 @@ installed. These tests define the minimum exit criteria for that promotion.
 17. Reject any workload proposal that claims deployability, bypasses a host-issued plan, bundles a standard manifest, enables resource policy, collapses catalog/fabric promotion into a consuming workload, claims reserved identity, references an approved/unknown prerequisite instead of the exact proposed set, or introduces a raw path, VLAN/IP field, command, or secret-like value.
 18. Reject any full-fleet proposal that admits fewer or more than the twelve reviewed candidate identities, changes their serialized canary-first order, claims an identity/address/DNS reservation, omits fresh capacity revalidation or the Kali promotion gate, marks a workload ready, catalogs a fabricated Kali artifact, misstates computed persistent-fleet totals, or introduces raw VLAN/IP/DNS fields into its machine-readable manifest envelopes.
 19. Prove the fixed storage split, 15-percent/100-GiB per-volume reserve, serialized Debian-canary/Windows-canary/persistent-fleet order, one-canary concurrency rule, exact switch fingerprint/VLAN, one asset-bound derivative ISO and provenance chain, Generation 2, bounded transaction-owned start with no standalone power action, Secure Boot, Windows vTPM, collision denial, crash journal, off/disconnected outcome-unknown quarantine, and non-deletion of retained VMs.
-20. Reject an advanced initial base-policy stage, routine-SSH/SYSTEM/service rollout promotion, wrong native Administrator SID, wrong signer, stale or noncanonical context, missing/mismatched signed canary receipt, missing evidence hashes, still-running or connected canary, skipped/replayed/conflicting sequence, changed immutable base policy, and any third rollout promotion.
-21. Reject missing, hash-mismatched, untrusted, or wrong-signer Authenticode on every packaged `.ps1`, `.psm1`, and `.psd1` before module import; prove detached CMS alone is insufficient.
-22. Prove a disabled host authorization remains disabled after installation even when an active signed backend policy and data bundle are present, and prove every non-status service operation rejects with `NGCOR-INSTALLED-POLICY-DISABLED`.
+20. Prove an authorized two-disk Linux plan reserves OS-plus-data capacity, derives
+    both paths below the asset root, assigns OS SCSI 0:0 and data SCSI 0:1, rejects
+    missing/partial/exceeded asset, storage-policy, or catalog limits, rejects any
+    reserved ID or existing path collision, establishes and verifies VM ownership
+    before creating data disks, and records exact disk paths and locations in the
+    signed receipt. Prove a legacy single-disk asset still plans and verifies with
+    an empty data-disk set.
+21. Reject an advanced initial base-policy stage, routine-SSH/SYSTEM/service rollout promotion, wrong native Administrator SID, wrong signer, stale or noncanonical context, missing/mismatched signed canary receipt, missing evidence hashes, still-running or connected canary, skipped/replayed/conflicting sequence, changed immutable base policy, and any third rollout promotion.
+22. Reject missing, hash-mismatched, untrusted, or wrong-signer Authenticode on every packaged `.ps1`, `.psm1`, and `.psd1` before module import; prove detached CMS alone is insufficient.
+23. Prove a disabled host authorization remains disabled after installation even when an active signed backend policy and data bundle are present, and prove every non-status service operation rejects with `NGCOR-INSTALLED-POLICY-DISABLED`.
 23. Simulate receipt-signing failure only after verified VM creation and ledger binding; prove `reconcile-receipt` validates immutable historical release/plan anchors and exact VM readback, never invokes VM creation or another Hyper-V mutation, produces one valid receipt, finalizes authenticated state, returns the same receipt on retry, and fails closed on VM drift, ambiguous state, or signer unavailability.
 
 ## Canary exit
 
 Use one disposable, non-domain-controller VM. Capture before/after inventory, failure injection, concurrency behavior, quarantine/rollback, logs, receipt, and Operation-SeeSaw evidence. A successful VM boot alone is not acceptance.
-

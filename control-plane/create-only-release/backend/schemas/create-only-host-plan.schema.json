@@ -22,7 +22,7 @@
     }, "data": { "type": "object" }, "liveState": { "type": "object" },
     "operation": {
       "type": "object", "additionalProperties": false,
-      "required": ["action", "assetId", "name", "changeId", "generation", "processors", "memoryMode", "minimumMemoryMiB", "startupMemoryMiB", "maximumMemoryMiB", "storageProfileRef", "storageRoot", "assetRoot", "vhdPath", "osDiskGiB", "imageRef", "imagePath", "imageSha256", "bootstrapMediaId", "bootstrapMediaMode", "bootstrapMediaPath", "bootstrapMediaSha256", "bootstrapMediaSizeBytes", "bootstrapMediaSourceImageId", "bootstrapMediaSourceImageSha256", "bootstrapMediaProvenancePath", "bootstrapMediaProvenanceSha256", "bootstrapMediaBundleManifestSha256", "bootstrapMediaBuilderId", "bootstrapMediaBuilderReleaseSha256", "bootstrapMediaRecipeSha256", "bootstrapMediaUnattendedPayloadSha256", "bootstrapMediaSourceCommit", "bootstrapMediaSourceTree", "installationMediaBindingMode", "expectedDvdCount", "firmwareProfileRef", "secureBootEnabled", "secureBootTemplate", "secureBootExceptionId", "vtpmRequired", "networkProfileRef", "switchId", "switchName", "vlanId", "adapterPolicyId", "adapterReservationId", "staticMacAddress", "adapterIdBindingMode", "expectedAdapterCount", "bootstrapProfileRef", "recoveryProfileRef", "desiredPowerState", "destroyProtection"],
+      "required": ["action", "assetId", "name", "changeId", "generation", "processors", "memoryMode", "minimumMemoryMiB", "startupMemoryMiB", "maximumMemoryMiB", "storageProfileRef", "storageRoot", "assetRoot", "vhdPath", "osDiskGiB", "dataDisks", "expectedDiskCount", "imageRef", "imagePath", "imageSha256", "bootstrapMediaId", "bootstrapMediaMode", "bootstrapMediaPath", "bootstrapMediaSha256", "bootstrapMediaSizeBytes", "bootstrapMediaSourceImageId", "bootstrapMediaSourceImageSha256", "bootstrapMediaProvenancePath", "bootstrapMediaProvenanceSha256", "bootstrapMediaBundleManifestSha256", "bootstrapMediaBuilderId", "bootstrapMediaBuilderReleaseSha256", "bootstrapMediaRecipeSha256", "bootstrapMediaUnattendedPayloadSha256", "bootstrapMediaSourceCommit", "bootstrapMediaSourceTree", "installationMediaBindingMode", "expectedDvdCount", "firmwareProfileRef", "secureBootEnabled", "secureBootTemplate", "secureBootExceptionId", "vtpmRequired", "networkProfileRef", "switchId", "switchName", "vlanId", "adapterPolicyId", "adapterReservationId", "staticMacAddress", "adapterIdBindingMode", "expectedAdapterCount", "bootstrapProfileRef", "recoveryProfileRef", "desiredPowerState", "destroyProtection"],
       "properties": {
         "action": { "const": "Create" }, "assetId": { "type": "string", "pattern": "^NG-VM-[0-9]{3,}$" },
         "name": { "type": "string", "pattern": "^[A-Z](?:[A-Z0-9-]{0,13}[A-Z0-9])?$" },
@@ -31,6 +31,21 @@
         "minimumMemoryMiB": { "type": "integer" }, "startupMemoryMiB": { "type": "integer" }, "maximumMemoryMiB": { "type": "integer" },
         "storageProfileRef": { "$ref": "#/$defs/id" }, "storageRoot": { "$ref": "#/$defs/path" }, "assetRoot": { "$ref": "#/$defs/path" },
         "vhdPath": { "$ref": "#/$defs/path" }, "osDiskGiB": { "type": "integer", "minimum": 20, "maximum": 256 },
+        "dataDisks": {
+          "type": "array", "maxItems": 4, "uniqueItems": true,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["id", "path", "sizeGiB", "controllerNumber", "controllerLocation"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,31}$" },
+              "path": { "$ref": "#/$defs/path" },
+              "sizeGiB": { "type": "integer", "minimum": 10, "maximum": 2048 },
+              "controllerNumber": { "const": 0 },
+              "controllerLocation": { "type": "integer", "minimum": 1, "maximum": 4 }
+            }
+          }
+        },
+        "expectedDiskCount": { "type": "integer", "minimum": 1, "maximum": 5 },
         "imageRef": { "$ref": "#/$defs/id" }, "imagePath": { "$ref": "#/$defs/path" }, "imageSha256": { "$ref": "#/$defs/hash" },
         "bootstrapMediaId": { "type": "string", "pattern": "^ngmedia-ng-vm-[0-9]{3,}$" },
         "bootstrapMediaMode": { "const": "asset-bound-derivative-iso" },
@@ -52,7 +67,7 @@
         "secureBootTemplate": { "enum": ["MicrosoftWindows", "MicrosoftUEFICertificateAuthority", "None"] },
         "secureBootExceptionId": { "enum": ["none", "NG-FW-20260802-KALI-UNSIGNED"] }, "vtpmRequired": { "type": "boolean" },
         "networkProfileRef": { "$ref": "#/$defs/id" }, "switchId": { "$ref": "#/$defs/guid" }, "switchName": { "type": "string" },
-        "vlanId": { "enum": [110, 120, 130, 140, 150, 160, 240, 250] },
+        "vlanId": { "enum": [110, 120, 130, 140, 150, 160, 170, 180, 240, 250] },
         "adapterPolicyId": { "type": "string", "pattern": "^ngnic-[a-z0-9-]{8,64}$" }, "adapterReservationId": { "type": "string", "pattern": "^ngnicr-[a-f0-9]{64}$" }, "staticMacAddress": { "type": "string", "pattern": "^02[0-9A-F]{10}$" },
         "adapterIdBindingMode": { "const": "hyperv-issued-journal-before-first-boot" }, "expectedAdapterCount": { "const": 1 },
         "bootstrapProfileRef": { "$ref": "#/$defs/id" }, "recoveryProfileRef": { "$ref": "#/$defs/id" },

@@ -2,7 +2,7 @@
   "$schema": "../schemas/network-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "NetworkCatalog",
-  "catalogVersion": "2026.08.03.1",
+  "catalogVersion": "2026.08.30.1",
   "profiles": [
     {
       "id": "tooling-primary",
@@ -97,6 +97,22 @@
       "serverPolicyId": "ng-network-external-mail-v1",
       "approvalStatus": "approved",
       "allowAttach": true,
+      "allowCreate": false,
+      "allowRebind": false
+    },
+    {
+      "id": "rmm-service",
+      "serverPolicyId": "ng-network-rmm-service-v1",
+      "approvalStatus": "proposed",
+      "allowAttach": false,
+      "allowCreate": false,
+      "allowRebind": false
+    },
+    {
+      "id": "rmm-canary",
+      "serverPolicyId": "ng-network-rmm-canary-v1",
+      "approvalStatus": "proposed",
+      "allowAttach": false,
       "allowCreate": false,
       "allowRebind": false
     }
