@@ -252,7 +252,11 @@ try {
         -DeploymentAuthorizationSignerCertificateSha256 $certificates.deploymentAuthorization.Sha256 `
         -OutputDirectory (Join-Path $output 'bootstrap') `
         -ConfirmBootstrapBuild
-    if (@($bootstrapResult).Count -lt 2) { Stop-Ngcrk 'NGCRK-BOOTSTRAP-BUILD-INCOMPLETE' }
+    if ($null -eq $bootstrapResult -or
+        $bootstrapResult.status -cne 'review-required-bootstrap-built' -or
+        @($bootstrapResult.files).Count -ne 2) {
+        Stop-Ngcrk 'NGCRK-BOOTSTRAP-BUILD-INCOMPLETE'
+    }
 
     Assert-NgcrkTreeSafe $output
     $fileRecords = @()
