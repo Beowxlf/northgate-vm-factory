@@ -1487,7 +1487,7 @@ function Resolve-NgcbManifest {
         if ($dataDiskSpecs.Count -gt 4) { Throw-NgcbError 'NGCB-MANIFEST-DATA-DISKS-INVALID' }
         foreach ($dataDisk in $dataDiskSpecs) {
             Assert-NgcbExactProperties $dataDisk @('id','sizeGiB') 'NGCB-MANIFEST-DATA-DISKS-INVALID'
-            if ($dataDisk.id -cnotmatch '^[a-z0-9][a-z0-9-]{1,31}$' -or
+            if ($dataDisk.id -cnotmatch '^[a-z0-9][a-z0-9-]{1,31}$' -or $dataDisk.id -ceq 'os' -or
                 $dataDisk.sizeGiB -isnot [int] -or [int]$dataDisk.sizeGiB -lt 10 -or
                 [int]$dataDisk.sizeGiB -gt 2048) {
                 Throw-NgcbError 'NGCB-MANIFEST-DATA-DISKS-INVALID'
@@ -1691,6 +1691,11 @@ function Resolve-NgcbManifest {
             controllerNumber = 0
             controllerLocation = $index + 1
         }
+    }
+    $resolvedDiskPaths = @([string]$vhdPath) + @($resolvedDataDisks | ForEach-Object { [string]$_.path })
+    if (@($resolvedDiskPaths | ForEach-Object { [IO.Path]::GetFullPath($_).ToUpperInvariant() } |
+            Select-Object -Unique).Count -ne $resolvedDiskPaths.Count) {
+        Throw-NgcbError 'NGCB-MANIFEST-DATA-DISKS-INVALID'
     }
     return [pscustomobject][ordered]@{
         Manifest = $manifest
@@ -3638,7 +3643,7 @@ function Invoke-NgcbQuarantineProductionVm {
 function Invoke-NgcbProductionCreate {
     param([object]$Context, [object]$Plan)
     foreach ($commandName in @(
-        'Hyper-V\New-VM','Hyper-V\New-VHD','Hyper-V\Add-VMHardDiskDrive','Hyper-V\Set-VM','Hyper-V\Set-VMProcessor','Hyper-V\Set-VMMemory',
+        'Hyper-V\New-VM','Hyper-V\New-VHD','Hyper-V\Add-VMHardDiskDrive','Hyper-V\Get-VM','Hyper-V\Set-VM','Hyper-V\Set-VMProcessor','Hyper-V\Set-VMMemory',
         'Hyper-V\Add-VMDvdDrive','Hyper-V\Get-VMDvdDrive','Hyper-V\Get-VMFirmware','Hyper-V\Set-VMFirmware',
         'Hyper-V\Get-VMSecurity','Hyper-V\Set-VMKeyProtector','Hyper-V\Enable-VMTPM',
         'Hyper-V\Add-VMNetworkAdapter','Hyper-V\Set-VMNetworkAdapter','Hyper-V\Connect-VMNetworkAdapter','Hyper-V\Set-VMNetworkAdapterVlan','Hyper-V\Start-VM',
@@ -3660,6 +3665,16 @@ function Invoke-NgcbProductionCreate {
         $null = Write-NgcbJournalEvent $Context $operation.assetId $Plan.reservationId $Plan.planId `
             'VmCreated' $vmId 'NGCB-HYPERV-VM-ID-ISSUED'
         Update-NgcbLedgerEntry $Context $Plan.reservationId 'Applying' $vmId
+        $ownershipNote = Get-NgcbOwnershipNote $operation.assetId $operation.changeId `
+            $Plan.reservationId $Plan.planId $false
+        Hyper-V\Set-VM -VM $vm -AutomaticCheckpointsEnabled $false -AutomaticStartAction Nothing `
+            -AutomaticStopAction ShutDown -CheckpointType Production -Notes $ownershipNote -ErrorAction Stop
+        $vm = Hyper-V\Get-VM -Id ([guid]$vmId) -ErrorAction Stop
+        if ($vm.Name -cne $operation.name -or [string]$vm.Notes -cne $ownershipNote) {
+            Throw-NgcbError 'NGCB-VM-OWNERSHIP-READBACK-MISMATCH'
+        }
+        $null = Write-NgcbJournalEvent $Context $operation.assetId $Plan.reservationId $Plan.planId `
+            'VmOwnershipEstablished' $vmId 'NGCB-VM-OWNERSHIP-READBACK-VERIFIED'
         foreach ($dataDisk in @($operation.dataDisks)) {
             $null = Hyper-V\New-VHD -Path ([string]$dataDisk.path) -Dynamic `
                 -SizeBytes ([int64]$dataDisk.sizeGiB * 1GB) -ErrorAction Stop
@@ -3672,10 +3687,6 @@ function Invoke-NgcbProductionCreate {
             $null = Write-NgcbJournalEvent $Context $operation.assetId $Plan.reservationId $Plan.planId `
                 'DataDisksAttached' $vmId 'NGCB-PLAN-BOUND-DATA-DISKS-ATTACHED'
         }
-        Hyper-V\Set-VM -VM $vm -AutomaticCheckpointsEnabled $false -AutomaticStartAction Nothing `
-            -AutomaticStopAction ShutDown -CheckpointType Production `
-            -Notes (Get-NgcbOwnershipNote $operation.assetId $operation.changeId $Plan.reservationId $Plan.planId $false) `
-            -ErrorAction Stop
         Hyper-V\Set-VMProcessor -VM $vm -Count ([int]$operation.processors) -ErrorAction Stop
         if ($operation.memoryMode -ceq 'dynamic') {
             Hyper-V\Set-VMMemory -VM $vm -DynamicMemoryEnabled $true `
@@ -4453,8 +4464,8 @@ Export-ModuleMember -Function @(
 # SIG # Begin signature block
 # MIIHiQYJKoZIhvcNAQcCoIIHejCCB3YCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCI0508Ak9y/+Yt
-# IZp2xfebqfctHkrT1dE0SSe008pGbKCCBF0wggRZMIICwaADAgECAhAvazDvs9z4
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAARJIAsKue/0aS
+# I6HvOn/ZH0cAXrWVWMU09NFOeBDTB6CCBF0wggRZMIICwaADAgECAhAvazDvs9z4
 # sEhN7njmUsaSMA0GCSqGSIb3DQEBCwUAMDwxOjA4BgNVBAMMMU5vcnRoR2F0ZSBW
 # TSBGYWN0b3J5IFJlbGVhc2UgU2lnbmVyIDIwMjYtMDgtMjEgdjIwHhcNMjYwODIx
 # MDI0ODM5WhcNMjgwODIxMDc1ODM5WjA8MTowOAYDVQQDDDFOb3J0aEdhdGUgVk0g
@@ -4482,14 +4493,14 @@ Export-ModuleMember -Function @(
 # Z25lciAyMDI2LTA4LTIxIHYyAhAvazDvs9z4sEhN7njmUsaSMA0GCWCGSAFlAwQC
 # AQUAoIGEMBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwG
 # CisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZI
-# hvcNAQkEMSIEIH88NAHO/vI/iKbuHM6e/6b2/md2LlbU18+Wyn/Na2EyMA0GCSqG
-# SIb3DQEBAQUABIIBgE+GSU4Eg/mi/GNJ69nHfPnFX8S8X/7BmxMfchEp3hM/GjNx
-# 5w5pHtMKv25v2lRWWQgxi9kxWmPYgh3iv41LxlLdz7ODPvUIil6+X2e8WGzPSxrm
-# GFAdcah/Ej/+m6i4vGAERO1dTKykk5n8qD3durLMum2zGgyMwFkr8NYayTIMr4Yh
-# z3WR2VPG7M0uBYb5XR9emHHiqE3pGk78kNEpcE2v2n48Mynycri9FYyiRuiMu/Fz
-# m1YuroYsZl6+UJ7hQYh26yY8VDoj9EStJ0UuktXizdYuJQFWpyeWwyYfy5hiJaem
-# EO8hUEo3EjgE5Co+Q80MNIx+bdTOGFSZoJTE8GZmUZt5lNlnGUCsKAftJDxd0v+Z
-# mhYbpYpPfdE+lXSO9NkNar7ei7/6bE+YW0W52a/8WcusNk8LFIr0eqOpZKKdHtiY
-# YHzPEaQNEKzaNAQYPvL8Njor/kALU57tiyeCuN3umkBbJ8yCIfHt52z2JH7sGO6i
-# JEx8v/nyt1upSCoitA==
+# hvcNAQkEMSIEIFe1EWqAzwdyK1PTOWOetqERPV1yWUmiMXA8BhdGXRTAMA0GCSqG
+# SIb3DQEBAQUABIIBgDvrH3xaAIql02xNFNxUFmeCoLh82JUswfK+bnluXUAWs14G
+# fXP9cpxcjCAeCQ2qXWpJo/4tmpexw1ZLuSWLOOzpx45RiLmNiuVA4fDSx3ZU5RyJ
+# Ld3Txd4moic9T2uHs/gGcKJSAA8ziVSiLkIqTmCtvRdWYjktQPGr4BMq9kivHn25
+# lMDrvmGDrcIXQhImzla5jbyTGga65KEpJ7Xcryl8klIxrs7gqKw0ulhPxhjPhZxW
+# j4aW+vtJiBfr6xPa3n8K62JPykJjTbYQlIWagc8ZuwuKvxOHzVQrMjOGl6MwGtvJ
+# DBLk45UOWifkKdQb1whGldKLTAXpuha3aqccAo4Mfjs9IrO1O8mgNGvORZwGWGzN
+# mdqZhm/FhniphldpQb6qLt1p+EYNlBUHcveRNy9cgqDsZw2kXo8Mge5YSgspYSzC
+# 579Og6U9ZzfaqXmWZEzTUs3MjJ/0SXuwE/B3cul7k3C5PmZ8jD7YjhPtXIManRI4
+# Hh0NaKhXUirX4zETSg==
 # SIG # End signature block

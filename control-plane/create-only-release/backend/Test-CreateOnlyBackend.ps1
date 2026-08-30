@@ -108,6 +108,16 @@ try {
         '(?i)\bNew-VMSwitch\b','(?i)\bSet-VMSwitch\b',
         '(?i)\bMount-VHD\b','(?i)\bInvoke-Expression\b','(?i)\bStart-Process\b'
     )) { Assert-NgcbTest ($source -notmatch $forbidden) "Privileged source excludes $forbidden." }
+    $productionCreateStart=$source.IndexOf('function Invoke-NgcbProductionCreate')
+    $productionCreateEnd=$source.IndexOf('function Invoke-NgcbInertCreate',$productionCreateStart)
+    $productionCreateSource=$source.Substring($productionCreateStart,$productionCreateEnd-$productionCreateStart)
+    $ownershipWriteIndex=$productionCreateSource.IndexOf('Hyper-V\Set-VM -VM $vm -AutomaticCheckpointsEnabled')
+    $ownershipReadbackIndex=$productionCreateSource.IndexOf('Hyper-V\Get-VM -Id ([guid]$vmId)')
+    $dataDiskCreateIndex=$productionCreateSource.IndexOf('foreach ($dataDisk in @($operation.dataDisks))')
+    Assert-NgcbTest ($productionCreateStart -ge 0 -and $productionCreateEnd -gt $productionCreateStart -and
+        $ownershipWriteIndex -ge 0 -and $ownershipReadbackIndex -gt $ownershipWriteIndex -and
+        $dataDiskCreateIndex -gt $ownershipReadbackIndex) `
+        'Production Create writes and verifies the plan-bound VM ownership note before creating data disks.'
     $readOnlyRights = [Security.AccessControl.FileSystemRights]::ReadAndExecute -bor
         [Security.AccessControl.FileSystemRights]::Synchronize
     $mutationMask = [Security.AccessControl.FileSystemRights]::WriteData -bor
@@ -449,6 +459,26 @@ try {
         New-NorthGateCreateOnlyHostPlan -Context $catalogDeniedHarness.Context -PlanRequestBytes (New-NgcbPlanRequest)
     } '^NGCB-STORAGE-CATALOG-DATA-DISKS-NOT-AUTHORIZED$' `
         'A storage catalog that omits data-disk authorization cannot plan a multi-disk VM.'
+
+    $osAliasHarness=New-NgcbHarness
+    $osAliasRoot=Join-Path $testRoot 'data-with-os-disk-alias'
+    Copy-Item -LiteralPath $dataRoot -Destination $osAliasRoot -Recurse
+    $osAliasManifest=Copy-NgcbTestObject $manifest
+    $osAliasManifest.spec.storage.dataDisks[0].id='os'
+    $osAliasArtifact=Write-NgcbTestArtifact $osAliasRoot 'files/manifests/NG-VM-018.json' $osAliasManifest
+    $osAliasEntry=@($osAliasHarness.Context.DataBundle.files | Where-Object {
+        $_.role -ceq 'manifest' -and $_.assetId -ceq 'NG-VM-018'
+    })[0]
+    $osAliasEntry.sourceSha256=$osAliasArtifact.Sha256
+    $osAliasEntry.canonicalSha256=$osAliasArtifact.Sha256
+    $osAliasEntry.sizeBytes=[int64]$osAliasArtifact.Size
+    $osAliasHarness.Context.DataRoot=[IO.Path]::GetFullPath($osAliasRoot)
+    $osAliasHarness.Context.DataBundleSha256=Get-NgcbTestSha (ConvertTo-NgcbTestBytes $osAliasHarness.Context.DataBundle)
+    $osAliasHarness.Context.ContextMarker=& $module { param($c) Get-NgcbContextMarker $c } $osAliasHarness.Context
+    Assert-NgcbThrows {
+        New-NorthGateCreateOnlyHostPlan -Context $osAliasHarness.Context -PlanRequestBytes (New-NgcbPlanRequest)
+    } '^NGCB-MANIFEST-DATA-DISKS-INVALID$' `
+        'The reserved data-disk ID os cannot alias the operating-system VHDX path.'
 
     $harness=New-NgcbHarness
     $state=Get-NorthGateCreateOnlyBackendState -Context $harness.Context

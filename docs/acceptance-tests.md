@@ -41,7 +41,8 @@ installed. These tests define the minimum exit criteria for that promotion.
 20. Prove an authorized two-disk Linux plan reserves OS-plus-data capacity, derives
     both paths below the asset root, assigns OS SCSI 0:0 and data SCSI 0:1, rejects
     missing/partial/exceeded asset, storage-policy, or catalog limits, rejects any
-    existing path collision, and records exact disk paths and locations in the
+    reserved ID or existing path collision, establishes and verifies VM ownership
+    before creating data disks, and records exact disk paths and locations in the
     signed receipt. Prove a legacy single-disk asset still plans and verifies with
     an empty data-disk set.
 21. Reject an advanced initial base-policy stage, routine-SSH/SYSTEM/service rollout promotion, wrong native Administrator SID, wrong signer, stale or noncanonical context, missing/mismatched signed canary receipt, missing evidence hashes, still-running or connected canary, skipped/replayed/conflicting sequence, changed immutable base policy, and any third rollout promotion.
