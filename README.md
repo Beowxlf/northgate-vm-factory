@@ -90,6 +90,7 @@ docs/                       Architecture, governance, acceptance tests, and deci
 manifests/vms/              Managed VM desired state; intentionally empty initially
 policy/                     Approved source policy/promotion plus non-operative canary-stage proposal
 proposals/                  Strict non-deployable workload design records; never host-issued plans
+reproduction-kit/           Offline clean-room assembly, verification, and disabled-install runbook
 schemas/                    Strict JSON Schema 2020-12 contracts
 scripts/                    Unprivileged repository validation only
 .github/                    CODEOWNERS, PR template, and hosted static validation
@@ -104,6 +105,10 @@ From Windows PowerShell or PowerShell 7:
 ```
 
 PowerShell 7 also performs JSON Schema validation. Windows PowerShell 5.1 performs the portable structural, reference, identity, secret-pattern, and safety checks.
+
+The [clean-room installation kit](reproduction-kit/README.md) packages one exact
+signed, host-bound release tuple for offline installation. Its generated installer
+must leave the factory stopped and disabled; activation remains a separate approval.
 
 ## Rollout state
 
