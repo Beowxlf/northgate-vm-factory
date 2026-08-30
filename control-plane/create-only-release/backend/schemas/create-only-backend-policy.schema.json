@@ -68,7 +68,15 @@
         "profileRef": { "$ref": "#/$defs/id" }, "catalogServerPolicyId": { "$ref": "#/$defs/id" },
         "volumeId": { "enum": ["volume-d", "volume-f"] }, "root": { "type": "string", "pattern": "^[A-Za-z]:\\\\", "maxLength": 240 },
         "reserveBytes": { "type": "integer", "minimum": 10737418240 }, "maximumOsDiskGiB": { "type": "integer", "minimum": 20, "maximum": 256 },
+        "maximumDataDiskCount": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "maximumDataDiskGiB": { "type": "integer", "minimum": 10, "maximum": 2048 },
+        "maximumTotalDataDiskGiB": { "type": "integer", "minimum": 10, "maximum": 8192 },
         "workloadClass": { "enum": ["canary", "persistent"] }
+      },
+      "dependentRequired": {
+        "maximumDataDiskCount": ["maximumDataDiskGiB", "maximumTotalDataDiskGiB"],
+        "maximumDataDiskGiB": ["maximumDataDiskCount", "maximumTotalDataDiskGiB"],
+        "maximumTotalDataDiskGiB": ["maximumDataDiskCount", "maximumDataDiskGiB"]
       }
     },
     "network": {
@@ -76,7 +84,7 @@
       "required": ["profileRef", "catalogServerPolicyId", "switchPolicyId", "vlanId"],
       "properties": {
         "profileRef": { "$ref": "#/$defs/id" }, "catalogServerPolicyId": { "$ref": "#/$defs/id" },
-        "switchPolicyId": { "const": "northgate-app-trunk" }, "vlanId": { "enum": [110, 120, 130, 140, 150, 160, 240, 250] }
+        "switchPolicyId": { "const": "northgate-app-trunk" }, "vlanId": { "enum": [110, 120, 130, 140, 150, 160, 170, 180, 240, 250] }
       }
     },
     "image": {
@@ -144,9 +152,17 @@
         "maximumProcessors": { "type": "integer", "minimum": 1, "maximum": 8 },
         "maximumMemoryMiB": { "type": "integer", "minimum": 1024, "maximum": 65536 },
         "maximumOsDiskGiB": { "type": "integer", "minimum": 20, "maximum": 256 },
+        "maximumDataDiskCount": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "maximumDataDiskGiB": { "type": "integer", "minimum": 10, "maximum": 2048 },
+        "maximumTotalDataDiskGiB": { "type": "integer", "minimum": 10, "maximum": 8192 },
         "adapterPolicyId": { "type": "string", "pattern": "^ngnic-[a-z0-9-]{8,64}$" },
         "staticMacAddress": { "type": "string", "pattern": "^02[0-9A-F]{10}$" },
         "bootstrapMediaId": { "type": "string", "pattern": "^ngmedia-ng-vm-[0-9]{3,}$" }
+      },
+      "dependentRequired": {
+        "maximumDataDiskCount": ["maximumDataDiskGiB", "maximumTotalDataDiskGiB"],
+        "maximumDataDiskGiB": ["maximumDataDiskCount", "maximumTotalDataDiskGiB"],
+        "maximumTotalDataDiskGiB": ["maximumDataDiskCount", "maximumDataDiskGiB"]
       }
     },
     "idList": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },

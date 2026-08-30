@@ -2,7 +2,7 @@
   "$schema": "../schemas/profile-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "BootstrapCatalog",
-  "catalogVersion": "2026.08.03.1",
+  "catalogVersion": "2026.08.30.1",
   "profiles": [
     {
       "id": "none",
@@ -63,6 +63,16 @@
       "id": "kali-external-lab",
       "serverPolicyId": "ng-bootstrap-kali-external-lab-v1",
       "approvalStatus": "approved"
+    },
+    {
+      "id": "debian12-rmm-server",
+      "serverPolicyId": "ng-bootstrap-debian12-rmm-server-v1",
+      "approvalStatus": "proposed"
+    },
+    {
+      "id": "debian12-rmm-canary",
+      "serverPolicyId": "ng-bootstrap-debian12-rmm-canary-v1",
+      "approvalStatus": "proposed"
     }
   ]
 }

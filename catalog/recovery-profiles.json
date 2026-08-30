@@ -2,7 +2,7 @@
   "$schema": "../schemas/profile-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "RecoveryCatalog",
-  "catalogVersion": "2026.08.03.1",
+  "catalogVersion": "2026.08.30.1",
   "profiles": [
     {
       "id": "none-canary",
@@ -28,6 +28,16 @@
       "id": "aegis-app-protected",
       "serverPolicyId": "ng-recovery-aegis-app-protected-v1",
       "approvalStatus": "approved"
+    },
+    {
+      "id": "rmm-server-protected",
+      "serverPolicyId": "ng-recovery-rmm-server-protected-v1",
+      "approvalStatus": "proposed"
+    },
+    {
+      "id": "rmm-canary-disposable",
+      "serverPolicyId": "ng-recovery-rmm-canary-disposable-v1",
+      "approvalStatus": "proposed"
     }
   ]
 }

@@ -20,7 +20,17 @@
           "serverPolicyId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{1,63}$" },
           "approvalStatus": { "enum": ["proposed", "approved", "retired"] },
           "allowProvision": { "type": "boolean" },
-          "criticalWorkloadsAllowed": { "type": "boolean" }
+          "criticalWorkloadsAllowed": { "type": "boolean" },
+          "allowDataDisks": { "type": "boolean" },
+          "maximumDataDiskCount": { "type": "integer", "minimum": 1, "maximum": 4 },
+          "maximumDataDiskGiB": { "type": "integer", "minimum": 10, "maximum": 2048 },
+          "maximumTotalDataDiskGiB": { "type": "integer", "minimum": 10, "maximum": 8192 }
+        },
+        "dependentRequired": {
+          "allowDataDisks": ["maximumDataDiskCount", "maximumDataDiskGiB", "maximumTotalDataDiskGiB"],
+          "maximumDataDiskCount": ["allowDataDisks", "maximumDataDiskGiB", "maximumTotalDataDiskGiB"],
+          "maximumDataDiskGiB": ["allowDataDisks", "maximumDataDiskCount", "maximumTotalDataDiskGiB"],
+          "maximumTotalDataDiskGiB": ["allowDataDisks", "maximumDataDiskCount", "maximumDataDiskGiB"]
         }
       }
     }
