@@ -2,7 +2,7 @@
 
 ## Scope
 
-This private repository defines the intended control plane for a privileged Hyper-V lab. Treat schema, policy, catalog, workflow, and executor changes as security-sensitive.
+This public source repository defines the intended control plane for a privileged Hyper-V lab. Treat schema, policy, catalog, workflow, and executor changes as security-sensitive. Public visibility does not authorize testing against the lab, use of retained host-specific artifacts, or changes to any live system.
 
 ## Reporting
 
