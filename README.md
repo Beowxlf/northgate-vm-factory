@@ -114,6 +114,11 @@ must leave the factory stopped and disabled; activation remains a separate appro
 
 ## Rollout state
 
+The [RMM machine profiles](docs/rmm-machine-profiles.md) define the separate
+three-machine lab release inputs in `manifests/rmm`. They use the existing shared
+private network. They are validated alongside the original fleet but are not
+admitted by its installed fixed-fleet release.
+
 1. **Current:** reviewed create-only source, exact fleet promotion, and strict manifests are present. This repository state is non-operative by itself. Operation-SeeSaw holds the current installed-state evidence; the create-only release must be treated as absent unless a matching active-release record, service/task, protected state root, ledger, constrained identity, and receipt chain are verified on the host.
 2. **Existing operational plane:** NorthGateMCP is a separate broad management component used during transition and break-glass operations. Its deployment does not activate this repository's create-only policy, and this repository does not silently replace or disable it.
 3. **Next:** build a package whose host-executed PowerShell files carry pinned SHA-256 Authenticode signatures, install it with `initialPolicy.applyEnabled=false` and the service stopped/disabled, establish the dedicated forced-command identity and protected ledger/registry, run isolation and negative tests, then activate only the disposable canary stage through a separate approved host record. The [disabled control-plane candidate](control-plane/candidate/README.md), [simulation-only engine scaffold](control-plane/engine-candidate/README.md), [Phase 3 host-adapter design](control-plane/phase3-host-adapter/README.md), and [fixed-fleet create-only operator](control-plane/create-only-operator/README.md) remain source/release units, not evidence of installation.

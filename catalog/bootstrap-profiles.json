@@ -2,7 +2,7 @@
   "$schema": "../schemas/profile-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "BootstrapCatalog",
-  "catalogVersion": "2026.08.30.1",
+  "catalogVersion": "2026.09.04.1",
   "profiles": [
     {
       "id": "none",
@@ -67,12 +67,12 @@
     {
       "id": "debian12-rmm-server",
       "serverPolicyId": "ng-bootstrap-debian12-rmm-server-v1",
-      "approvalStatus": "proposed"
+      "approvalStatus": "approved"
     },
     {
       "id": "debian12-rmm-canary",
       "serverPolicyId": "ng-bootstrap-debian12-rmm-canary-v1",
-      "approvalStatus": "proposed"
+      "approvalStatus": "approved"
     }
   ]
 }

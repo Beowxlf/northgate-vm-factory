@@ -2,7 +2,7 @@
   "$schema": "../schemas/image-catalog.schema.json",
   "apiVersion": "northgate/v1alpha1",
   "kind": "ImageCatalog",
-  "catalogVersion": "2026.08.03.1",
+  "catalogVersion": "2026.09.04.1",
   "promotedOnly": true,
   "images": [
     {
@@ -11,9 +11,12 @@
       "sizeBytes": 704643072,
       "guestFamily": "linux",
       "architecture": "x86_64",
-      "allowedGenerations": [2],
+      "allowedGenerations": [
+        2
+      ],
       "allowedFirmwareProfiles": [
-        "linux-gen2"
+        "linux-gen2",
+        "rmm-linux-gen2-vtpm"
       ],
       "sourceArtifactId": "debian-12.12.0-amd64-netinst-iso",
       "approvalStatus": "promoted",
@@ -25,7 +28,9 @@
       "sizeBytes": 7736125440,
       "guestFamily": "windows",
       "architecture": "x86_64",
-      "allowedGenerations": [2],
+      "allowedGenerations": [
+        2
+      ],
       "allowedFirmwareProfiles": [
         "windows-gen2"
       ],
@@ -39,7 +44,9 @@
       "sizeBytes": 779091968,
       "guestFamily": "linux",
       "architecture": "x86_64",
-      "allowedGenerations": [2],
+      "allowedGenerations": [
+        2
+      ],
       "allowedFirmwareProfiles": [
         "kali-gen2-unsigned"
       ],
