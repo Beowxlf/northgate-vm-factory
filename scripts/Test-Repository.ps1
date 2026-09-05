@@ -1154,7 +1154,9 @@ if ($unexpectedManifestFiles.Count) {
     throw "Only JSON VM manifests are permitted: $($unexpectedManifestFiles.Name -join ', ')"
 }
 
-$manifestFiles = @(Get-ChildItem -LiteralPath $manifestDirectory -File -Filter '*.json')
+$legacyManifestFiles = @(Get-ChildItem -LiteralPath $manifestDirectory -File -Filter '*.json')
+$rmmManifestFiles = @(Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'manifests/rmm') -File -Filter '*.json')
+$manifestFiles = @($legacyManifestFiles) + @($rmmManifestFiles)
 $assetIds = @()
 $vmNames = @()
 foreach ($manifestFile in $manifestFiles) {
@@ -1245,10 +1247,33 @@ if ($null -eq $deploymentPromotion) {
 }
 else {
     $approvedAssetIds = @($deploymentPromotion.orderedAssetIds | Sort-Object)
-    $manifestAssetIds = @($assetIds | Sort-Object)
+    $manifestAssetIds = @($legacyManifestFiles | ForEach-Object {
+        (Read-JsonFile -Path $_.FullName).metadata.assetId
+    } | Sort-Object)
     if (($approvedAssetIds -join '|') -cne ($manifestAssetIds -join '|')) {
         throw 'Active Create-only policy requires exactly one manifest for every and only the approved fleet asset.'
     }
+}
+
+. (Join-Path $PSScriptRoot 'Test-RmmMachineProfiles.ps1')
+$rmmManifests = @($rmmManifestFiles | ForEach-Object { Read-JsonFile -Path $_.FullName })
+Assert-RmmMachineProfiles -Manifests $rmmManifests
+foreach ($mutation in @(
+    @{ Name='missing RMM endpoint'; Change={ param($items) $items[2].metadata.assetId='NG-VM-999' } },
+    @{ Name='dedicated RMM network'; Change={ param($items) $items[1].spec.network.profileRef='rmm-canary' } },
+    @{ Name='RMM data disk removed'; Change={ param($items) $items[0].spec.storage.dataDisks=@() } },
+    @{ Name='RMM data disk oversized'; Change={ param($items) $items[0].spec.storage.dataDisks[0].sizeGiB=101 } },
+    @{ Name='RMM Windows domain bootstrap'; Change={ param($items) $items[2].spec.bootstrapProfileRef='windows11-worker' } },
+    @{ Name='RMM server firmware weakened'; Change={ param($items) $items[0].spec.firmwareProfileRef='linux-gen2' } },
+    @{ Name='RMM automatic start'; Change={ param($items) $items[0].spec.desiredPowerState='running' } },
+    @{ Name='RMM dependency removed'; Change={ param($items) $items[2].metadata.dependencies=@() } }
+)) {
+    $changed = @(ConvertFrom-RepositoryJsonText -Json (ConvertTo-Json -InputObject $rmmManifests -Depth 30))
+    & $mutation.Change $changed
+    $rejected=$false
+    try { Assert-RmmMachineProfiles -Manifests $changed } catch { $rejected=$true }
+    if (-not $rejected) { throw "RMM negative test failed: $($mutation.Name)" }
+    $negativeTestCount++
 }
 
 $unsafeFiles = @(Get-ChildItem -LiteralPath $repositoryRoot -Recurse -File | Where-Object {

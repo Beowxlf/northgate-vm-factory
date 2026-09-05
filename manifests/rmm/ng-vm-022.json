@@ -1,0 +1,50 @@
+{
+  "$schema": "../../schemas/vm-manifest.schema.json",
+  "apiVersion": "northgate/v1alpha1",
+  "kind": "VirtualMachine",
+  "metadata": {
+    "assetId": "NG-VM-022",
+    "name": "NG-RMM-CP01",
+    "ownerRef": "northgate-owner",
+    "purpose": "Private lab RMM monitoring server",
+    "environment": "lab",
+    "criticality": "high",
+    "dataClassification": "confidential",
+    "lifecycle": "approved",
+    "reviewOrRetirementDate": "2026-10-04",
+    "changeRef": "NG-CHG-20260904-001",
+    "dependencies": []
+  },
+  "spec": {
+    "intent": "create",
+    "generation": 2,
+    "imageRef": "debian-12.12-amd64-netinst",
+    "firmwareProfileRef": "rmm-linux-gen2-vtpm",
+    "compute": {
+      "processors": 4,
+      "memory": {
+        "mode": "dynamic",
+        "minimumMiB": 4096,
+        "startupMiB": 8192,
+        "maximumMiB": 8192
+      }
+    },
+    "storage": {
+      "profileRef": "persistent-rmm-protected",
+      "osDiskGiB": 80,
+      "dataDisks": [
+        {
+          "id": "service-data",
+          "sizeGiB": 100
+        }
+      ]
+    },
+    "network": {
+      "profileRef": "business-apps"
+    },
+    "bootstrapProfileRef": "debian12-rmm-server",
+    "recoveryProfileRef": "rmm-server-protected",
+    "desiredPowerState": "off",
+    "destroyProtection": true
+  }
+}
