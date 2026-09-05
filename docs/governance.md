@@ -2,7 +2,7 @@
 
 ## Repository controls
 
-- Visibility remains private and the approved repository identity is `Beowxlf/northgate-vm-factory`.
+- The owner authorized public visibility of the existing repository and its history on 2026-09-04. The approved repository identity remains `Beowxlf/northgate-vm-factory`; see [ADR-0009](decision-records/ADR-0009-public-source-visibility.md).
 - Default branch is `main`.
 - Initial bootstrap may be committed directly; subsequent changes use pull requests.
 - Require validation checks and resolved review conversations before merge.
@@ -56,4 +56,3 @@ The normal executor has no write access to Operation-SeeSaw. A separate off-host
 ## Receipt reconciliation
 
 A create transaction that reached a verified, ledger-bound VM but failed while signing its receipt is not eligible for apply replay. Recovery uses the separately authorized `reconcile-receipt <planId>` operation only after the receipt signer is usable and the backend validates the original signed plan and release anchors, consumed approval, execution ID, bound ledger, terminal evidence-pending journal, and exact live VM configuration. The operation is idempotent and may write only the missing signed receipt plus authenticated completion state and audit evidence; it has no VM mutation path. Any live drift, ambiguous historical state, missing anchor, or signer failure stops reconciliation for investigation.
-

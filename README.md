@@ -1,6 +1,8 @@
 # NorthGate VM Factory
 
-Private, Git-backed desired-state and governance repository for the NorthGate Windows Server 2022 Hyper-V lab.
+Publicly inspectable, Git-backed desired-state and governance source for the NorthGate Windows Server 2022 Hyper-V lab.
+
+This repository demonstrates guarded infrastructure automation, explicit trust boundaries, and reproducible validation. Public source availability is not deployment authorization or a production-readiness claim. See the [public source decision](docs/decision-records/ADR-0009-public-source-visibility.md) for the scope of the owner-authorized publication.
 
 > **Safety status: approved source, host activation blocked.** This repository contains an approved create-only source policy and exact fleet promotion, including source `applyEnabled: true`. Those values support release construction and review; they are not proof of installed host policy and do not authorize VM creation or modification. Apply remains blocked until the matching signed release, constrained identity, ledger/registry, host lock, exact plan approval, and live collision checks are installed and verified.
 
@@ -10,7 +12,7 @@ Private, Git-backed desired-state and governance repository for the NorthGate Wi
 flowchart LR
     Owner["Infrastructure owner"] --> Codex["Codex<br/>author and validate"]
 
-    subgraph GitHub["GitHub trust boundary - private repository"]
+    subgraph GitHub["GitHub trust boundary - public source repository"]
         PR["Manifest or policy PR"]
         CI["Hosted static validation<br/>no lab route or credentials"]
         Review["Human review and merge"]
@@ -119,7 +121,7 @@ must leave the factory stopped and disabled; activation remains a separate appro
 
 See [the acceptance gates](docs/acceptance-tests.md), [the manifest contract](docs/manifest-contract.md), and [ADR-0001](docs/decision-records/ADR-0001-gitops-lite.md). Live assessment evidence and environment-specific mappings remain off Git in Operation-SeeSaw.
 
-[ADR-0005](docs/decision-records/ADR-0005-create-only-forced-command-release.md) selects the dedicated forced-command application identity for create-only release engineering. It also records the exact commit/tree plus signed-release allowlist that compensates for unavailable private-repository branch protection without making the repository public. The [activation runbook](docs/create-only-activation-runbook.md) separates source review, immutable packaging, disabled installation, isolation testing, canary policy, and exact plan approval. Neither document is itself a live activation or VM deployment approval.
+[ADR-0005](docs/decision-records/ADR-0005-create-only-forced-command-release.md) selects the dedicated forced-command application identity for create-only release engineering. Its private-repository branch-protection discussion records the historical decision at that time; [ADR-0009](docs/decision-records/ADR-0009-public-source-visibility.md) supersedes the visibility decision while retaining exact commit/tree and signed-release controls. The [activation runbook](docs/create-only-activation-runbook.md) separates source review, immutable packaging, disabled installation, isolation testing, canary policy, and exact plan approval. Neither document is itself a live activation or VM deployment approval.
 
 [ADR-0007](docs/decision-records/ADR-0007-canonical-live-vault-asset-identities.md) records the 2026-08-20 owner decision that Operation-SeeSaw and verified live identities remain authoritative for six conflicting asset mappings. The correction invalidates every earlier package or plan whose fleet map used the superseded pairings. Same-name live VMs remain hard collisions and are not adopted by this repository change.
 
